@@ -104,26 +104,18 @@ const getMonthName = (month: number) => {
   return months[month - 1] || "";
 };
 
-// Formats a float year into a natural date string based on zoom level
 const formatNaturalDate = (floatYear: number, span: number): string => {
   const year = Math.floor(floatYear);
   const fraction = floatYear - year;
-  
-  // Calculate month and day from fraction
-  // Approx: 365.25 days per year
   const dayOfYear = Math.floor(fraction * 365.25);
-  const date = new Date(year, 0); // Initialize with Jan 1st of the year
-  date.setDate(dayOfYear + 1); // Add days (+1 because dayOfYear starts at 0)
+  const date = new Date(year, 0); 
+  date.setDate(dayOfYear + 1); 
   
-  const month = date.getMonth() + 1; // 1-12
-  const day = date.getDate(); // 1-31
+  const month = date.getMonth() + 1; 
+  const day = date.getDate(); 
 
   const yearStr = year < 0 ? `${Math.abs(year)} BC` : `${year}`;
 
-  // Logic:
-  // Span > 1000 years: Show Year only
-  // Span > 20 years: Show Month Year
-  // Span <= 20 years: Show Month Day, Year
   if (span > 1000) {
     return yearStr;
   } else if (span > 20) {
@@ -141,7 +133,6 @@ const formatChronosTime = (time: ChronosTime): string => {
   return yearStr;
 };
 
-// Simple formatter for range ends (integers)
 const formatYearSimple = (year: number): string => {
   const rounded = Math.round(year);
   if (rounded < 0) return `${Math.abs(rounded)} BC`;
@@ -158,7 +149,7 @@ const formatEventDateRange = (event: EventData): string => {
   return startStr;
 };
 
-// --- Component: Leaflet Map (With Active State & CSS Transitions) ---
+// --- Component: Leaflet Map ---
 const LeafletMap = ({ 
   currentDate, 
   events, 
@@ -229,7 +220,6 @@ const LeafletMap = ({
       }
 
       if (isActive) {
-        // --- VISIBLE (INSTANT) ---
         if (!markersMap.has(event.id)) {
           const htmlContent = `
             <div class="event-card-container" style="
@@ -293,12 +283,10 @@ const LeafletMap = ({
           }
         }
       } else {
-        // --- HIDDEN (FADE 2s) ---
         if (markersMap.has(event.id)) {
           const marker = markersMap.get(event.id);
           const el = marker.getElement();
           if (el) {
-             // Updated to 2s fade out based on feedback
              el.style.transition = 'opacity 2s ease-out';
              el.style.opacity = '0';
              el.style.pointerEvents = 'none'; 
@@ -320,14 +308,16 @@ const TimeControl = ({
   viewRange, 
   setViewRange,
   globalMin,
-  globalMax
+  globalMax,
+  events // Receive events data
 }: { 
   currentDate: number, 
   setCurrentDate: (val: number) => void, 
   viewRange: { min: number, max: number },
   setViewRange: (range: { min: number, max: number }) => void,
   globalMin: number,
-  globalMax: number
+  globalMax: number,
+  events: EventData[]
 }) => {
   
   const handleZoom = (zoomFactor: number) => {
@@ -372,7 +362,6 @@ const TimeControl = ({
     let tickCount = 5;
     let step = span / tickCount;
     
-    // Round step to nice numbers
     if (step > 1000) step = 1000;
     else if (step > 500) step = 500;
     else if (step > 100) step = 100;
@@ -381,7 +370,6 @@ const TimeControl = ({
     else step = 1;
 
     const ticks = [];
-    // Start from the first nice number after min
     const startTick = Math.ceil(viewRange.min / step) * step;
     
     for (let t = startTick; t <= viewRange.max; t += step) {
@@ -389,6 +377,35 @@ const TimeControl = ({
         ticks.push({ year: t, left: percent });
     }
     return ticks;
+  };
+
+  // Render Event Markers on the timeline
+  const renderEventMarkers = () => {
+    const span = viewRange.max - viewRange.min;
+    return events.map(event => {
+        // Only render if within current view range
+        if (event.start.year < viewRange.min || event.start.year > viewRange.max) return null;
+        
+        const percent = ((event.start.year - viewRange.min) / span) * 100;
+        
+        return (
+            <div 
+                key={event.id}
+                // Visual style: Dark semi-transparent square/tick
+                // z-0 ensures it stays behind the slider thumb (which is naturally z-10 via input)
+                className="absolute top-1/2 -translate-y-1/2 w-1.5 h-3 bg-slate-600/40 hover:bg-blue-600 cursor-pointer transition-colors rounded-[1px] z-0"
+                style={{ left: `${percent}%` }}
+                title={`${event.title} (${formatYearSimple(event.start.year)})`}
+                onClick={(e) => {
+                    // Optional: Click marker to jump time
+                    // We rely on the slider input for interaction mostly, but this helps precision
+                    // Using onMouseDown to prevent conflict with slider drag might be safer, 
+                    // but onClick works for simple jumps
+                    setCurrentDate(event.start.year);
+                }}
+            />
+        );
+    });
   };
 
   return (
@@ -447,7 +464,7 @@ const TimeControl = ({
             </div>
 
             <div className="relative flex-grow h-12 flex items-center group">
-                {/* Ticks Background */}
+                {/* 1. Ticks Layer */}
                 <div className="absolute top-8 w-full h-4">
                     {generateTicks().map((tick) => (
                         <div 
@@ -460,10 +477,17 @@ const TimeControl = ({
                     ))}
                 </div>
 
+                {/* 2. Track Background */}
                 <div className="absolute w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
                 </div>
+
+                {/* 3. Event Markers Layer (New) */}
+                <div className="absolute w-full h-full pointer-events-none">
+                    {renderEventMarkers()}
+                </div>
                 
+                {/* 4. Input Range (Interactive Layer) */}
                 <input
                     type="range"
                     min={viewRange.min}
@@ -536,6 +560,7 @@ export default function App() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
+        events={MOCK_EVENTS} // Pass events to TimeControl
       />
     </div>
   );
