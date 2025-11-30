@@ -24,7 +24,7 @@ interface EventData {
   locationPrecision?: 'exact' | 'city' | 'country';
 }
 
-// --- 1. Enhanced Mock Data ---
+// --- 1. Mock Data ---
 const MOCK_EVENTS: EventData[] = [
   { 
     id: '1', 
@@ -153,11 +153,13 @@ const formatEventDateRange = (event: EventData): string => {
 const LeafletMap = ({ 
   currentDate, 
   events, 
-  viewRange 
+  viewRange,
+  jumpTargetId
 }: { 
   currentDate: number, 
   events: EventData[], 
-  viewRange: { min: number, max: number } 
+  viewRange: { min: number, max: number },
+  jumpTargetId: string | null
 }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -213,10 +215,16 @@ const LeafletMap = ({
     events.forEach(event => {
       let isActive = false;
       
-      if (event.end) {
-        isActive = currentDate >= event.start.year && currentDate <= event.end.year;
+      // LOGIC: If a jump is in progress, ONLY show the target event.
+      // Otherwise, use normal proximity logic.
+      if (jumpTargetId) {
+        isActive = event.id === jumpTargetId;
       } else {
-        isActive = Math.abs(currentDate - event.start.year) <= dynamicThreshold;
+        if (event.end) {
+          isActive = currentDate >= event.start.year && currentDate <= event.end.year;
+        } else {
+          isActive = Math.abs(currentDate - event.start.year) <= dynamicThreshold;
+        }
       }
 
       if (isActive) {
@@ -296,7 +304,7 @@ const LeafletMap = ({
       }
     });
 
-  }, [currentDate, events, dynamicThreshold]);
+  }, [currentDate, events, dynamicThreshold, jumpTargetId]); // Added jumpTargetId dependency
 
   return <div ref={mapRef} className="w-full h-full z-0 bg-slate-100" />;
 };
@@ -309,7 +317,8 @@ const TimeControl = ({
   setViewRange,
   globalMin,
   globalMax,
-  events // Receive events data
+  events,
+  setJumpTargetId
 }: { 
   currentDate: number, 
   setCurrentDate: (val: number) => void, 
@@ -317,9 +326,45 @@ const TimeControl = ({
   setViewRange: (range: { min: number, max: number }) => void,
   globalMin: number,
   globalMax: number,
-  events: EventData[]
+  events: EventData[],
+  setJumpTargetId: (id: string | null) => void
 }) => {
   
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+  const animationRef = useRef<number | null>(null);
+
+  const smoothJump = (targetDate: number, eventId: string) => {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+
+    // 1. Set Jump Target ID to enter "Jump Mode" (suppress other events)
+    setJumpTargetId(eventId);
+
+    const startValue = currentDate;
+    const distance = targetDate - startValue;
+    const duration = 800; 
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      const ease = 1 - Math.pow(1 - progress, 3);
+      
+      const nextValue = startValue + (distance * ease);
+      setCurrentDate(nextValue);
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        animationRef.current = null;
+        // 2. Animation finished: Exit "Jump Mode"
+        setJumpTargetId(null);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+  };
+
   const handleZoom = (zoomFactor: number) => {
     const currentSpan = viewRange.max - viewRange.min;
     const newSpan = currentSpan / zoomFactor;
@@ -356,7 +401,6 @@ const TimeControl = ({
     setViewRange({ min: globalMin, max: globalMax });
   };
 
-  // Generate Ticks
   const generateTicks = () => {
     const span = viewRange.max - viewRange.min;
     let tickCount = 5;
@@ -379,31 +423,44 @@ const TimeControl = ({
     return ticks;
   };
 
-  // Render Event Markers on the timeline
   const renderEventMarkers = () => {
     const span = viewRange.max - viewRange.min;
+    const thumbPercent = ((currentDate - viewRange.min) / span) * 100;
+
     return events.map(event => {
-        // Only render if within current view range
         if (event.start.year < viewRange.min || event.start.year > viewRange.max) return null;
         
         const percent = ((event.start.year - viewRange.min) / span) * 100;
+        const isHovered = hoveredEventId === event.id;
         
+        // Hide marker if it overlaps with the slider thumb to prevent visual clutter
+        // Assuming thumb is roughly 2-3% of width
+        const isObscuredByThumb = Math.abs(percent - thumbPercent) < 1.5;
+
         return (
             <div 
                 key={event.id}
-                // Visual style: Dark semi-transparent square/tick
-                // z-0 ensures it stays behind the slider thumb (which is naturally z-10 via input)
-                className="absolute top-1/2 -translate-y-1/2 w-1.5 h-3 bg-slate-600/40 hover:bg-blue-600 cursor-pointer transition-colors rounded-[1px] z-0"
+                className={`group absolute top-1/2 -translate-y-1/2 w-1.5 h-3 cursor-pointer rounded-[1px] z-20 pointer-events-auto
+                    ${isObscuredByThumb ? 'opacity-0 pointer-events-none' : 'opacity-100'}
+                    ${isHovered 
+                        ? 'bg-blue-600 scale-125 shadow-sm border border-white z-30' 
+                        : 'bg-slate-700/80 hover:bg-blue-500'
+                    }`}
                 style={{ left: `${percent}%` }}
-                title={`${event.title} (${formatYearSimple(event.start.year)})`}
+                onMouseEnter={() => setHoveredEventId(event.id)}
+                onMouseLeave={() => setHoveredEventId(null)}
                 onClick={(e) => {
-                    // Optional: Click marker to jump time
-                    // We rely on the slider input for interaction mostly, but this helps precision
-                    // Using onMouseDown to prevent conflict with slider drag might be safer, 
-                    // but onClick works for simple jumps
-                    setCurrentDate(event.start.year);
+                    e.stopPropagation(); 
+                    smoothJump(event.start.year, event.id); 
                 }}
-            />
+            >
+                {isHovered && !isObscuredByThumb && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] font-medium rounded shadow-sm whitespace-nowrap pointer-events-none transition-opacity duration-200 opacity-100">
+                        {event.title}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-slate-800"></div>
+                    </div>
+                )}
+            </div>
         );
     });
   };
@@ -414,8 +471,6 @@ const TimeControl = ({
         
         {/* Header: Controls & Date */}
         <div className="flex justify-between items-end mb-4">
-            
-            {/* Left: View Controls */}
             <div className="flex gap-2">
                 <button 
                     onClick={resetZoom}
@@ -426,14 +481,12 @@ const TimeControl = ({
                 </button>
             </div>
 
-            {/* Center: Large Natural Date Display */}
             <div className="flex flex-col items-center">
                 <div className="text-4xl font-black text-slate-800 tracking-tight flex items-baseline gap-2 font-mono">
                     {formatNaturalDate(currentDate, viewRange.max - viewRange.min)}
                 </div>
             </div>
 
-            {/* Right: Zoom Buttons (Unified Style) */}
             <div className="flex gap-2">
                 <button 
                     onClick={() => handleZoom(0.5)}
@@ -458,13 +511,11 @@ const TimeControl = ({
                 <ChevronLeft size={24} />
             </button>
 
-            {/* Range Start Label */}
             <div className="text-xs font-mono font-bold text-slate-400 w-12 text-right">
                 {formatYearSimple(viewRange.min)}
             </div>
 
             <div className="relative flex-grow h-12 flex items-center group">
-                {/* 1. Ticks Layer */}
                 <div className="absolute top-8 w-full h-4">
                     {generateTicks().map((tick) => (
                         <div 
@@ -477,29 +528,32 @@ const TimeControl = ({
                     ))}
                 </div>
 
-                {/* 2. Track Background */}
                 <div className="absolute w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
                 </div>
 
-                {/* 3. Event Markers Layer (New) */}
+                {/* Event Markers Layer */}
                 <div className="absolute w-full h-full pointer-events-none">
                     {renderEventMarkers()}
                 </div>
                 
-                {/* 4. Input Range (Interactive Layer) */}
+                {/* Input Range: Step set to 'any' for precise movement */}
                 <input
                     type="range"
                     min={viewRange.min}
                     max={viewRange.max}
-                    step={(viewRange.max - viewRange.min) / 1000}
+                    step="any"
                     value={currentDate}
-                    onChange={(e) => setCurrentDate(Number(e.target.value))}
+                    onChange={(e) => {
+                        if (animationRef.current) cancelAnimationFrame(animationRef.current);
+                        // Clear jump target on manual drag
+                        setJumpTargetId(null);
+                        setCurrentDate(Number(e.target.value));
+                    }}
                     className="w-full h-2 bg-transparent appearance-none cursor-pointer z-10 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110"
                 />
             </div>
 
-            {/* Range End Label */}
             <div className="text-xs font-mono font-bold text-slate-400 w-12 text-left">
                 {formatYearSimple(viewRange.max)}
             </div>
@@ -520,6 +574,7 @@ export default function App() {
 
   const [currentDate, setCurrentDate] = useState(-500); 
   const [viewRange, setViewRange] = useState({ min: GLOBAL_MIN, max: GLOBAL_MAX });
+  const [jumpTargetId, setJumpTargetId] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
@@ -549,6 +604,7 @@ export default function App() {
           currentDate={currentDate} 
           events={MOCK_EVENTS} 
           viewRange={viewRange}
+          jumpTargetId={jumpTargetId}
         />
       </main>
 
@@ -560,7 +616,8 @@ export default function App() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        events={MOCK_EVENTS} // Pass events to TimeControl
+        events={MOCK_EVENTS}
+        setJumpTargetId={setJumpTargetId}
       />
     </div>
   );
