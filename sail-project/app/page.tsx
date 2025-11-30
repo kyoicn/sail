@@ -24,10 +24,11 @@ interface EventData {
   locationPrecision?: 'exact' | 'city' | 'country';
 }
 
-// --- 1. Mock Data ---
+// --- 1. Mock Data (Expanded to ~50 events) ---
 const MOCK_EVENTS: EventData[] = [
+  // --- Ancient Era (c. 3000 BC - 500 BC) ---
   { 
-    id: '1', 
+    id: 'pyramid', 
     title: 'Great Pyramid Completed', 
     start: { year: -2560, precision: 'year' },
     lat: 29.9792, 
@@ -37,45 +38,389 @@ const MOCK_EVENTS: EventData[] = [
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Kheops-Pyramid.jpg/640px-Kheops-Pyramid.jpg'
   },
   { 
-    id: '2', 
+    id: 'stonehenge', 
+    title: 'Stonehenge Construction', 
+    start: { year: -2500, precision: 'year' },
+    end: { year: -2000, precision: 'year' },
+    lat: 51.1789, 
+    lng: -1.8262, 
+    summary: 'Major construction phase of the prehistoric monument in England.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Stonehenge2007_07_30.jpg/640px-Stonehenge2007_07_30.jpg'
+  },
+  { 
+    id: 'hammurabi', 
     title: 'Code of Hammurabi', 
     start: { year: -1750, precision: 'year' },
     lat: 32.5363, 
     lng: 44.4208, 
-    summary: 'King Hammurabi issues one of the earliest codes of law.',
+    summary: 'King Hammurabi of Babylon issues one of the earliest codes of law.',
     locationPrecision: 'city'
   },
   { 
-    id: '7', 
+    id: 'tutankhamun', 
+    title: 'Reign of Tutankhamun', 
+    start: { year: -1332, precision: 'year' },
+    end: { year: -1323, precision: 'year' },
+    lat: 25.7402, 
+    lng: 32.6014, 
+    summary: 'The boy pharaoh rules Egypt during the 18th Dynasty.',
+    locationPrecision: 'city',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Tutanchamun_Maske.jpg/387px-Tutanchamun_Maske.jpg'
+  },
+  { 
+    id: 'trojan_war', 
+    title: 'Trojan War (Traditional)', 
+    start: { year: -1184, precision: 'year' },
+    lat: 39.9575, 
+    lng: 26.2389, 
+    summary: 'The legendary conflict between the Greeks and the people of Troy.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'olympics', 
+    title: 'First Olympic Games', 
+    start: { year: -776, precision: 'year' },
+    lat: 37.6384, 
+    lng: 21.6297, 
+    summary: 'The first recorded Olympic Games are held in Olympia, Greece.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'rome_founding', 
+    title: 'Founding of Rome', 
+    start: { year: -753, month: 4, day: 21, precision: 'day' },
+    lat: 41.8902, 
+    lng: 12.4922, 
+    summary: 'Legendary founding of Rome by Romulus.',
+    locationPrecision: 'city'
+  },
+
+  // --- Classical Antiquity (500 BC - 500 AD) ---
+  { 
+    id: 'marathon', 
+    title: 'Battle of Marathon', 
+    start: { year: -490, month: 9, day: 12, precision: 'day' },
+    lat: 38.1186, 
+    lng: 23.9572, 
+    summary: 'Athenians defeat the Persian invasion force.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'parthenon', 
+    title: 'Parthenon Completed', 
+    start: { year: -432, precision: 'year' },
+    lat: 37.9715, 
+    lng: 23.7267, 
+    summary: 'Construction of the temple on the Athenian Acropolis is finished.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/The_Parthenon_in_Athens.jpg/640px-The_Parthenon_in_Athens.jpg'
+  },
+  { 
+    id: 'alexander', 
     title: 'Alexander\'s Conquests', 
     start: { year: -334, precision: 'year' },
     end: { year: -323, precision: 'year' },
-    lat: 40.7128, 
-    lng: 22.5694, 
+    lat: 36.1667, 
+    lng: 44.0000, // Roughly Arbela/Gaugamela
     summary: 'Alexander the Great creates one of the largest empires in history.',
-    locationPrecision: 'country'
+    locationPrecision: 'country',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Alexander_the_Great_mosaic.jpg/640px-Alexander_the_Great_mosaic.jpg'
   },
   { 
-    id: '9', 
+    id: 'terracotta', 
+    title: 'Terracotta Army', 
+    start: { year: -210, precision: 'year' },
+    lat: 34.3841, 
+    lng: 109.2785, 
+    summary: 'Burial of the Terracotta Army with Emperor Qin Shi Huang.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'caesar_death', 
     title: 'Assassination of Caesar', 
     start: { year: -44, month: 3, day: 15, precision: 'day' },
-    lat: 41.8902, 
-    lng: 12.4922, 
-    summary: 'Julius Caesar is assassinated in the Roman Senate.',
+    lat: 41.8955, 
+    lng: 12.4735, 
+    summary: 'Julius Caesar is assassinated in the Theatre of Pompey.',
     locationPrecision: 'exact',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Retrato_de_Julio_C%C3%A9sar_%2826724083101%29.jpg/367px-Retrato_de_Julio_C%C3%A9sar_%2826724083101%29.jpg'
   },
   { 
-    id: '12', 
-    title: 'Columbus Reaches Americas', 
-    start: { year: 1492, month: 10, day: 12, precision: 'day' },
-    lat: 25.0343, 
-    lng: -77.3963, 
-    summary: 'Christopher Columbus arrives in the Americas.',
+    id: 'augustus', 
+    title: 'Augustus becomes Emperor', 
+    start: { year: -27, month: 1, day: 16, precision: 'day' },
+    lat: 41.8902, 
+    lng: 12.4922, 
+    summary: 'The Roman Senate grants Octavian the title Augustus, marking the start of the Empire.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'pompeii', 
+    title: 'Eruption of Vesuvius', 
+    start: { year: 79, month: 8, day: 24, precision: 'day' },
+    lat: 40.8172, 
+    lng: 14.4269, 
+    summary: 'Mount Vesuvius erupts, destroying Pompeii and Herculaneum.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Pompeii_Street.jpg/640px-Pompeii_Street.jpg'
+  },
+  { 
+    id: 'pantheon', 
+    title: 'Pantheon Completed', 
+    start: { year: 126, precision: 'year' },
+    lat: 41.8986, 
+    lng: 12.4769, 
+    summary: 'Emperor Hadrian completes the Pantheon in Rome.',
+    locationPrecision: 'exact'
+  },
+
+  // --- Middle Ages (500 AD - 1500 AD) ---
+  { 
+    id: 'hagia_sophia', 
+    title: 'Hagia Sophia Completed', 
+    start: { year: 537, month: 12, day: 27, precision: 'day' },
+    lat: 41.0086, 
+    lng: 28.9802, 
+    summary: 'Justinian I inaugurates the great basilica in Constantinople.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Hagia_Sophia_Mars_2013.jpg/640px-Hagia_Sophia_Mars_2013.jpg'
+  },
+  { 
+    id: 'charlemagne', 
+    title: 'Charlemagne Crowned', 
+    start: { year: 800, month: 12, day: 25, precision: 'day' },
+    lat: 41.9029, 
+    lng: 12.4534, 
+    summary: 'Charlemagne is crowned Holy Roman Emperor in St. Peter\'s Basilica.',
     locationPrecision: 'exact'
   },
   { 
-    id: '16', 
+    id: 'hastings', 
+    title: 'Battle of Hastings', 
+    start: { year: 1066, month: 10, day: 14, precision: 'day' },
+    lat: 50.9126, 
+    lng: 0.4851, 
+    summary: 'William the Conqueror defeats King Harold II, beginning the Norman conquest of England.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'angkor_wat', 
+    title: 'Angkor Wat Construction', 
+    start: { year: 1113, precision: 'year' },
+    end: { year: 1150, precision: 'year' },
+    lat: 13.4125, 
+    lng: 103.8670, 
+    summary: 'Construction of the massive temple complex in Cambodia.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Angkor_Wat.jpg/640px-Angkor_Wat.jpg'
+  },
+  { 
+    id: 'magna_carta', 
+    title: 'Magna Carta Signed', 
+    start: { year: 1215, month: 6, day: 15, precision: 'day' },
+    lat: 51.4446, 
+    lng: -0.5606, 
+    summary: 'King John of England seals the Magna Carta at Runnymede.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'marco_polo', 
+    title: 'Marco Polo in China', 
+    start: { year: 1271, precision: 'year' },
+    end: { year: 1295, precision: 'year' },
+    lat: 39.9042, 
+    lng: 116.4074, 
+    summary: 'Venetian merchant Marco Polo travels the Silk Road to Yuan Dynasty China.',
+    locationPrecision: 'country'
+  },
+  { 
+    id: 'black_death', 
+    title: 'Black Death Peaks', 
+    start: { year: 1347, precision: 'year' },
+    end: { year: 1351, precision: 'year' },
+    lat: 43.7696, 
+    lng: 11.2558, 
+    summary: 'The bubonic plague ravages Europe, killing a large portion of the population.',
+    locationPrecision: 'country'
+  },
+  { 
+    id: 'printing_press', 
+    title: 'Gutenberg Printing Press', 
+    start: { year: 1440, precision: 'year' },
+    lat: 49.9929, 
+    lng: 8.2473, 
+    summary: 'Johannes Gutenberg invents the movable type printing press in Mainz.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'constantinople_fall', 
+    title: 'Fall of Constantinople', 
+    start: { year: 1453, month: 5, day: 29, precision: 'day' },
+    lat: 41.0082, 
+    lng: 28.9784, 
+    summary: 'The Ottoman Empire captures the capital of the Byzantine Empire.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'columbus', 
+    title: 'Columbus Reaches Americas', 
+    start: { year: 1492, month: 10, day: 12, precision: 'day' },
+    lat: 24.1167, 
+    lng: -74.4667, // San Salvador Island
+    summary: 'Christopher Columbus makes landfall in the Bahamas.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Viajes_de_colon_en.svg/640px-Viajes_de_colon_en.svg.png'
+  },
+
+  // --- Early Modern (1500 AD - 1800 AD) ---
+  { 
+    id: 'mona_lisa', 
+    title: 'Mona Lisa Painted', 
+    start: { year: 1503, precision: 'year' },
+    lat: 43.7696, 
+    lng: 11.2558, 
+    summary: 'Leonardo da Vinci begins painting the Mona Lisa in Florence.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'luther', 
+    title: '95 Theses', 
+    start: { year: 1517, month: 10, day: 31, precision: 'day' },
+    lat: 51.8664, 
+    lng: 12.6433, 
+    summary: 'Martin Luther posts his 95 Theses, sparking the Protestant Reformation.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'magellan', 
+    title: 'First Circumnavigation', 
+    start: { year: 1519, precision: 'year' },
+    end: { year: 1522, precision: 'year' },
+    lat: 37.3754, 
+    lng: -6.0251, // Seville
+    summary: 'Magellan-Elcano expedition completes the first circumnavigation of Earth.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'jamestown', 
+    title: 'Jamestown Founded', 
+    start: { year: 1607, month: 5, day: 14, precision: 'day' },
+    lat: 37.2117, 
+    lng: -76.7777, 
+    summary: 'Establishment of the first permanent English settlement in the Americas.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'taj_mahal', 
+    title: 'Taj Mahal Construction', 
+    start: { year: 1632, precision: 'year' },
+    end: { year: 1653, precision: 'year' },
+    lat: 27.1751, 
+    lng: 78.0421, 
+    summary: 'Emperor Shah Jahan commissions the mausoleum for his wife Mumtaz Mahal.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Taj_Mahal_%28Edited%29.jpeg/640px-Taj_Mahal_%28Edited%29.jpeg'
+  },
+  { 
+    id: 'steam_engine', 
+    title: 'Watt\'s Steam Engine', 
+    start: { year: 1776, precision: 'year' },
+    lat: 52.4862, 
+    lng: -1.8904, // Birmingham
+    summary: 'James Watt introduces the first commercial steam engines.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'us_independence', 
+    title: 'US Declaration of Independence', 
+    start: { year: 1776, month: 7, day: 4, precision: 'day' },
+    lat: 39.9489, 
+    lng: -75.1500, 
+    summary: 'Adoption of the Declaration of Independence in Philadelphia.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'french_rev', 
+    title: 'Storming of the Bastille', 
+    start: { year: 1789, month: 7, day: 14, precision: 'day' },
+    lat: 48.8532, 
+    lng: 2.3691, 
+    summary: 'The fall of the Bastille signals the start of the French Revolution.',
+    locationPrecision: 'exact'
+  },
+
+  // --- 19th Century ---
+  { 
+    id: 'waterloo', 
+    title: 'Battle of Waterloo', 
+    start: { year: 1815, month: 6, day: 18, precision: 'day' },
+    lat: 50.6796, 
+    lng: 4.4053, 
+    summary: 'Napoleon is defeated by the Seventh Coalition, ending his rule.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'telegraph', 
+    title: 'First Telegraph Message', 
+    start: { year: 1844, month: 5, day: 24, precision: 'day' },
+    lat: 38.8977, 
+    lng: -77.0365, 
+    summary: 'Samuel Morse sends "What hath God wrought" from D.C. to Baltimore.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'civil_war', 
+    title: 'American Civil War', 
+    start: { year: 1861, month: 4, day: 12, precision: 'day' },
+    end: { year: 1865, month: 5, day: 9, precision: 'day' },
+    lat: 32.7765, 
+    lng: -79.9311, // Fort Sumter start
+    summary: 'Conflict between the Union and the Confederacy.',
+    locationPrecision: 'country'
+  },
+  { 
+    id: 'meiji', 
+    title: 'Meiji Restoration', 
+    start: { year: 1868, month: 1, day: 3, precision: 'day' },
+    lat: 35.0116, 
+    lng: 135.7681, // Kyoto
+    summary: 'Restoration of imperial rule in Japan under Emperor Meiji.',
+    locationPrecision: 'country'
+  },
+  { 
+    id: 'eiffel', 
+    title: 'Eiffel Tower Opened', 
+    start: { year: 1889, month: 3, day: 31, precision: 'day' },
+    lat: 48.8584, 
+    lng: 2.2945, 
+    summary: 'Gustave Eiffel\'s tower opens as the entrance to the 1889 World\'s Fair.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Tour_Eiffel_Wikimedia_Commons.jpg/640px-Tour_Eiffel_Wikimedia_Commons.jpg'
+  },
+
+  // --- 20th & 21st Century ---
+  { 
+    id: 'wright_bros', 
+    title: 'First Powered Flight', 
+    start: { year: 1903, month: 12, day: 17, precision: 'day' },
+    lat: 36.0195, 
+    lng: -75.6668, 
+    summary: 'The Wright brothers achieve the first powered, sustained flight.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Wright_First_Flight_1903.jpg/640px-Wright_First_Flight_1903.jpg'
+  },
+  { 
+    id: 'titanic', 
+    title: 'Sinking of the Titanic', 
+    start: { year: 1912, month: 4, day: 15, precision: 'day' },
+    lat: 41.7325, 
+    lng: -49.9469, 
+    summary: 'The RMS Titanic sinks in the North Atlantic Ocean.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'ww1', 
     title: 'World War I', 
     start: { year: 1914, month: 7, day: 28, precision: 'day' },
     end: { year: 1918, month: 11, day: 11, precision: 'day' },
@@ -86,7 +431,44 @@ const MOCK_EVENTS: EventData[] = [
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Soldiers_of_the_Australian_4th_Division_in_the_field_at_Hooge%2C_Belgium%2C_29_October_1917.jpg/640px-Soldiers_of_the_Australian_4th_Division_in_the_field_at_Hooge%2C_Belgium%2C_29_October_1917.jpg'
   },
   { 
-    id: '17', 
+    id: 'penicillin', 
+    title: 'Discovery of Penicillin', 
+    start: { year: 1928, month: 9, day: 28, precision: 'day' },
+    lat: 51.5166, 
+    lng: -0.1765, 
+    summary: 'Alexander Fleming discovers penicillin at St Mary\'s Hospital, London.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'ww2', 
+    title: 'World War II', 
+    start: { year: 1939, month: 9, day: 1, precision: 'day' },
+    end: { year: 1945, month: 9, day: 2, precision: 'day' },
+    lat: 52.5200, 
+    lng: 13.4050, 
+    summary: 'The deadliest conflict in human history.',
+    locationPrecision: 'country'
+  },
+  { 
+    id: 'india_indep', 
+    title: 'Indian Independence', 
+    start: { year: 1947, month: 8, day: 15, precision: 'day' },
+    lat: 28.6139, 
+    lng: 77.2090, 
+    summary: 'India gains independence from British rule.',
+    locationPrecision: 'country'
+  },
+  { 
+    id: 'dna', 
+    title: 'DNA Structure Identified', 
+    start: { year: 1953, month: 2, day: 28, precision: 'day' },
+    lat: 52.2025, 
+    lng: 0.1207, // Cambridge
+    summary: 'Watson and Crick deduce the double helix structure of DNA.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: 'apollo11', 
     title: 'Apollo 11 Moon Landing', 
     start: { year: 1969, month: 7, day: 20, precision: 'day' },
     lat: 28.5721, 
@@ -94,6 +476,43 @@ const MOCK_EVENTS: EventData[] = [
     summary: 'Neil Armstrong becomes the first human to walk on the Moon.',
     locationPrecision: 'exact',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Aldrin_Apollo_11_original.jpg/600px-Aldrin_Apollo_11_original.jpg'
+  },
+  { 
+    id: 'berlin_wall', 
+    title: 'Fall of Berlin Wall', 
+    start: { year: 1989, month: 11, day: 9, precision: 'day' },
+    lat: 52.5163, 
+    lng: 13.3777, 
+    summary: 'The Berlin Wall is opened, symbolizing the end of the Cold War.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Berlinermauer.jpg/640px-Berlinermauer.jpg'
+  },
+  { 
+    id: 'internet', 
+    title: 'First Website Online', 
+    start: { year: 1991, month: 8, day: 6, precision: 'day' },
+    lat: 46.2299, 
+    lng: 6.0533, // CERN
+    summary: 'Tim Berners-Lee publishes the first-ever website at CERN.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: '911', 
+    title: 'September 11 Attacks', 
+    start: { year: 2001, month: 9, day: 11, precision: 'day' },
+    lat: 40.7127, 
+    lng: -74.0134, 
+    summary: 'Terrorist attacks on the World Trade Center in New York City.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: 'iphone', 
+    title: 'iPhone Released', 
+    start: { year: 2007, month: 6, day: 29, precision: 'day' },
+    lat: 37.3318, 
+    lng: -122.0312, 
+    summary: 'Apple releases the first iPhone, revolutionizing smartphones.',
+    locationPrecision: 'exact'
   }
 ];
 
@@ -440,7 +859,7 @@ const TimeControl = ({
         return (
             <div 
                 key={event.id}
-                className={`group absolute top-1/2 -translate-y-1/2 w-1.5 h-3 cursor-pointer rounded-[1px] z-20 pointer-events-auto
+                className={`group absolute top-1/2 -translate-y-1/2 w-1.5 h-3 cursor-pointer rounded-[1px] z-20 pointer-events-auto transition-all duration-200 ease-out
                     ${isObscuredByThumb ? 'opacity-0 pointer-events-none' : 'opacity-100'}
                     ${isHovered 
                         ? 'bg-blue-600 scale-125 shadow-sm border border-white z-30' 
