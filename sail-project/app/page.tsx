@@ -1,43 +1,180 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, ChevronRight, ChevronLeft, Map as MapIcon, Calendar, Info } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronRight, ChevronLeft, Map as MapIcon, Layers, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 
-// --- 1. Mock Data ---
-// In a production environment, this data would come from Firestore
-const MOCK_EVENTS = [
-  { id: '1', title: 'Construction of the Great Pyramid', year: -2560, lat: 29.9792, lng: 31.1342, summary: 'The Great Pyramid of Giza is completed in Egypt, serving as the tomb of Pharaoh Khufu.' },
-  { id: '2', title: 'Code of Hammurabi', year: -1750, lat: 32.5363, lng: 44.4208, summary: 'The Babylonian King Hammurabi issues one of the world\'s earliest written codes of law.' },
-  { id: '3', title: 'Trojan War', year: -1184, lat: 39.9575, lng: 26.2389, summary: 'According to legend, the Greeks capture the city of Troy using the Trojan Horse.' },
-  { id: '4', 'title': 'First Olympic Games', year: -776, lat: 37.6385, lng: 21.6300, summary: 'The first recorded ancient Olympic Games are held in Olympia, Greece.' },
-  { id: '5', title: 'Founding of Rome', year: -753, lat: 41.8902, lng: 12.4922, summary: 'Legend says Romulus founds the city of Rome, beginning the Roman Kingdom era.' },
-  { id: '6', title: 'Birth of Confucius', year: -551, lat: 35.5907, lng: 116.9856, summary: 'Confucius, the great Chinese thinker and educator, is born in the State of Lu.' },
-  { id: '7', title: 'Alexander\'s Conquests', year: -334, lat: 40.7128, lng: 22.5694, summary: 'Alexander the Great begins his eastern campaign, establishing a vast empire across Europe, Asia, and Africa.' },
-  { id: '8', title: 'Qin Shi Huang Unifies China', year: -221, lat: 34.3416, lng: 108.9398, summary: 'King Ying Zheng of Qin unifies China, establishing the Qin Dynasty and proclaiming himself the First Emperor (Shi Huangdi).' },
-  { id: '9', title: 'Assassination of Caesar', year: -44, lat: 41.8902, lng: 12.4922, summary: 'Julius Caesar is assassinated in the Roman Senate.' },
-  { id: '10', title: 'Birth of Jesus (Approx.)', year: 1, lat: 31.7054, lng: 35.2024, summary: 'Traditionally considered the time of Jesus\' birth, marking the start of the Common Era.' },
-  { id: '11', title: 'Fall of Constantinople', year: 1453, lat: 41.0082, lng: 28.9784, summary: 'The Ottoman Empire captures Constantinople, leading to the collapse of the Byzantine Empire.' },
-  { id: '12', title: 'Columbus Reaches the Americas', year: 1492, lat: 25.0343, lng: -77.3963, summary: 'Christopher Columbus arrives in the Americas, beginning the Age of Exploration.' },
-  { id: '13', title: 'Declaration of Independence (US)', year: 1776, lat: 39.9526, lng: -75.1652, summary: 'The thirteen North American colonies sign the Declaration of Independence, announcing separation from British rule.' },
-  { id: '14', title: 'French Revolution Begins', year: 1789, lat: 48.8566, lng: 2.3522, summary: 'The storming of the Bastille by the people of Paris marks the beginning of the French Revolution.' },
-  { id: '15', title: 'Meiji Restoration', year: 1868, lat: 35.6762, lng: 139.6503, summary: 'Japan begins the Meiji Restoration, rapidly moving toward modernization.' },
-  { id: '16', title: 'End of World War I', year: 1918, lat: 49.4296, lng: 2.8272, summary: 'Germany signs the Armistice, marking the end of World War I.' },
-  { id: '17', title: 'Apollo 11 Moon Landing', year: 1969, lat: 28.5721, lng: -80.6480, summary: 'Neil Armstrong becomes the first human to walk on the Moon.' },
-  { id: '18', title: 'Fall of the Berlin Wall', year: 1989, lat: 52.5163, lng: 13.3777, summary: 'The Berlin Wall, a symbol of Cold War division, is torn down.' },
-  { id: '19', title: 'Dot-com Bubble Bursts', year: 2000, lat: 37.7749, lng: -122.4194, summary: 'Internet company stock prices crash, but also signals the deep adoption of the digital age.' },
-  { id: '20', title: 'Beijing Olympics', year: 2008, lat: 39.9042, lng: 116.4074, summary: 'China hosts the Summer Olympic Games for the first time.' }
+// --- Types ---
+
+interface ChronosTime {
+  year: number;
+  month?: number;
+  day?: number;
+  precision: 'year' | 'month' | 'day'; 
+}
+
+interface EventData {
+  id: string;
+  title: string;
+  start: ChronosTime;
+  end?: ChronosTime;
+  lat: number;
+  lng: number;
+  summary: string;
+  imageUrl?: string;
+  locationPrecision?: 'exact' | 'city' | 'country';
+}
+
+// --- 1. Enhanced Mock Data ---
+const MOCK_EVENTS: EventData[] = [
+  { 
+    id: '1', 
+    title: 'Great Pyramid Completed', 
+    start: { year: -2560, precision: 'year' },
+    lat: 29.9792, 
+    lng: 31.1342, 
+    summary: 'The Great Pyramid of Giza is completed as the tomb of Pharaoh Khufu.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Kheops-Pyramid.jpg/640px-Kheops-Pyramid.jpg'
+  },
+  { 
+    id: '2', 
+    title: 'Code of Hammurabi', 
+    start: { year: -1750, precision: 'year' },
+    lat: 32.5363, 
+    lng: 44.4208, 
+    summary: 'King Hammurabi issues one of the earliest codes of law.',
+    locationPrecision: 'city'
+  },
+  { 
+    id: '7', 
+    title: 'Alexander\'s Conquests', 
+    start: { year: -334, precision: 'year' },
+    end: { year: -323, precision: 'year' },
+    lat: 40.7128, 
+    lng: 22.5694, 
+    summary: 'Alexander the Great creates one of the largest empires in history.',
+    locationPrecision: 'country'
+  },
+  { 
+    id: '9', 
+    title: 'Assassination of Caesar', 
+    start: { year: -44, month: 3, day: 15, precision: 'day' },
+    lat: 41.8902, 
+    lng: 12.4922, 
+    summary: 'Julius Caesar is assassinated in the Roman Senate.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Retrato_de_Julio_C%C3%A9sar_%2826724083101%29.jpg/367px-Retrato_de_Julio_C%C3%A9sar_%2826724083101%29.jpg'
+  },
+  { 
+    id: '12', 
+    title: 'Columbus Reaches Americas', 
+    start: { year: 1492, month: 10, day: 12, precision: 'day' },
+    lat: 25.0343, 
+    lng: -77.3963, 
+    summary: 'Christopher Columbus arrives in the Americas.',
+    locationPrecision: 'exact'
+  },
+  { 
+    id: '16', 
+    title: 'World War I', 
+    start: { year: 1914, month: 7, day: 28, precision: 'day' },
+    end: { year: 1918, month: 11, day: 11, precision: 'day' },
+    lat: 50.8503, 
+    lng: 4.3517, 
+    summary: 'A global conflict originating in Europe.',
+    locationPrecision: 'country',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Soldiers_of_the_Australian_4th_Division_in_the_field_at_Hooge%2C_Belgium%2C_29_October_1917.jpg/640px-Soldiers_of_the_Australian_4th_Division_in_the_field_at_Hooge%2C_Belgium%2C_29_October_1917.jpg'
+  },
+  { 
+    id: '17', 
+    title: 'Apollo 11 Moon Landing', 
+    start: { year: 1969, month: 7, day: 20, precision: 'day' },
+    lat: 28.5721, 
+    lng: -80.6480, 
+    summary: 'Neil Armstrong becomes the first human to walk on the Moon.',
+    locationPrecision: 'exact',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Aldrin_Apollo_11_original.jpg/600px-Aldrin_Apollo_11_original.jpg'
+  }
 ];
 
-// --- 2. Helper Component: Leaflet Map Loader ---
-// To run Leaflet in a single file, we dynamically load CSS and JS using useEffect
-const LeafletMap = ({ currentDate, events }) => {
+// --- Helper Functions ---
+
+const getMonthName = (month: number) => {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return months[month - 1] || "";
+};
+
+// Formats a float year into a natural date string based on zoom level
+const formatNaturalDate = (floatYear: number, span: number): string => {
+  const year = Math.floor(floatYear);
+  const fraction = floatYear - year;
+  
+  // Calculate month and day from fraction
+  // Approx: 365.25 days per year
+  const dayOfYear = Math.floor(fraction * 365.25);
+  const date = new Date(year, 0); // Initialize with Jan 1st of the year
+  date.setDate(dayOfYear + 1); // Add days (+1 because dayOfYear starts at 0)
+  
+  const month = date.getMonth() + 1; // 1-12
+  const day = date.getDate(); // 1-31
+
+  const yearStr = year < 0 ? `${Math.abs(year)} BC` : `${year}`;
+
+  // Logic:
+  // Span > 1000 years: Show Year only
+  // Span > 20 years: Show Month Year
+  // Span <= 20 years: Show Month Day, Year
+  if (span > 1000) {
+    return yearStr;
+  } else if (span > 20) {
+    return `${getMonthName(month)} ${yearStr}`;
+  } else {
+    return `${getMonthName(month)} ${day}, ${yearStr}`;
+  }
+};
+
+const formatChronosTime = (time: ChronosTime): string => {
+  const yearStr = time.year < 0 ? `${Math.abs(time.year)} BC` : `${time.year}`;
+  if (time.precision === 'day' && time.month && time.day) {
+    return `${getMonthName(time.month)} ${time.day}, ${yearStr}`;
+  }
+  return yearStr;
+};
+
+// Simple formatter for range ends (integers)
+const formatYearSimple = (year: number): string => {
+  const rounded = Math.round(year);
+  if (rounded < 0) return `${Math.abs(rounded)} BC`;
+  if (rounded === 0) return `1 AD`;
+  return `${rounded}`;
+};
+
+const formatEventDateRange = (event: EventData): string => {
+  const startStr = formatChronosTime(event.start);
+  if (event.end) {
+    const endStr = formatChronosTime(event.end);
+    return `${startStr} – ${endStr}`;
+  }
+  return startStr;
+};
+
+// --- Component: Leaflet Map (With Active State & CSS Transitions) ---
+const LeafletMap = ({ 
+  currentDate, 
+  events, 
+  viewRange 
+}: { 
+  currentDate: number, 
+  events: EventData[], 
+  viewRange: { min: number, max: number } 
+}) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markersRef = useRef([]);
+  const markersMapRef = useRef<Map<string, any>>(new Map());
 
-  // Initialize the map
+  const dynamicThreshold = Math.max(0.5, (viewRange.max - viewRange.min) / 100);
+
   useEffect(() => {
-    // Check if Leaflet scripts are already loaded
     if (!document.getElementById('leaflet-css')) {
       const link = document.createElement('link');
       link.id = 'leaflet-css';
@@ -52,179 +189,354 @@ const LeafletMap = ({ currentDate, events }) => {
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.onload = initMap;
       document.head.appendChild(script);
-    } else if (window.L) {
+    } else if ((window as any).L) {
       initMap();
     }
 
     function initMap() {
-      if (mapRef.current && !mapInstanceRef.current && window.L) {
-        // Create map instance
-        const map = window.L.map(mapRef.current).setView([20, 0], 2);
+      if (mapRef.current && !mapInstanceRef.current && (window as any).L) {
+        const L = (window as any).L;
+        const map = L.map(mapRef.current, {
+           zoomControl: false, 
+           attributionControl: false 
+        }).setView([20, 0], 2);
         
-        // Add base layer (OpenStreetMap)
-        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors'
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; CARTO',
+          subdomains: 'abcd',
+          maxZoom: 19
         }).addTo(map);
-
+        
         mapInstanceRef.current = map;
       }
     }
-
-    // Cleanup function
-    return () => {
-      // In a real React project, the map should be destroyed here.
-      // But in a hot-reloading environment, we keep the instance to avoid flickering
-    };
+    return () => {};
   }, []);
 
-  // Update markers
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.L) return;
+    if (!mapInstanceRef.current || !(window as any).L) return;
+    const L = (window as any).L;
+    const map = mapInstanceRef.current;
+    const markersMap = markersMapRef.current;
 
-    // 1. Clear old markers
-    markersRef.current.forEach(marker => marker.remove());
-    markersRef.current = [];
-
-    // 2. Filter events visible at the current time point
-    // Logic: show events within +/- 50 years of the current year
-    const visibleEvents = events.filter(event => 
-      Math.abs(event.year - currentDate) <= 50 // The range is set wider for demonstration purposes
-    );
-
-    // 3. Add new markers
-    visibleEvents.forEach(event => {
-      // Helper function for year display in popup
-      const getYearDisplay = (year) => {
-        if (year < 0) return `BC ${Math.abs(year)}`;
-        if (year === 0) return `AD 1`; // There is no year 0 in the common era calendar
-        return `AD ${year}`;
-      };
-
-      const marker = window.L.marker([event.lat, event.lng])
-        .addTo(mapInstanceRef.current)
-        .bindPopup(`
-          <div style="font-family: sans-serif;">
-            <h3 style="margin: 0 0 5px 0; font-weight: bold;">${event.title}</h3>
-            <p style="margin: 0; color: #666; font-size: 0.9em;">${getYearDisplay(event.year)}</p>
-            <p style="margin: 5px 0 0 0;">${event.summary}</p>
-          </div>
-        `);
+    events.forEach(event => {
+      let isActive = false;
       
-      markersRef.current.push(marker);
+      if (event.end) {
+        isActive = currentDate >= event.start.year && currentDate <= event.end.year;
+      } else {
+        isActive = Math.abs(currentDate - event.start.year) <= dynamicThreshold;
+      }
+
+      if (isActive) {
+        // --- VISIBLE (INSTANT) ---
+        if (!markersMap.has(event.id)) {
+          const htmlContent = `
+            <div class="event-card-container" style="
+                transform: translate(-50%, -100%); 
+                margin-top: -10px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                pointer-events: none; 
+            ">
+                <div class="card" style="
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                    width: 220px;
+                    overflow: hidden;
+                    font-family: system-ui;
+                    pointer-events: auto; 
+                    transition: transform 0.2s;
+                ">
+                    ${event.imageUrl ? `<div style="height: 100px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
+                    <div style="padding: 10px 12px;">
+                        <div style="font-size: 14px; font-weight: 700; color: #111; margin-bottom: 4px; line-height: 1.2;">${event.title}</div>
+                        <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                            <span style="font-size: 10px; font-weight: 600; background: #e0f2fe; color: #0284c7; padding: 2px 6px; rounded: 4px;">${formatEventDateRange(event)}</span>
+                        </div>
+                        <div style="font-size: 11px; color: #666; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                            ${event.summary}
+                        </div>
+                    </div>
+                </div>
+                <div style="width: 2px; height: 10px; background: #3b82f6;"></div>
+                <div style="width: 8px; height: 8px; background: #3b82f6; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+            </div>
+          `;
+
+          const icon = L.divIcon({
+            className: '', 
+            html: htmlContent,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0]
+          });
+
+          const marker = L.marker([event.lat, event.lng], { icon, zIndexOffset: 100 }).addTo(map);
+          
+          const el = marker.getElement();
+          if (el) {
+             el.style.opacity = '1';
+             el.style.display = 'block';
+             el.style.transition = 'none'; 
+          }
+          markersMap.set(event.id, marker);
+        } else {
+          const marker = markersMap.get(event.id);
+          const el = marker.getElement();
+          if (el) {
+             el.style.transition = 'none'; 
+             el.style.opacity = '1';
+             el.style.pointerEvents = 'auto'; 
+             marker.setZIndexOffset(1000);
+          }
+        }
+      } else {
+        // --- HIDDEN (FADE 2s) ---
+        if (markersMap.has(event.id)) {
+          const marker = markersMap.get(event.id);
+          const el = marker.getElement();
+          if (el) {
+             // Updated to 2s fade out based on feedback
+             el.style.transition = 'opacity 2s ease-out';
+             el.style.opacity = '0';
+             el.style.pointerEvents = 'none'; 
+             marker.setZIndexOffset(0);
+          }
+        }
+      }
     });
 
-  }, [currentDate, events]); // Re-render markers when the date changes
+  }, [currentDate, events, dynamicThreshold]);
 
   return <div ref={mapRef} className="w-full h-full z-0 bg-slate-100" />;
 };
 
-// --- 3. Helper Component: Timeline Slider ---
-const TimeControl = ({ currentDate, setCurrentDate, minYear, maxYear }) => {
-  // Format year display
-  const formatYear = (year) => {
-    if (year < 0) return `BC ${Math.abs(year)}`;
-    if (year === 0) return `AD 1`;
-    return `${year} AD`;
+// --- Component: Zoomable Time Control ---
+const TimeControl = ({ 
+  currentDate, 
+  setCurrentDate, 
+  viewRange, 
+  setViewRange,
+  globalMin,
+  globalMax
+}: { 
+  currentDate: number, 
+  setCurrentDate: (val: number) => void, 
+  viewRange: { min: number, max: number },
+  setViewRange: (range: { min: number, max: number }) => void,
+  globalMin: number,
+  globalMax: number
+}) => {
+  
+  const handleZoom = (zoomFactor: number) => {
+    const currentSpan = viewRange.max - viewRange.min;
+    const newSpan = currentSpan / zoomFactor;
+    
+    if (zoomFactor > 1 && newSpan < 10) return;
+    if (zoomFactor < 1 && newSpan > (globalMax - globalMin)) {
+        setViewRange({ min: globalMin, max: globalMax });
+        return;
+    }
+
+    const newMin = Math.max(globalMin, currentDate - newSpan / 2);
+    const newMax = Math.min(globalMax, newMin + newSpan);
+    const finalMin = Math.max(globalMin, newMax - newSpan);
+
+    setViewRange({ min: finalMin, max: newMax });
+  };
+
+  const handlePan = (direction: 'left' | 'right') => {
+    const span = viewRange.max - viewRange.min;
+    const shift = span * 0.2; 
+    
+    if (direction === 'left') {
+        const newMin = Math.max(globalMin, viewRange.min - shift);
+        const newMax = newMin + span;
+        setViewRange({ min: newMin, max: newMax });
+    } else {
+        const newMax = Math.min(globalMax, viewRange.max + shift);
+        const newMin = newMax - span;
+        setViewRange({ min: newMin, max: newMax });
+    }
+  };
+
+  const resetZoom = () => {
+    setViewRange({ min: globalMin, max: globalMax });
+  };
+
+  // Generate Ticks
+  const generateTicks = () => {
+    const span = viewRange.max - viewRange.min;
+    let tickCount = 5;
+    let step = span / tickCount;
+    
+    // Round step to nice numbers
+    if (step > 1000) step = 1000;
+    else if (step > 500) step = 500;
+    else if (step > 100) step = 100;
+    else if (step > 50) step = 50;
+    else if (step > 10) step = 10;
+    else step = 1;
+
+    const ticks = [];
+    // Start from the first nice number after min
+    const startTick = Math.ceil(viewRange.min / step) * step;
+    
+    for (let t = startTick; t <= viewRange.max; t += step) {
+        const percent = ((t - viewRange.min) / span) * 100;
+        ticks.push({ year: t, left: percent });
+    }
+    return ticks;
   };
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 p-6 z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
-      <div className="max-w-4xl mx-auto flex flex-col items-center gap-4">
+    <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-4xl px-4 z-10">
+      <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-6 transition-all hover:shadow-3xl">
         
-        {/* Current Year Display - Main Title */}
-        <div className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-          <Calendar className="w-6 h-6 text-blue-600" />
-          {formatYear(currentDate)}
+        {/* Header: Controls & Date */}
+        <div className="flex justify-between items-end mb-4">
+            
+            {/* Left: View Controls */}
+            <div className="flex gap-2">
+                <button 
+                    onClick={resetZoom}
+                    className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
+                    title="Reset View"
+                >
+                    <Maximize size={18} />
+                </button>
+            </div>
+
+            {/* Center: Large Natural Date Display */}
+            <div className="flex flex-col items-center">
+                <div className="text-4xl font-black text-slate-800 tracking-tight flex items-baseline gap-2 font-mono">
+                    {formatNaturalDate(currentDate, viewRange.max - viewRange.min)}
+                </div>
+            </div>
+
+            {/* Right: Zoom Buttons (Unified Style) */}
+            <div className="flex gap-2">
+                <button 
+                    onClick={() => handleZoom(0.5)}
+                    className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm"
+                    title="Zoom Out"
+                >
+                    <ZoomOut size={20} />
+                </button>
+                <button 
+                    onClick={() => handleZoom(2)}
+                    className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm"
+                    title="Zoom In"
+                >
+                    <ZoomIn size={20} />
+                </button>
+            </div>
         </div>
 
-        {/* Range labels */}
-        <div className="w-full flex justify-between text-xs text-slate-400 font-medium px-1">
-          <span>{formatYear(minYear)}</span>
-          <span>{formatYear(maxYear)}</span>
-        </div>
+        {/* Slider Area */}
+        <div className="flex items-center gap-4">
+            <button onClick={() => handlePan('left')} className="text-slate-400 hover:text-slate-600">
+                <ChevronLeft size={24} />
+            </button>
 
-        {/* Slider core */}
-        <div className="relative w-full h-12 flex items-center">
-          <input
-            type="range"
-            min={minYear}
-            max={maxYear}
-            value={currentDate}
-            onChange={(e) => setCurrentDate(parseInt(e.target.value))}
-            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-700 transition-all"
-          />
-        </div>
+            {/* Range Start Label */}
+            <div className="text-xs font-mono font-bold text-slate-400 w-12 text-right">
+                {formatYearSimple(viewRange.min)}
+            </div>
 
-        {/* Fine-tuning buttons (simplified version of "changing resolution") */}
-        <div className="flex gap-4">
-          <button 
-            onClick={() => setCurrentDate(prev => Math.max(minYear, prev - 10))}
-            className="px-4 py-2 bg-white border border-slate-300 rounded-full text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all shadow-sm flex items-center gap-1"
-          >
-            <ChevronLeft size={16} /> 10 Years
-          </button>
-          <button 
-            onClick={() => setCurrentDate(prev => Math.min(maxYear, prev + 10))}
-            className="px-4 py-2 bg-white border border-slate-300 rounded-full text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all shadow-sm flex items-center gap-1"
-          >
-            +10 Years <ChevronRight size={16} />
-          </button>
+            <div className="relative flex-grow h-12 flex items-center group">
+                {/* Ticks Background */}
+                <div className="absolute top-8 w-full h-4">
+                    {generateTicks().map((tick) => (
+                        <div 
+                            key={tick.year} 
+                            className="absolute top-0 w-px h-2 bg-slate-300 flex flex-col items-center"
+                            style={{ left: `${tick.left}%` }}
+                        >
+                            <span className="text-[10px] text-slate-400 mt-2 font-mono whitespace-nowrap">{formatYearSimple(tick.year)}</span>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="absolute w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
+                </div>
+                
+                <input
+                    type="range"
+                    min={viewRange.min}
+                    max={viewRange.max}
+                    step={(viewRange.max - viewRange.min) / 1000}
+                    value={currentDate}
+                    onChange={(e) => setCurrentDate(Number(e.target.value))}
+                    className="w-full h-2 bg-transparent appearance-none cursor-pointer z-10 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110"
+                />
+            </div>
+
+            {/* Range End Label */}
+            <div className="text-xs font-mono font-bold text-slate-400 w-12 text-left">
+                {formatYearSimple(viewRange.max)}
+            </div>
+
+            <button onClick={() => handlePan('right')} className="text-slate-400 hover:text-slate-600">
+                <ChevronRight size={24} />
+            </button>
         </div>
-        
-        <p className="text-xs text-slate-400 mt-2">
-          💡 Tip: Slide the timeline to travel through time and view major events.
-        </p>
       </div>
     </div>
   );
 };
 
-// --- 4. Main Application Component (Main App) ---
+// --- Main App Component ---
 export default function App() {
-  const [currentDate, setCurrentDate] = useState(-500); // Initial year set to 500 BC
-  const MIN_YEAR = -3000;
-  const MAX_YEAR = 2024;
+  const GLOBAL_MIN = -3000;
+  const GLOBAL_MAX = 2024;
+
+  const [currentDate, setCurrentDate] = useState(-500); 
+  const [viewRange, setViewRange] = useState({ min: GLOBAL_MIN, max: GLOBAL_MAX });
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
+    <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
       
-      {/* Top Navigation Bar */}
+      {/* Top Bar (Simplified) */}
       <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
         <div className="max-w-7xl mx-auto flex justify-between items-start">
-          <div className="bg-white/90 backdrop-blur shadow-lg rounded-2xl px-5 py-3 pointer-events-auto border border-slate-100/50">
-            <h1 className="text-2xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
-              <MapIcon className="text-blue-600" />
+          <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 pointer-events-auto border border-white/50">
+            <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
+              <MapIcon className="text-blue-600 w-6 h-6" />
               Sail
-              <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">Alpha</span>
+              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Frontend Demo</span>
             </h1>
-            <p className="text-xs text-slate-500 mt-1 font-medium">Exploring the Spatio-temporal Map of Human History</p>
           </div>
-
-          <div className="bg-white/90 backdrop-blur shadow-lg rounded-full p-2 pointer-events-auto hover:bg-slate-50 cursor-pointer transition-colors border border-slate-100/50">
-            <Info className="text-slate-600" />
+          
+          <div className="pointer-events-auto">
+             <button className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50">
+                <Layers size={20} />
+             </button>
           </div>
         </div>
       </header>
 
-      {/* Map Area (Background) */}
+      {/* Main Map */}
       <main className="flex-grow relative z-0">
         <LeafletMap 
           currentDate={currentDate} 
-          events={MOCK_EVENTS}
+          events={MOCK_EVENTS} 
+          viewRange={viewRange}
         />
-        
-        {/* Decorative overlay (vignette) */}
-        <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.1)] z-10" />
       </main>
 
-      {/* Bottom Time Control Bar */}
+      {/* Bottom Controls */}
       <TimeControl 
         currentDate={currentDate} 
         setCurrentDate={setCurrentDate}
-        minYear={MIN_YEAR}
-        maxYear={MAX_YEAR}
+        viewRange={viewRange}
+        setViewRange={setViewRange}
+        globalMin={GLOBAL_MIN}
+        globalMax={GLOBAL_MAX}
       />
-
     </div>
   );
 }
