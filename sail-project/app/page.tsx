@@ -12,89 +12,599 @@ interface ChronosTime {
   precision: 'year' | 'month' | 'day'; 
 }
 
+// New Standardized Location Structure
+interface ChronosLocation {
+  lat: number;
+  lng: number;
+  placeName?: string; // Natural language name
+  
+  // Geo-Spatial Dimensions
+  granularity: 'spot' | 'city' | 'territory' | 'continent';
+  certainty: 'definite' | 'approximate';
+  customRadius?: number; // in meters
+}
+
 interface EventData {
   id: string;
   title: string;
-  start: ChronosTime;
-  end?: ChronosTime;
-  lat: number;
-  lng: number;
   summary: string;
   imageUrl?: string;
-  locationPrecision?: 'exact' | 'city' | 'country';
-  placeName?: string;
   
-  // New Geo-Spatial Dimensions
-  granularity: 'spot' | 'city' | 'territory' | 'continent';
-  certainty: 'definite' | 'approximate';
-  customRadius?: number;
+  // Structured Time & Location
+  start: ChronosTime;
+  end?: ChronosTime;
+  location: ChronosLocation;
 }
 
-// --- Mock Data ---
+// --- 1. Enhanced Mock Data (Refactored to use ChronosLocation) ---
 const MOCK_EVENTS: EventData[] = [
   // --- Ancient Era ---
   { 
     id: '1', 
     title: 'Great Pyramid', 
     start: { year: -2560, precision: 'year' }, 
-    lat: 29.9792, 
-    lng: 31.1342, 
+    location: {
+      lat: 29.9792, 
+      lng: 31.1342, 
+      placeName: 'Giza, Egypt',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
     summary: 'The Great Pyramid of Giza is completed.', 
-    placeName: 'Giza, Egypt',
-    granularity: 'spot',
-    certainty: 'definite',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Kheops-Pyramid.jpg/640px-Kheops-Pyramid.jpg' 
   },
-  { id: '2', title: 'Code of Hammurabi', start: { year: -1750, precision: 'year' }, lat: 32.5363, lng: 44.4208, summary: 'Babylonian law code issued.', locationPrecision: 'city', placeName: 'Babylon', granularity: 'city', certainty: 'definite', customRadius: 5000 },
-  { id: '3', title: 'Trojan War', start: { year: -1184, precision: 'year' }, lat: 39.9575, lng: 26.2389, summary: 'Legendary conflict in Troy.', locationPrecision: 'city', placeName: 'Troy', granularity: 'city', certainty: 'approximate' },
-  { id: '4', title: 'David King of Israel', start: { year: -1000, precision: 'year' }, lat: 31.7683, lng: 35.2137, summary: 'David becomes King of Israel.', locationPrecision: 'city', placeName: 'Jerusalem', granularity: 'city', certainty: 'approximate' },
-  { id: '5', title: 'First Olympics', start: { year: -776, precision: 'year' }, lat: 37.6384, lng: 21.6297, summary: 'First recorded Olympic Games.', locationPrecision: 'exact', placeName: 'Olympia, Greece', granularity: 'spot', certainty: 'definite' },
-  { id: '6', title: 'Rome Founded', start: { year: -753, precision: 'year' }, lat: 41.8902, lng: 12.4922, summary: 'Legendary founding of Rome.', locationPrecision: 'city', placeName: 'Rome', granularity: 'city', certainty: 'approximate' },
+  { 
+    id: '2', 
+    title: 'Code of Hammurabi', 
+    start: { year: -1750, precision: 'year' }, 
+    location: {
+      lat: 32.5363, 
+      lng: 44.4208, 
+      placeName: 'Babylon',
+      granularity: 'city',
+      certainty: 'definite',
+      customRadius: 5000
+    },
+    summary: 'Babylonian law code issued.'
+  },
+  { 
+    id: '3', 
+    title: 'Trojan War', 
+    start: { year: -1184, precision: 'year' }, 
+    location: {
+      lat: 39.9575, 
+      lng: 26.2389, 
+      placeName: 'Troy',
+      granularity: 'city',
+      certainty: 'approximate'
+    },
+    summary: 'Legendary conflict in Troy.'
+  },
+  { 
+    id: '4', 
+    title: 'David King of Israel', 
+    start: { year: -1000, precision: 'year' }, 
+    location: {
+      lat: 31.7683, 
+      lng: 35.2137, 
+      placeName: 'Jerusalem',
+      granularity: 'city',
+      certainty: 'approximate'
+    },
+    summary: 'David becomes King of Israel.'
+  },
+  { 
+    id: '5', 
+    title: 'First Olympics', 
+    start: { year: -776, precision: 'year' }, 
+    location: {
+      lat: 37.6384, 
+      lng: 21.6297, 
+      placeName: 'Olympia, Greece',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'First recorded Olympic Games.'
+  },
+  { 
+    id: '6', 
+    title: 'Rome Founded', 
+    start: { year: -753, precision: 'year' }, 
+    location: {
+      lat: 41.8902, 
+      lng: 12.4922, 
+      placeName: 'Rome',
+      granularity: 'city',
+      certainty: 'approximate'
+    },
+    summary: 'Legendary founding of Rome.'
+  },
   
   // --- Classical Era ---
-  { id: '7', title: 'Alexander\'s Conquests', start: { year: -334, precision: 'year' }, end: { year: -323, precision: 'year' }, lat: 34.0, lng: 44.0, summary: 'Alexander creates a vast empire.', locationPrecision: 'country', placeName: 'Macedon Empire', granularity: 'continent', certainty: 'definite', customRadius: 2000000 },
-  { id: '8', title: 'Great Wall of China', start: { year: -221, precision: 'year' }, lat: 40.4319, lng: 116.5704, summary: 'Qin Shi Huang begins unification of the walls.', locationPrecision: 'country', placeName: 'China', granularity: 'territory', certainty: 'definite', customRadius: 800000 },
-  { id: '9', title: 'Caesar Assassinated', start: { year: -44, month: 3, day: 15, precision: 'day' }, lat: 41.8955, lng: 12.4736, summary: 'Julius Caesar killed in Senate.', locationPrecision: 'exact', placeName: 'Rome (Theatre of Pompey)', granularity: 'spot', certainty: 'definite', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Retrato_de_Julio_C%C3%A9sar_%2826724083101%29.jpg/367px-Retrato_de_Julio_C%C3%A9sar_%2826724083101%29.jpg' },
-  { id: '10', title: 'Augustus Emperor', start: { year: -27, precision: 'year' }, lat: 41.9028, lng: 12.4964, summary: 'Roman Empire begins.', locationPrecision: 'city', placeName: 'Rome', granularity: 'city', certainty: 'definite' },
-  { id: '11', title: 'Jesus Birth (Approx)', start: { year: 1, precision: 'year' }, lat: 31.7054, lng: 35.2024, summary: 'Traditional date of birth.', locationPrecision: 'city', placeName: 'Bethlehem', granularity: 'city', certainty: 'approximate' },
-  { id: '12', title: 'Vesuvius Erupts', start: { year: 79, month: 8, day: 24, precision: 'day' }, lat: 40.8172, lng: 14.4269, summary: 'Pompeii destroyed.', locationPrecision: 'exact', placeName: 'Pompeii', granularity: 'city', certainty: 'definite', customRadius: 8000 },
-  { id: '13', title: 'Trajan\'s Column', start: { year: 113, precision: 'year' }, lat: 41.8958, lng: 12.4843, summary: 'Monument to Dacian Wars.', locationPrecision: 'exact', placeName: 'Rome', granularity: 'spot', certainty: 'definite' },
+  { 
+    id: '7', 
+    title: 'Alexander\'s Conquests', 
+    start: { year: -334, precision: 'year' }, 
+    end: { year: -323, precision: 'year' }, 
+    location: {
+      lat: 34.0, 
+      lng: 44.0, 
+      placeName: 'Macedon Empire',
+      granularity: 'continent',
+      certainty: 'definite',
+      customRadius: 2000000
+    },
+    summary: 'Alexander creates a vast empire.'
+  },
+  { 
+    id: '8', 
+    title: 'Great Wall of China', 
+    start: { year: -221, precision: 'year' }, 
+    location: {
+      lat: 40.4319, 
+      lng: 116.5704, 
+      placeName: 'China',
+      granularity: 'territory',
+      certainty: 'definite',
+      customRadius: 800000
+    },
+    summary: 'Qin Shi Huang begins unification of the walls.'
+  },
+  { 
+    id: '9', 
+    title: 'Caesar Assassinated', 
+    start: { year: -44, month: 3, day: 15, precision: 'day' }, 
+    location: {
+      lat: 41.8955, 
+      lng: 12.4736, 
+      placeName: 'Rome (Theatre of Pompey)',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'Julius Caesar killed in Senate.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Retrato_de_Julio_C%C3%A9sar_%2826724083101%29.jpg/367px-Retrato_de_Julio_C%C3%A9sar_%2826724083101%29.jpg' 
+  },
+  { 
+    id: '10', 
+    title: 'Augustus Emperor', 
+    start: { year: -27, precision: 'year' }, 
+    location: {
+      lat: 41.9028, 
+      lng: 12.4964, 
+      placeName: 'Rome',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Roman Empire begins.'
+  },
+  { 
+    id: '11', 
+    title: 'Jesus Birth (Approx)', 
+    start: { year: 1, precision: 'year' }, 
+    location: {
+      lat: 31.7054, 
+      lng: 35.2024, 
+      placeName: 'Bethlehem',
+      granularity: 'city',
+      certainty: 'approximate'
+    },
+    summary: 'Traditional date of birth.'
+  },
+  { 
+    id: '12', 
+    title: 'Vesuvius Erupts', 
+    start: { year: 79, month: 8, day: 24, precision: 'day' }, 
+    location: {
+      lat: 40.8172, 
+      lng: 14.4269, 
+      placeName: 'Pompeii',
+      granularity: 'city',
+      certainty: 'definite',
+      customRadius: 8000
+    },
+    summary: 'Pompeii destroyed.'
+  },
+  { 
+    id: '13', 
+    title: 'Trajan\'s Column', 
+    start: { year: 113, precision: 'year' }, 
+    location: {
+      lat: 41.8958, 
+      lng: 12.4843, 
+      placeName: 'Rome',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'Monument to Dacian Wars.'
+  },
 
   // --- Middle Ages ---
-  { id: '14', title: 'Fall of Western Rome', start: { year: 476, precision: 'year' }, lat: 44.4248, lng: 12.2035, summary: 'Romulus Augustulus deposed.', locationPrecision: 'city', placeName: 'Ravenna', granularity: 'city', certainty: 'definite' },
-  { id: '15', title: 'Hagia Sophia', start: { year: 537, precision: 'year' }, lat: 41.0086, lng: 28.9802, summary: 'Justinian completes the basilica.', locationPrecision: 'exact', placeName: 'Constantinople', granularity: 'spot', certainty: 'definite' },
-  { id: '16', title: 'Charlemagne Crowned', start: { year: 800, month: 12, day: 25, precision: 'day' }, lat: 41.9029, lng: 12.4534, summary: 'Holy Roman Emperor.', locationPrecision: 'exact', placeName: 'Rome', granularity: 'spot', certainty: 'definite' },
-  { id: '17', title: 'Battle of Hastings', start: { year: 1066, precision: 'year' }, lat: 50.9127, lng: 0.4856, summary: 'Norman conquest of England.', locationPrecision: 'exact', placeName: 'East Sussex, UK', granularity: 'city', certainty: 'definite' },
-  { id: '18', title: 'Magna Carta', start: { year: 1215, precision: 'year' }, lat: 51.4446, lng: -0.5606, summary: 'King John signs the charter.', locationPrecision: 'exact', placeName: 'Runnymede', granularity: 'spot', certainty: 'definite' },
-  { id: '19', title: 'Black Death', start: { year: 1347, precision: 'year' }, end: { year: 1351, precision: 'year' }, lat: 48.0, lng: 12.0, summary: 'Plague ravages Europe.', locationPrecision: 'country', placeName: 'Europe', granularity: 'continent', certainty: 'definite', customRadius: 1500000 },
+  { 
+    id: '14', 
+    title: 'Fall of Western Rome', 
+    start: { year: 476, precision: 'year' }, 
+    location: {
+      lat: 44.4248, 
+      lng: 12.2035, 
+      placeName: 'Ravenna',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Romulus Augustulus deposed.'
+  },
+  { 
+    id: '15', 
+    title: 'Hagia Sophia', 
+    start: { year: 537, precision: 'year' }, 
+    location: {
+      lat: 41.0086, 
+      lng: 28.9802, 
+      placeName: 'Constantinople',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'Justinian completes the basilica.'
+  },
+  { 
+    id: '16', 
+    title: 'Charlemagne Crowned', 
+    start: { year: 800, month: 12, day: 25, precision: 'day' }, 
+    location: {
+      lat: 41.9029, 
+      lng: 12.4534, 
+      placeName: 'Rome',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'Holy Roman Emperor.'
+  },
+  { 
+    id: '17', 
+    title: 'Battle of Hastings', 
+    start: { year: 1066, precision: 'year' }, 
+    location: {
+      lat: 50.9127, 
+      lng: 0.4856, 
+      placeName: 'East Sussex, UK',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Norman conquest of England.'
+  },
+  { 
+    id: '18', 
+    title: 'Magna Carta', 
+    start: { year: 1215, precision: 'year' }, 
+    location: {
+      lat: 51.4446, 
+      lng: -0.5606, 
+      placeName: 'Runnymede',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'King John signs the charter.'
+  },
+  { 
+    id: '19', 
+    title: 'Black Death', 
+    start: { year: 1347, precision: 'year' }, 
+    end: { year: 1351, precision: 'year' }, 
+    location: {
+      lat: 48.0, 
+      lng: 12.0, 
+      placeName: 'Europe',
+      granularity: 'continent',
+      certainty: 'definite',
+      customRadius: 1500000
+    },
+    summary: 'Plague ravages Europe.'
+  },
   
   // --- Age of Discovery ---
-  { id: '20', title: 'Columbus Voyage', start: { year: 1492, month: 10, day: 12, precision: 'day' }, lat: 24.1167, lng: -74.4667, summary: 'Columbus reaches Americas.', locationPrecision: 'exact', placeName: 'Bahamas', granularity: 'city', certainty: 'definite' },
-  { id: '21', title: 'Mona Lisa', start: { year: 1503, precision: 'year' }, lat: 43.7696, lng: 11.2558, summary: 'Da Vinci paints masterpiece.', locationPrecision: 'exact', placeName: 'Florence', granularity: 'city', certainty: 'definite' },
-  { id: '22', title: 'Martin Luther', start: { year: 1517, precision: 'year' }, lat: 51.8664, lng: 12.6433, summary: '95 Theses reformation.', locationPrecision: 'exact', placeName: 'Wittenberg', granularity: 'city', certainty: 'definite' },
-  { id: '23', title: 'Magellan Circumnavigation', start: { year: 1519, precision: 'year' }, end: { year: 1522, precision: 'year' }, lat: 0, lng: -160, summary: 'First voyage around world.', locationPrecision: 'country', placeName: 'The Oceans (Global)', granularity: 'continent', certainty: 'definite', customRadius: 8000000 },
-  { id: '24', title: 'Copernicus Death', start: { year: 1543, precision: 'year' }, lat: 54.3520, lng: 18.6466, summary: 'Heliocentric theory published.', locationPrecision: 'city', placeName: 'Frombork, Poland', granularity: 'city', certainty: 'definite' },
+  { 
+    id: '20', 
+    title: 'Columbus Voyage', 
+    start: { year: 1492, month: 10, day: 12, precision: 'day' }, 
+    location: {
+      lat: 24.1167, 
+      lng: -74.4667, 
+      placeName: 'Bahamas',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Columbus reaches Americas.'
+  },
+  { 
+    id: '21', 
+    title: 'Mona Lisa', 
+    start: { year: 1503, precision: 'year' }, 
+    location: {
+      lat: 43.7696, 
+      lng: 11.2558, 
+      placeName: 'Florence',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Da Vinci paints masterpiece.'
+  },
+  { 
+    id: '22', 
+    title: 'Martin Luther', 
+    start: { year: 1517, precision: 'year' }, 
+    location: {
+      lat: 51.8664, 
+      lng: 12.6433, 
+      placeName: 'Wittenberg',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: '95 Theses reformation.'
+  },
+  { 
+    id: '23', 
+    title: 'Magellan Circumnavigation', 
+    start: { year: 1519, precision: 'year' }, 
+    end: { year: 1522, precision: 'year' }, 
+    location: {
+      lat: 0, 
+      lng: -160, 
+      placeName: 'The Oceans (Global)',
+      granularity: 'continent',
+      certainty: 'definite',
+      customRadius: 8000000
+    },
+    summary: 'First voyage around world.'
+  },
+  { 
+    id: '24', 
+    title: 'Copernicus Death', 
+    start: { year: 1543, precision: 'year' }, 
+    location: {
+      lat: 54.3520, 
+      lng: 18.6466, 
+      placeName: 'Frombork, Poland',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Heliocentric theory published.'
+  },
   
   // --- Early Modern ---
-  { id: '25', title: 'Jamestown', start: { year: 1607, precision: 'year' }, lat: 37.2117, lng: -76.7777, summary: 'English settlement in Virginia.', locationPrecision: 'exact', placeName: 'Virginia', granularity: 'city', certainty: 'definite' },
-  { id: '26', title: 'Taj Mahal', start: { year: 1632, precision: 'year' }, lat: 27.1751, lng: 78.0421, summary: 'Mughal masterpiece construction.', locationPrecision: 'exact', placeName: 'Agra, India', granularity: 'spot', certainty: 'definite' },
-  { id: '27', title: 'US Independence', start: { year: 1776, month: 7, day: 4, precision: 'day' }, lat: 39.9489, lng: -75.1500, summary: 'Declaration signed.', locationPrecision: 'exact', placeName: 'Philadelphia', granularity: 'city', certainty: 'definite' },
-  { id: '28', title: 'French Revolution', start: { year: 1789, month: 7, day: 14, precision: 'day' }, lat: 48.8532, lng: 2.3691, summary: 'Bastille stormed.', locationPrecision: 'exact', placeName: 'Paris', granularity: 'city', certainty: 'definite' },
+  { 
+    id: '25', 
+    title: 'Jamestown', 
+    start: { year: 1607, precision: 'year' }, 
+    location: {
+      lat: 37.2117, 
+      lng: -76.7777, 
+      placeName: 'Virginia',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'English settlement in Virginia.'
+  },
+  { 
+    id: '26', 
+    title: 'Taj Mahal', 
+    start: { year: 1632, precision: 'year' }, 
+    location: {
+      lat: 27.1751, 
+      lng: 78.0421, 
+      placeName: 'Agra, India',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'Mughal masterpiece construction.'
+  },
+  { 
+    id: '27', 
+    title: 'US Independence', 
+    start: { year: 1776, month: 7, day: 4, precision: 'day' }, 
+    location: {
+      lat: 39.9489, 
+      lng: -75.1500, 
+      placeName: 'Philadelphia',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Declaration signed.'
+  },
+  { 
+    id: '28', 
+    title: 'French Revolution', 
+    start: { year: 1789, month: 7, day: 14, precision: 'day' }, 
+    location: {
+      lat: 48.8532, 
+      lng: 2.3691, 
+      placeName: 'Paris',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Bastille stormed.'
+  },
   
   // --- Modern Era ---
-  { id: '29', title: 'Battle of Waterloo', start: { year: 1815, precision: 'year' }, lat: 50.6796, lng: 4.4053, summary: 'Napoleon defeated.', locationPrecision: 'exact', placeName: 'Waterloo, Belgium', granularity: 'city', certainty: 'definite', customRadius: 5000 },
-  { id: '30', title: 'Telegraph Invented', start: { year: 1844, precision: 'year' }, lat: 38.8977, lng: -77.0365, summary: 'First message sent.', locationPrecision: 'city', placeName: 'Washington D.C.', granularity: 'city', certainty: 'definite' },
-  { id: '31', title: 'US Civil War', start: { year: 1861, precision: 'year' }, end: { year: 1865, precision: 'year' }, lat: 38.0, lng: -78.0, summary: 'North vs South conflict.', locationPrecision: 'country', placeName: 'Eastern United States', granularity: 'territory', certainty: 'definite', customRadius: 600000 },
-  { id: '32', title: 'Meiji Restoration', start: { year: 1868, precision: 'year' }, lat: 36.2048, lng: 138.2529, summary: 'Japan modernization.', locationPrecision: 'country', placeName: 'Japan', granularity: 'territory', certainty: 'definite', customRadius: 500000 },
-  { id: '33', title: 'Eiffel Tower', start: { year: 1889, precision: 'year' }, lat: 48.8584, lng: 2.2945, summary: 'World Fair landmark.', locationPrecision: 'exact', placeName: 'Paris', granularity: 'spot', certainty: 'definite' },
-  { id: '34', title: 'Wright Brothers', start: { year: 1903, precision: 'year' }, lat: 36.0195, lng: -75.6668, summary: 'First powered flight.', locationPrecision: 'exact', placeName: 'Kitty Hawk, NC', granularity: 'spot', certainty: 'definite', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Wright_First_Flight_1903.jpg/640px-Wright_First_Flight_1903.jpg' },
-  { id: '35', title: 'Titanic Sinks', start: { year: 1912, precision: 'year' }, lat: 41.7325, lng: -49.9469, summary: 'Luxury liner hits iceberg.', locationPrecision: 'exact', placeName: 'North Atlantic', granularity: 'spot', certainty: 'definite' },
-  { id: '36', title: 'World War I', start: { year: 1914, precision: 'year' }, end: { year: 1918, precision: 'year' }, lat: 50.0, lng: 10.0, summary: 'Global conflict focused in Europe.', locationPrecision: 'country', placeName: 'Europe', granularity: 'continent', certainty: 'definite', customRadius: 1200000, imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Soldiers_of_the_Australian_4th_Division_in_the_field_at_Hooge%2C_Belgium%2C_29_October_1917.jpg/640px-Soldiers_of_the_Australian_4th_Division_in_the_field_at_Hooge%2C_Belgium%2C_29_October_1917.jpg' },
-  { id: '37', title: 'Penicillin', start: { year: 1928, precision: 'year' }, lat: 51.5166, lng: -0.1765, summary: 'Alexander Fleming discovery.', locationPrecision: 'exact', placeName: 'London', granularity: 'city', certainty: 'definite' },
-  { id: '38', title: 'World War II', start: { year: 1939, precision: 'year' }, end: { year: 1945, precision: 'year' }, lat: 52.5200, lng: 13.4050, summary: 'Global war.', locationPrecision: 'country', placeName: 'Europe/Asia', granularity: 'continent', certainty: 'definite', customRadius: 2500000 },
-  { id: '39', title: 'Moon Landing', start: { year: 1969, month: 7, day: 20, precision: 'day' }, lat: 28.5721, lng: -80.6480, summary: 'Apollo 11 mission launch site.', locationPrecision: 'exact', placeName: 'Kennedy Space Center', granularity: 'spot', certainty: 'definite', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Aldrin_Apollo_11_original.jpg/600px-Aldrin_Apollo_11_original.jpg' },
-  { id: '40', title: 'Berlin Wall Falls', start: { year: 1989, precision: 'year' }, lat: 52.5163, lng: 13.3777, summary: 'End of Cold War symbol.', locationPrecision: 'exact', placeName: 'Berlin', granularity: 'city', certainty: 'definite', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Berlinermauer.jpg/640px-Berlinermauer.jpg' },
-  { id: '41', title: 'World Wide Web', start: { year: 1991, precision: 'year' }, lat: 46.2299, lng: 6.0533, summary: 'Tim Berners-Lee at CERN.', locationPrecision: 'exact', placeName: 'Geneva, Switzerland', granularity: 'spot', certainty: 'definite' }
+  { 
+    id: '29', 
+    title: 'Battle of Waterloo', 
+    start: { year: 1815, precision: 'year' }, 
+    location: {
+      lat: 50.6796, 
+      lng: 4.4053, 
+      placeName: 'Waterloo, Belgium',
+      granularity: 'city',
+      certainty: 'definite',
+      customRadius: 5000
+    },
+    summary: 'Napoleon defeated.'
+  },
+  { 
+    id: '30', 
+    title: 'Telegraph Invented', 
+    start: { year: 1844, precision: 'year' }, 
+    location: {
+      lat: 38.8977, 
+      lng: -77.0365, 
+      placeName: 'Washington D.C.',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'First message sent.'
+  },
+  { 
+    id: '31', 
+    title: 'US Civil War', 
+    start: { year: 1861, precision: 'year' }, 
+    end: { year: 1865, precision: 'year' }, 
+    location: {
+      lat: 38.0, 
+      lng: -78.0, 
+      placeName: 'Eastern United States',
+      granularity: 'territory',
+      certainty: 'definite',
+      customRadius: 600000
+    },
+    summary: 'North vs South conflict.'
+  },
+  { 
+    id: '32', 
+    title: 'Meiji Restoration', 
+    start: { year: 1868, precision: 'year' }, 
+    location: {
+      lat: 36.2048, 
+      lng: 138.2529, 
+      placeName: 'Japan',
+      granularity: 'territory',
+      certainty: 'definite',
+      customRadius: 500000
+    },
+    summary: 'Japan modernization.'
+  },
+  { 
+    id: '33', 
+    title: 'Eiffel Tower', 
+    start: { year: 1889, precision: 'year' }, 
+    location: {
+      lat: 48.8584, 
+      lng: 2.2945, 
+      placeName: 'Paris',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'World Fair landmark.'
+  },
+  { 
+    id: '34', 
+    title: 'Wright Brothers', 
+    start: { year: 1903, precision: 'year' }, 
+    location: {
+      lat: 36.0195, 
+      lng: -75.6668, 
+      placeName: 'Kitty Hawk, NC',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'First powered flight.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Wright_First_Flight_1903.jpg/640px-Wright_First_Flight_1903.jpg' 
+  },
+  { 
+    id: '35', 
+    title: 'Titanic Sinks', 
+    start: { year: 1912, precision: 'year' }, 
+    location: {
+      lat: 41.7325, 
+      lng: -49.9469, 
+      placeName: 'North Atlantic',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'Luxury liner hits iceberg.'
+  },
+  { 
+    id: '36', 
+    title: 'World War I', 
+    start: { year: 1914, precision: 'year' }, 
+    end: { year: 1918, precision: 'year' }, 
+    location: {
+      lat: 50.0, 
+      lng: 10.0, 
+      placeName: 'Europe',
+      granularity: 'continent',
+      certainty: 'definite',
+      customRadius: 1200000
+    },
+    summary: 'Global conflict.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Soldiers_of_the_Australian_4th_Division_in_the_field_at_Hooge%2C_Belgium%2C_29_October_1917.jpg/640px-Soldiers_of_the_Australian_4th_Division_in_the_field_at_Hooge%2C_Belgium%2C_29_October_1917.jpg' 
+  },
+  { 
+    id: '37', 
+    title: 'Penicillin', 
+    start: { year: 1928, precision: 'year' }, 
+    location: {
+      lat: 51.5166, 
+      lng: -0.1765, 
+      placeName: 'London',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'Alexander Fleming discovery.'
+  },
+  { 
+    id: '38', 
+    title: 'World War II', 
+    start: { year: 1939, precision: 'year' }, 
+    end: { year: 1945, precision: 'year' }, 
+    location: {
+      lat: 52.5200, 
+      lng: 13.4050, 
+      placeName: 'Europe/Asia',
+      granularity: 'continent',
+      certainty: 'definite',
+      customRadius: 2500000
+    },
+    summary: 'Global war.'
+  },
+  { 
+    id: '39', 
+    title: 'Moon Landing', 
+    start: { year: 1969, month: 7, day: 20, precision: 'day' }, 
+    location: {
+      lat: 28.5721, 
+      lng: -80.6480, 
+      placeName: 'Kennedy Space Center',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'Apollo 11 mission.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Aldrin_Apollo_11_original.jpg/600px-Aldrin_Apollo_11_original.jpg' 
+  },
+  { 
+    id: '40', 
+    title: 'Berlin Wall Falls', 
+    start: { year: 1989, precision: 'year' }, 
+    location: {
+      lat: 52.5163, 
+      lng: 13.3777, 
+      placeName: 'Berlin',
+      granularity: 'city',
+      certainty: 'definite'
+    },
+    summary: 'End of Cold War symbol.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Berlinermauer.jpg/640px-Berlinermauer.jpg' 
+  },
+  { 
+    id: '41', 
+    title: 'World Wide Web', 
+    start: { year: 1991, precision: 'year' }, 
+    location: {
+      lat: 46.2299, 
+      lng: 6.0533, 
+      placeName: 'Geneva, Switzerland',
+      granularity: 'spot',
+      certainty: 'definite'
+    },
+    summary: 'Tim Berners-Lee at CERN.'
+  }
 ];
 
 // --- Helper Functions ---
@@ -171,11 +681,11 @@ const formatCoordinates = (lat: number, lng: number): string => {
 };
 
 const getLocationString = (event: EventData): string => {
-    if (event.placeName) return event.placeName;
-    return formatCoordinates(event.lat, event.lng);
+    if (event.location.placeName) return event.location.placeName;
+    return formatCoordinates(event.location.lat, event.location.lng);
 };
 
-// --- Leaflet Map Component ---
+// --- Component: Leaflet Map ---
 const LeafletMap = ({ 
   currentDate, 
   events, 
@@ -220,8 +730,8 @@ const LeafletMap = ({
            zoomControl: false, 
            attributionControl: false,
            zoomSnap: 0, 
-           zoomDelta: 0.1, // Set for smooth zoom
-           wheelPxPerZoomLevel: 10 // High sensitivity
+           zoomDelta: 0.5, 
+           wheelPxPerZoomLevel: 10 
         }).setView([20, 0], 2);
         
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -263,10 +773,10 @@ const LeafletMap = ({
         }
       }
 
-      // RENDER MARKERS
+      // RENDER
       if (isActive) {
+        // 1. RENDER MARKER
         if (!markersMap.has(event.id)) {
-          // MARKER CONTENT
           const htmlContent = `
             <div class="event-card-container" style="
                 transform: translate(-50%, calc(-100% + 4px)); 
@@ -314,39 +824,39 @@ const LeafletMap = ({
             iconAnchor: [0, 0]
           });
 
-          const marker = L.marker([event.lat, event.lng], { icon, zIndexOffset: 100 }).addTo(map);
+          const marker = L.marker([event.location.lat, event.location.lng], { icon, zIndexOffset: 100 }).addTo(map);
           const el = marker.getElement();
           if (el) {
              el.style.opacity = '1';
              el.style.display = 'block';
-             el.style.transition = 'none'; // Instant appear
+             el.style.transition = 'none'; 
           }
           markersMap.set(event.id, marker);
         } else {
           const marker = markersMap.get(event.id);
           const el = marker.getElement();
           if (el) {
-             el.style.transition = 'none'; // Instant
+             el.style.transition = 'none'; 
              el.style.opacity = '1';
              el.style.pointerEvents = 'auto'; 
              marker.setZIndexOffset(1000);
           }
         }
 
-        // 2. RENDER AREA SHAPE (Circle)
-        if (event.granularity !== 'spot') {
+        // 2. RENDER AREA SHAPE
+        if (event.location.granularity !== 'spot') {
             if (!shapesMap.has(event.id)) {
                 let radius = 10000; 
-                if (event.customRadius) radius = event.customRadius;
-                else if (event.granularity === 'city') radius = 10000;
-                else if (event.granularity === 'territory') radius = 500000;
-                else if (event.granularity === 'continent') radius = 1500000;
+                if (event.location.customRadius) radius = event.location.customRadius;
+                else if (event.location.granularity === 'city') radius = 10000;
+                else if (event.location.granularity === 'territory') radius = 500000;
+                else if (event.location.granularity === 'continent') radius = 1500000;
 
                 const color = '#3b82f6'; 
-                const dashArray = event.certainty === 'approximate' ? '5, 10' : null;
-                const opacity = event.certainty === 'approximate' ? 0.4 : 0.6;
+                const dashArray = event.location.certainty === 'approximate' ? '5, 10' : null;
+                const opacity = event.location.certainty === 'approximate' ? 0.4 : 0.6;
 
-                const circle = L.circle([event.lat, event.lng], {
+                const circle = L.circle([event.location.lat, event.location.lng], {
                     color: color,
                     fillColor: color,
                     fillOpacity: 0.1,
@@ -360,13 +870,14 @@ const LeafletMap = ({
                 shapesMap.set(event.id, circle);
             }
         }
+
       } else {
         // HIDE
         if (markersMap.has(event.id)) {
           const marker = markersMap.get(event.id);
           const el = marker.getElement();
           if (el) {
-             el.style.transition = 'opacity 2s ease-out'; // Slow Fade
+             el.style.transition = 'opacity 2s ease-out'; 
              el.style.opacity = '0';
              el.style.pointerEvents = 'none'; 
              marker.setZIndexOffset(0);
@@ -379,6 +890,7 @@ const LeafletMap = ({
         }
       }
     });
+
   }, [currentDate, events, dynamicThreshold, jumpTargetId]); 
 
   return <div ref={mapRef} className="w-full h-full z-0 bg-slate-100" />;
@@ -406,6 +918,7 @@ const OverviewTimeline = ({
     const totalSpan = globalMax - globalMin;
     const viewStartPercent = ((viewRange.min - globalMin) / totalSpan) * 100;
     const viewWidthPercent = ((viewRange.max - viewRange.min) / totalSpan) * 100;
+    
     const isFullyZoomedOut = viewWidthPercent > 99;
 
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -663,6 +1176,7 @@ const TimeControl = ({
     
     return events.map(event => {
         const sliderVal = toSliderValue(event.start.year);
+        
         if (sliderVal < viewRange.min || sliderVal > viewRange.max) return null;
         
         const percent = ((sliderVal - viewRange.min) / span) * 100;
@@ -701,7 +1215,7 @@ const TimeControl = ({
     <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-4xl px-4 z-10">
       <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-6 transition-all hover:shadow-3xl">
         
-        {/* Header */}
+        {/* Header: Controls & Date */}
         <div className="flex justify-between items-end mb-4">
             <div className="flex gap-2">
                 <button 
@@ -737,18 +1251,22 @@ const TimeControl = ({
             </div>
         </div>
 
-        {/* Slider Container */}
+        {/* Timelines Container with padding */}
         <div className="px-4">
+            {/* Main Slider Area */}
             <div className="flex items-center gap-4 relative">
+                
                 <button onClick={() => handlePan('left')} className="text-slate-400 hover:text-slate-600">
                     <ChevronLeft size={24} />
                 </button>
 
+                {/* Track Container: Replaces Input Range for Custom Handling */}
                 <div 
                     ref={trackRef}
                     className="relative flex-grow h-12 flex items-center group cursor-pointer"
                     onMouseDown={handleTrackMouseDown}
                 >
+                    {/* 1. Ticks Layer */}
                     <div className="absolute top-8 w-full h-4">
                         {generateTicks().map((tick) => (
                             <div 
@@ -761,30 +1279,35 @@ const TimeControl = ({
                         ))}
                     </div>
 
+                    {/* 2. Track Background */}
                     <div className="absolute w-full h-2 bg-slate-100 rounded-full overflow-hidden z-0">
                         <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
                     </div>
 
+                    {/* 3. Event Markers Layer (z-20) */}
                     <div className="absolute w-full h-full pointer-events-none">
                         {renderEventMarkers()}
                     </div>
 
+                    {/* 4. VISUAL THUMB (INTERACTIVE) - z-40 */}
                     <div 
                         className={`absolute top-1/2 w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
                             ${isThumbDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'} 
                             transition-transform duration-75 
-                            ${isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                            ${isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} // Added visibility control
                         style={{ left: `${Math.max(0, Math.min(100, thumbPercent))}%` }}
-                        onMouseDown={handleThumbMouseDown}
+                        onMouseDown={handleThumbMouseDown} // CUSTOM DRAG START
                     />
                     
+                    {/* 5. Input Range (DISABLED pointer-events) - z-10 */}
+                    {/* We keep it in DOM but disable its pointer events so clicks fall through to trackRef */}
                     <input
                         type="range"
                         min={viewRange.min}
                         max={viewRange.max}
                         step="any"
                         value={currentDate}
-                        readOnly
+                        readOnly // It's controlled by custom logic now
                         className="w-full h-2 bg-transparent appearance-none cursor-pointer z-10 absolute opacity-0 pointer-events-none"
                     />
                 </div>
@@ -794,6 +1317,7 @@ const TimeControl = ({
                 </button>
             </div>
 
+            {/* Overview Timeline */}
             <OverviewTimeline 
                 viewRange={viewRange}
                 setViewRange={setViewRange}
@@ -808,8 +1332,9 @@ const TimeControl = ({
   );
 };
 
-// --- Main Page Component ---
-const Page = () => {
+// --- Main App Component ---
+// Renamed from App to SailApp to avoid conflicts
+export default function SailApp() {
   const GLOBAL_MIN = -3000;
   const GLOBAL_MAX = 2023; 
 
@@ -819,6 +1344,8 @@ const Page = () => {
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
+      
+      {/* Top Bar (Simplified) */}
       <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
         <div className="max-w-7xl mx-auto flex justify-between items-start">
           <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 pointer-events-auto border border-white/50">
@@ -837,6 +1364,7 @@ const Page = () => {
         </div>
       </header>
 
+      {/* Main Map */}
       <main className="flex-grow relative z-0">
         <LeafletMap 
           currentDate={currentDate} 
@@ -846,6 +1374,7 @@ const Page = () => {
         />
       </main>
 
+      {/* Bottom Controls */}
       <TimeControl 
         currentDate={currentDate} 
         setCurrentDate={setCurrentDate}
@@ -858,6 +1387,4 @@ const Page = () => {
       />
     </div>
   );
-};
-
-export default Page;
+}
