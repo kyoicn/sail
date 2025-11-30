@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronLeft, Map as MapIcon, Layers, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 
 // --- Types ---
@@ -188,6 +188,8 @@ const LeafletMap = ({
   const mapInstanceRef = useRef(null);
   const markersMapRef = useRef<Map<string, any>>(new Map());
   const shapesMapRef = useRef<Map<string, any>>(new Map());
+  // State to track zoom to trigger re-layout
+  const [mapZoom, setMapZoom] = useState(2);
 
   const dynamicThreshold = Math.max(0.5, (viewRange.max - viewRange.min) / 100);
 
@@ -217,7 +219,7 @@ const LeafletMap = ({
            zoomControl: false, 
            attributionControl: false,
            zoomSnap: 0, 
-           zoomDelta: 0.5, 
+           zoomDelta: 0.5, // Corrected to 0.5 per request
            wheelPxPerZoomLevel: 10 
         }).setView([20, 0], 2);
         
@@ -227,13 +229,18 @@ const LeafletMap = ({
           maxZoom: 19
         }).addTo(map);
         
+        // Bind zoom event to state
+        map.on('zoomend', () => {
+            setMapZoom(map.getZoom());
+        });
+        
         mapInstanceRef.current = map;
       }
     }
     return () => {};
   }, []);
 
-  // --- Update Logic ---
+  // --- Update Logic for Markers AND Shapes ---
   useEffect(() => {
     if (!mapInstanceRef.current || !(window as any).L) return;
     const L = (window as any).L;
@@ -264,9 +271,12 @@ const LeafletMap = ({
     });
 
     // 2. Smart Layout Algorithm: Full Non-Overlap
+    // Sort by longitude (approx screen X)
     activeEvents.sort((a, b) => a.location.lng - b.location.lng);
 
     const layoutMap = new Map<string, { offsetX: number, offsetY: number }>();
+    
+    // Get current screen positions based on current ZOOM level
     const screenPositions = activeEvents.map(e => {
         const pt = map.latLngToLayerPoint([e.location.lat, e.location.lng]);
         return { id: e.id, x: pt.x, y: pt.y };
@@ -281,6 +291,7 @@ const LeafletMap = ({
         for (let i = 1; i < screenPositions.length; i++) {
             const prev = currentCluster[currentCluster.length - 1];
             const curr = screenPositions[i];
+            // Horizontal Collision Check
             if (Math.abs(curr.x - prev.x) < (CARD_WIDTH + GAP)) {
                 currentCluster.push(curr);
             } else {
@@ -303,6 +314,7 @@ const LeafletMap = ({
             cluster.forEach((p, index) => {
                 const targetScreenX = startScreenX + index * (CARD_WIDTH + GAP) + (CARD_WIDTH / 2);
                 const offsetX = targetScreenX - p.x;
+                
                 const midIdx = (cluster.length - 1) / 2;
                 const dist = Math.abs(index - midIdx);
                 const offsetY = -dist * 25; 
@@ -340,13 +352,6 @@ const LeafletMap = ({
         const finalY = offsetY + BASE_LIFT;
         const finalX = offsetX;
 
-        // Calculate CSS Line properties
-        // From (0,0) to (finalX, finalY)
-        // Length = sqrt(x^2 + y^2)
-        // Angle = atan2(y, x)
-        const length = Math.sqrt(finalX * finalX + finalY * finalY);
-        const angle = Math.atan2(finalY, finalX) * (180 / Math.PI);
-
         // 1. RENDER MARKER
         if (!markersMap.has(event.id)) {
           const htmlContent = `
@@ -367,32 +372,45 @@ const LeafletMap = ({
                     z-index: 10;
                 "></div>
 
-                <!-- 2. Connector Line (CSS Rotated Div) -->
-                ${length > 0 ? `
-                <div style="
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: ${length}px;
-                    height: 2px;
-                    background-color: #3b82f6;
-                    transform-origin: 0 50%;
-                    transform: rotate(${angle}deg);
-                    z-index: 1;
-                    pointer-events: none;
-                    opacity: 0.6;
-                "></div>
-                ` : ''}
+                <!-- 2. Connector Line (CSS) 
+                     Uses z-index -1 to stay behind card.
+                     Draws from (0,0) to (finalX, finalY - 50).
+                     Extending line into the card center.
+                -->
+                ${(() => {
+                     // Calculate geometry for line
+                     // Start: 0,0
+                     // End: finalX, finalY - 60 (Approx visual center of card)
+                     const targetY = finalY - 60;
+                     const len = Math.sqrt(finalX * finalX + targetY * targetY);
+                     const ang = Math.atan2(targetY, finalX) * (180 / Math.PI);
+                     return `
+                     <div style="
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: ${len}px;
+                        height: 2px;
+                        background-color: #3b82f6;
+                        transform-origin: 0 50%;
+                        transform: rotate(${ang}deg);
+                        z-index: -1; 
+                        pointer-events: none;
+                     "></div>
+                     `;
+                })()}
 
                 <!-- 3. Card (Shifted) -->
                 <div class="card-wrapper" style="
                     position: absolute;
                     left: 0;
                     top: 0;
+                    /* Position bottom-center at finalX, finalY */
                     transform: translate(-50%, -100%) translate(${finalX}px, ${finalY}px);
                     width: 240px;
                     pointer-events: auto;
-                    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); 
+                    /* Important: No transition for position to stay synced with zoom/pan */
+                    transition: none; 
                 ">
                     <div style="
                         background: white;
@@ -438,6 +456,7 @@ const LeafletMap = ({
           }
           markersMap.set(event.id, marker);
         } else {
+            // UPDATE EXISTING MARKER with new layout
             const marker = markersMap.get(event.id);
             const el = marker.getElement();
             if (el) {
@@ -446,21 +465,27 @@ const LeafletMap = ({
                 el.style.pointerEvents = 'auto'; 
                 marker.setZIndexOffset(1000);
 
-                // Update Icon for Layout Changes
                 const htmlContent = `
                     <div style="position: relative; width: 0; height: 0;">
                         <div style="position: absolute; top: 0; left: 0; width: 10px; height: 10px; background: #3b82f6; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transform: translate(-50%, -50%); z-index: 10;"></div>
-                        ${length > 0 ? `
-                        <div style="
-                            position: absolute; top: 0; left: 0; width: ${length}px; height: 2px; background: #3b82f6; 
-                            transform-origin: 0 50%; transform: rotate(${angle}deg); z-index: 1; pointer-events: none; opacity: 0.6;
-                        "></div>
-                        ` : ''}
+                        
+                        ${(() => {
+                             const targetY = finalY - 60;
+                             const len = Math.sqrt(finalX * finalX + targetY * targetY);
+                             const ang = Math.atan2(targetY, finalX) * (180 / Math.PI);
+                             return `
+                             <div style="
+                                position: absolute; top: 0; left: 0; width: ${len}px; height: 2px; background: #3b82f6; 
+                                transform-origin: 0 50%; transform: rotate(${ang}deg); z-index: -1; pointer-events: none;
+                             "></div>
+                             `;
+                        })()}
+
                         <div class="card-wrapper" style="
                             position: absolute; left: 0; top: 0; 
                             transform: translate(-50%, -100%) translate(${finalX}px, ${finalY}px); 
                             width: 240px; pointer-events: auto; 
-                            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+                            transition: none;
                         ">
                             <div style="background: white; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); overflow: hidden; font-family: system-ui;">
                                 ${event.imageUrl ? `<div style="height: 100px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
@@ -510,7 +535,7 @@ const LeafletMap = ({
         }
     });
 
-  }, [currentDate, events, dynamicThreshold, jumpTargetId]); 
+  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom]); // Added mapZoom dependency
 
   return <div ref={mapRef} className="w-full h-full z-0 bg-slate-100" />;
 };
