@@ -48,6 +48,13 @@ export interface EventData {
   
   /** External references and further reading links [NEW] */
   sources?: EventSource[];
+
+  /** * Historical Importance / Magnitude (1-10) [NEW]
+   * Used for Level-of-Detail (LOD) filtering.
+   * 10 = Epoch-making (Visible at global zoom)
+   * 1  = Trivial details (Visible only when fully zoomed in)
+   */
+  importance: number;
 }
 
 // --- Map State & Layout ---
