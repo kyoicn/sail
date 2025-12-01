@@ -29,7 +29,7 @@ export default function ChronoMapPage() {
   // 2. State Management
   const [currentDate, setCurrentDate] = useState(initialState.year);
   
-  // Calculate initial view range
+  // Calculate initial view range based on URL state
   const initialMin = Math.max(GLOBAL_MIN, initialState.year - (initialState.span / 2));
   const initialMax = Math.min(GLOBAL_MAX, initialState.year + (initialState.span / 2));
   
@@ -90,28 +90,35 @@ export default function ChronoMapPage() {
       return Math.floor((timeLOD + mapLOD) / 2);
   }, [viewRange, mapViewport.zoom]);
 
-  // 5. Data Pipeline: Filtering
-  const filteredEvents = useMemo(() => {
+  // 5. Data Pipeline Stage 1: Spatial Filter ONLY
+  // This dataset includes ALL events visible on the map, regardless of importance.
+  // We pass THIS to the OverviewTimeline for density calculation (Heatmap).
+  const spatiallyFilteredEvents = useMemo(() => {
       if (!mapBounds) return MOCK_EVENTS;
       
       return MOCK_EVENTS.filter(event => {
-          // A. Spatial Filter (Is it on screen?)
-          const inBounds = (
+          return (
             event.location.lat <= mapBounds.north &&
             event.location.lat >= mapBounds.south &&
             event.location.lng >= mapBounds.west && 
             event.location.lng <= mapBounds.east
           );
+      });
+  }, [mapBounds]);
 
-          // B. Importance (LOD) Filter
+  // 6. Data Pipeline Stage 2: LOD & Selection Filter
+  // This dataset is strictly for the main view (Map Cards & Detail Slider Markers).
+  // It removes "unimportant" events to prevent UI clutter.
+  const renderableEvents = useMemo(() => {
+      return spatiallyFilteredEvents.filter(event => {
           // Rule: Show if it meets the threshold OR if it is currently selected.
           // (We never want the selected event to disappear just because we zoomed out)
           const isSelected = selectedEvent?.id === event.id;
           const meetsImportance = event.importance >= lodThreshold;
-
-          return inBounds && (meetsImportance || isSelected);
+          
+          return meetsImportance || isSelected;
       });
-  }, [mapBounds, lodThreshold, selectedEvent]);
+  }, [spatiallyFilteredEvents, lodThreshold, selectedEvent]);
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
@@ -139,7 +146,7 @@ export default function ChronoMapPage() {
       <main className="flex-grow relative z-0">
         <LeafletMap 
           currentDate={currentDate} 
-          events={filteredEvents} 
+          events={renderableEvents} // Render only Important events (LOD applied)
           viewRange={viewRange}
           jumpTargetId={jumpTargetId}
           onBoundsChange={setMapBounds}
@@ -158,8 +165,11 @@ export default function ChronoMapPage() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        events={filteredEvents}      // Filtered list: Used to calculate active/visible status
-        allEvents={MOCK_EVENTS}      // Full list: Passed to keep nodes mounted for animation
+        
+        events={renderableEvents}          // Main Slider Markers: Show only Important ones
+        densityEvents={spatiallyFilteredEvents} // Overview Heatmap: Show density of EVERYTHING on map
+        allEvents={MOCK_EVENTS}            // DOM Persistence: Keep all mounted for smooth animation
+        
         setJumpTargetId={setJumpTargetId}
       />
 

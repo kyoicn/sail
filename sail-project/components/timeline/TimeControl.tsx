@@ -15,8 +15,9 @@ interface TimeControlProps {
   setViewRange: (range: { min: number, max: number }) => void;
   globalMin: number;
   globalMax: number;
-  events: EventData[];      // Spatially filtered events (active/visible on map)
-  allEvents: EventData[];   // [NEW] All events (for keeping DOM nodes alive for animation)
+  events: EventData[];        // Renderable (LOD filtered)
+  densityEvents: EventData[]; // For Heatmap (Spatially filtered only)
+  allEvents: EventData[];     // All (for animation stability)
   setJumpTargetId: (id: string | null) => void;
 }
 
@@ -28,7 +29,8 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   globalMin,
   globalMax,
   events,
-  allEvents, // [NEW]
+  densityEvents,
+  allEvents,
   setJumpTargetId
 }) => {
   
@@ -37,8 +39,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   const trackRef = useRef<HTMLDivElement>(null);
   const [isThumbDragging, setIsThumbDragging] = useState(false);
 
-  // [NEW] Create a Set for O(1) lookup of currently visible events (spatial filter)
-  // This allows us to toggle opacity instead of mounting/unmounting components
+  // Create a Set for O(1) lookup of currently visible events (spatial filter)
   const visibleIds = useMemo(() => new Set(events.map(e => e.id)), [events]);
 
   // --- Animation Logic (Smooth Jump) ---
@@ -199,18 +200,17 @@ export const TimeControl: React.FC<TimeControlProps> = ({
                         <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
                     </div>
 
-                    {/* [UPDATED] Event Markers: Render ALL events, animate opacity based on visibility */}
+                    {/* Event Markers: Render ALL events (from MOCK_EVENTS), animate opacity based on visibility */}
                     <div className="absolute w-full h-full pointer-events-none">
-                        {allEvents.map(event => {
+                        {(allEvents || []).map(event => {
                             const sliderVal = toSliderValue(event.start.year);
                             
                             // Optimization: Only render DOM nodes for events within the current time viewRange
-                            // We don't need horizontal scrolling animation, so unmounting these is fine
                             if (sliderVal < viewRange.min || sliderVal > viewRange.max) return null;
                             
                             const percent = ((sliderVal - viewRange.min) / (viewRange.max - viewRange.min)) * 100;
                             
-                            // Check if the event is spatially visible (inside map bounds)
+                            // Check if the event is LOD-visible (exists in the filtered 'events' prop)
                             const isVisible = visibleIds.has(event.id);
                             
                             const isHovered = hoveredEventId === event.id;
@@ -219,7 +219,6 @@ export const TimeControl: React.FC<TimeControlProps> = ({
                             return (
                                 <div 
                                     key={event.id}
-                                    // [ANIMATION] CSS Transitions for smooth appearance/disappearance
                                     className={`group absolute top-1/2 -translate-y-1/2 w-1.5 h-3 cursor-pointer rounded-[1px] z-20 transition-all duration-300 ease-out
                                         ${isVisible ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-0 pointer-events-none'}
                                         ${isObscuredByThumb ? 'opacity-0' : ''}
@@ -256,13 +255,13 @@ export const TimeControl: React.FC<TimeControlProps> = ({
                 </div>
             </div>
             
-            {/* [UPDATED] Use allEvents for overview so the mini-map dots remain stable regardless of map panning */}
+            {/* Heatmap Overview */}
             <OverviewTimeline 
                 viewRange={viewRange} 
                 setViewRange={setViewRange} 
                 globalMin={globalMin} 
                 globalMax={globalMax} 
-                events={allEvents} 
+                events={densityEvents} // Pass Spatially Filtered events (High density)
             />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 interface UrlState {
@@ -9,14 +9,9 @@ interface UrlState {
   span: number;
 }
 
-/**
- * useUrlSync Hook
- * Manages two-way synchronization between the application state and the URL query parameters.
- * Uses debouncing to prevent excessive history entries during continuous interactions (like dragging).
- */
 export function useUrlSync(
   defaultState: UrlState,
-  delay: number = 500
+  delay: number = 1000 
 ) {
   const router = useRouter();
   const pathname = usePathname();
@@ -24,15 +19,20 @@ export function useUrlSync(
   
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const getInitialState = (): UrlState => {
     if (!searchParams) return defaultState;
-
     const lat = parseFloat(searchParams.get('lat') || '') || defaultState.lat;
     const lng = parseFloat(searchParams.get('lng') || '') || defaultState.lng;
     const zoom = parseInt(searchParams.get('z') || '') || defaultState.zoom;
     const year = parseFloat(searchParams.get('y') || '') || defaultState.year;
     const span = parseFloat(searchParams.get('s') || '') || defaultState.span;
-
     return { lat, lng, zoom, year, span };
   };
 
@@ -42,15 +42,25 @@ export function useUrlSync(
     }
 
     timeoutRef.current = setTimeout(() => {
-      const params = new URLSearchParams(searchParams?.toString());
+      // 1. Construct the new params
+      const currentParams = new URLSearchParams(searchParams?.toString());
+      const newParams = new URLSearchParams(searchParams?.toString());
       
-      params.set('lat', newState.lat.toFixed(4));
-      params.set('lng', newState.lng.toFixed(4));
-      params.set('z', newState.zoom.toString());
-      params.set('y', newState.year.toFixed(1));
-      params.set('s', newState.span.toFixed(0));
+      newParams.set('lat', newState.lat.toFixed(4));
+      newParams.set('lng', newState.lng.toFixed(4));
+      newParams.set('z', newState.zoom.toString());
+      newParams.set('y', newState.year.toFixed(1));
+      newParams.set('s', newState.span.toFixed(0));
 
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      // 2. [CRITICAL FIX] Dirty Check: Compare strings to avoid redundant updates
+      // This breaks the infinite loop: State -> URL -> SearchParams -> Effect -> State
+      if (currentParams.toString() === newParams.toString()) {
+        return; // Stop here if nothing actually changed
+      }
+
+      // 3. Only replace if different
+      router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+      
     }, delay);
   }, [pathname, router, searchParams, delay]);
 
