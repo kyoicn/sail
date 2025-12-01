@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { EventData } from '../../types';
 import { OverviewTimeline } from './OverviewTimeline';
@@ -15,20 +15,11 @@ interface TimeControlProps {
   setViewRange: (range: { min: number, max: number }) => void;
   globalMin: number;
   globalMax: number;
-  events: EventData[];
+  events: EventData[];      // Spatially filtered events (active/visible on map)
+  allEvents: EventData[];   // [NEW] All events (for keeping DOM nodes alive for animation)
   setJumpTargetId: (id: string | null) => void;
 }
 
-/**
- * TimeControl Component
- * ------------------------------------------------------------------
- * The main UI panel at the bottom of the screen.
- * Contains:
- * 1. The Detail Slider (zoomed-in view).
- * 2. Event Markers (clickable ticks).
- * 3. The Overview Timeline (mini-map).
- * 4. Zoom Controls.
- */
 export const TimeControl: React.FC<TimeControlProps> = ({ 
   currentDate, 
   setCurrentDate, 
@@ -37,6 +28,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   globalMin,
   globalMax,
   events,
+  allEvents, // [NEW]
   setJumpTargetId
 }) => {
   
@@ -45,22 +37,24 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   const trackRef = useRef<HTMLDivElement>(null);
   const [isThumbDragging, setIsThumbDragging] = useState(false);
 
+  // [NEW] Create a Set for O(1) lookup of currently visible events (spatial filter)
+  // This allows us to toggle opacity instead of mounting/unmounting components
+  const visibleIds = useMemo(() => new Set(events.map(e => e.id)), [events]);
+
   // --- Animation Logic (Smooth Jump) ---
   const smoothJump = (targetDate: number, eventId: string | null) => {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    
-    // Signal the Map that we are jumping (to prevent layout flicker)
     setJumpTargetId(eventId || "___ANIMATING___");
     
     const startValue = currentDate;
     const distance = targetDate - startValue;
-    const duration = 800; // ms
+    const duration = 800; 
     const startTime = performance.now();
 
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 3); // Cubic ease-out
+      const ease = 1 - Math.pow(1 - progress, 3);
       const nextValue = startValue + (distance * ease);
       
       setCurrentDate(nextValue);
@@ -89,7 +83,6 @@ export const TimeControl: React.FC<TimeControlProps> = ({
     e.stopPropagation(); 
     e.preventDefault(); 
     setIsThumbDragging(true);
-    // Cancel any ongoing auto-scroll
     if (animationRef.current) { 
         cancelAnimationFrame(animationRef.current); 
         animationRef.current = null; 
@@ -97,7 +90,6 @@ export const TimeControl: React.FC<TimeControlProps> = ({
     }
   };
 
-  // Dragging logic
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isThumbDragging || !trackRef.current) return;
@@ -124,8 +116,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
     const span = viewRange.max - viewRange.min;
     const newSpan = span / factor;
     
-    // Limits
-    if (factor > 1 && newSpan < 10) return; // Max zoom in (10 years)
+    if (factor > 1 && newSpan < 10) return; 
     if (factor < 1 && newSpan > (globalMax - globalMin)) { 
         setViewRange({ min: globalMin, max: globalMax }); 
         return; 
@@ -134,7 +125,6 @@ export const TimeControl: React.FC<TimeControlProps> = ({
     const newMin = Math.max(globalMin, currentDate - newSpan / 2);
     const newMax = Math.min(globalMax, newMin + newSpan);
     
-    // Re-center if hitting bounds
     if (newMin === globalMin) setViewRange({ min: globalMin, max: globalMin + newSpan });
     else if (newMax === globalMax) setViewRange({ min: globalMax - newSpan, max: globalMax });
     else setViewRange({ min: newMin, max: newMax });
@@ -146,7 +136,6 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
   const generateTicks = () => {
     const span = viewRange.max - viewRange.min;
-    // Adaptive tick steps based on zoom level
     let step = 1;
     if (span > 1000) step = 1000; 
     else if (span > 500) step = 500; 
@@ -169,7 +158,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
     <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-4xl px-4 z-10">
       <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-6 transition-all hover:shadow-3xl">
         
-        {/* Header: Controls & Date Display */}
+        {/* Controls Header */}
         <div className="flex justify-between items-end mb-4">
             <div className="flex gap-2">
                 <button onClick={resetZoom} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors" title="Reset View">
@@ -191,7 +180,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
             </div>
         </div>
 
-        {/* Main Slider Track */}
+        {/* Slider Track */}
         <div className="px-4">
             <div className="flex items-center gap-4 relative">
                 <div ref={trackRef} className="relative flex-grow h-12 flex items-center group cursor-pointer" onMouseDown={handleTrackMouseDown}>
@@ -205,34 +194,46 @@ export const TimeControl: React.FC<TimeControlProps> = ({
                         ))}
                     </div>
 
-                    {/* Track Bar */}
+                    {/* Track Background */}
                     <div className="absolute w-full h-2 bg-slate-100 rounded-full overflow-hidden z-0">
                         <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
                     </div>
 
-                    {/* Event Markers on Track */}
+                    {/* [UPDATED] Event Markers: Render ALL events, animate opacity based on visibility */}
                     <div className="absolute w-full h-full pointer-events-none">
-                        {events.map(event => {
+                        {allEvents.map(event => {
                             const sliderVal = toSliderValue(event.start.year);
+                            
+                            // Optimization: Only render DOM nodes for events within the current time viewRange
+                            // We don't need horizontal scrolling animation, so unmounting these is fine
                             if (sliderVal < viewRange.min || sliderVal > viewRange.max) return null;
                             
                             const percent = ((sliderVal - viewRange.min) / (viewRange.max - viewRange.min)) * 100;
+                            
+                            // Check if the event is spatially visible (inside map bounds)
+                            const isVisible = visibleIds.has(event.id);
+                            
                             const isHovered = hoveredEventId === event.id;
                             const isObscuredByThumb = Math.abs(percent - thumbPercent) < 1.5;
 
                             return (
                                 <div 
                                     key={event.id}
-                                    className={`group absolute top-1/2 -translate-y-1/2 w-1.5 h-3 cursor-pointer rounded-[1px] z-20 pointer-events-auto transition-none
-                                        ${isObscuredByThumb ? 'opacity-0 pointer-events-none' : 'opacity-100'}
-                                        ${isHovered ? 'bg-blue-600 scale-125 shadow-sm border border-white z-30' : 'bg-slate-700/80 hover:bg-blue-500'}`}
+                                    // [ANIMATION] CSS Transitions for smooth appearance/disappearance
+                                    className={`group absolute top-1/2 -translate-y-1/2 w-1.5 h-3 cursor-pointer rounded-[1px] z-20 transition-all duration-300 ease-out
+                                        ${isVisible ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-0 pointer-events-none'}
+                                        ${isObscuredByThumb ? 'opacity-0' : ''}
+                                        ${isHovered ? 'bg-blue-600 scale-150 shadow-sm border border-white z-30' : 'bg-slate-700/80 hover:bg-blue-500'}`}
                                     style={{ left: `${percent}%` }}
-                                    onMouseEnter={() => setHoveredEventId(event.id)}
+                                    onMouseEnter={() => isVisible && setHoveredEventId(event.id)}
                                     onMouseLeave={() => setHoveredEventId(null)}
-                                    onClick={(e) => { e.stopPropagation(); smoothJump(sliderVal, event.id); }}>
+                                    onClick={(e) => { 
+                                        if (!isVisible) return;
+                                        e.stopPropagation(); 
+                                        smoothJump(sliderVal, event.id); 
+                                    }}>
                                     
-                                    {/* Tooltip */}
-                                    {isHovered && !isObscuredByThumb && (
+                                    {isHovered && !isObscuredByThumb && isVisible && (
                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] font-medium rounded shadow-sm whitespace-nowrap pointer-events-none">
                                             {event.title}
                                             <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-slate-800"></div>
@@ -243,7 +244,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
                         })}
                     </div>
 
-                    {/* Draggable Thumb (The "Playhead") */}
+                    {/* Draggable Thumb */}
                     <div 
                         className={`absolute top-1/2 w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
                         ${isThumbDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'} 
@@ -255,13 +256,13 @@ export const TimeControl: React.FC<TimeControlProps> = ({
                 </div>
             </div>
             
-            {/* Embedded Overview Timeline (Mini-map) */}
+            {/* [UPDATED] Use allEvents for overview so the mini-map dots remain stable regardless of map panning */}
             <OverviewTimeline 
                 viewRange={viewRange} 
                 setViewRange={setViewRange} 
                 globalMin={globalMin} 
                 globalMax={globalMax} 
-                events={events} 
+                events={allEvents} 
             />
         </div>
       </div>

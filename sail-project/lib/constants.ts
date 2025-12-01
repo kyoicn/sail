@@ -4,9 +4,8 @@ import { EventData } from '../types';
 
 /**
  * Predefined geographical shapes for regions.
- * * Format: Array of [latitude, longitude] tuples forming a closed polygon.
+ * Format: Array of [latitude, longitude] tuples forming a closed polygon.
  * Usage: These are referenced by 'regionId' in the EventData location object.
- * Note: In the future (Step 4), this should be replaced by a GeoJSON fetch or database storage.
  */
 export const PREDEFINED_REGIONS: Record<string, [number, number][]> = {
   // Approximate bounds for Ancient Egypt
@@ -43,8 +42,7 @@ export const PREDEFINED_REGIONS: Record<string, [number, number][]> = {
 
 /**
  * Temporary mock data for development (MVP Phase).
- * * TODO [Step 3]: This constant will be replaced by a Firestore data fetch hook.
- * Ensure the structure matches 'EventData' interface strictly to ease the migration.
+ * Now includes images for better visual testing.
  */
 export const MOCK_EVENTS: EventData[] = [
   { 
@@ -57,7 +55,7 @@ export const MOCK_EVENTS: EventData[] = [
       placeName: 'Giza, Egypt', 
       granularity: 'spot', 
       certainty: 'definite', 
-      regionId: 'egypt' // Links to PREDEFINED_REGIONS['egypt']
+      regionId: 'egypt'
     }, 
     summary: 'The Great Pyramid of Giza is completed.', 
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Kheops-Pyramid.jpg/640px-Kheops-Pyramid.jpg' 
@@ -75,7 +73,8 @@ export const MOCK_EVENTS: EventData[] = [
       customRadius: 5000, 
       regionId: 'babylon_region' 
     }, 
-    summary: 'Babylonian law code issued.' 
+    summary: 'Babylonian law code issued, one of the earliest and most complete written legal codes.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Code_of_Hammurabi_Louvre_Sb8_full.jpg/360px-Code_of_Hammurabi_Louvre_Sb8_full.jpg'
   },
   { 
     id: '5', 
@@ -88,7 +87,8 @@ export const MOCK_EVENTS: EventData[] = [
       granularity: 'spot', 
       certainty: 'definite' 
     }, 
-    summary: 'First recorded Olympic Games.' 
+    summary: 'First recorded Olympic Games held in Olympia, Greece.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Discobolus_in_National_Roman_Museum_Palazzo_Massimo_alle_Terme.jpg/375px-Discobolus_in_National_Roman_Museum_Palazzo_Massimo_alle_Terme.jpg'
   },
   { 
     id: '6', 
@@ -102,30 +102,35 @@ export const MOCK_EVENTS: EventData[] = [
       certainty: 'approximate', 
       regionId: 'italy' 
     }, 
-    summary: 'Legendary founding of Rome.' 
+    summary: 'Legendary founding of Rome by Romulus and Remus.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/She-wolf_suckles_Romulus_and_Remus.jpg/640px-She-wolf_suckles_Romulus_and_Remus.jpg'
   },
-  // Dummy events for testing clustering in modern era
+  // --- Dummy Events for Clustering Tests ---
   { 
     id: 'dummy-1', 
     title: 'Event West of Paris', 
     start: { year: 2024, precision: 'year' }, 
     location: { lat: 48.8566, lng: 2.2500, placeName: 'Paris West', granularity: 'spot', certainty: 'definite' }, 
-    summary: 'Test West.' 
+    summary: 'Test West point for layout debugging.',
+    imageUrl: 'https://placehold.co/600x400/e2e8f0/475569?text=Dummy+Event+A'
   },
   { 
     id: 'dummy-2', 
     title: 'Event East of Paris', 
     start: { year: 2024, precision: 'year' }, 
     location: { lat: 48.8566, lng: 2.4500, placeName: 'Paris East', granularity: 'spot', certainty: 'definite' }, 
-    summary: 'Test East.' 
+    summary: 'Test East point for layout debugging.',
+    imageUrl: 'https://placehold.co/600x400/e2e8f0/475569?text=Dummy+Event+B'
   },
   { 
     id: 'dummy-3', 
     title: 'Event Central Paris', 
     start: { year: 2024, precision: 'year' }, 
     location: { lat: 48.8600, lng: 2.3500, placeName: 'Paris Center', granularity: 'spot', certainty: 'definite' }, 
-    summary: 'Test Center.' 
+    summary: 'Test Center point for layout debugging.',
+    imageUrl: 'https://placehold.co/600x400/e2e8f0/475569?text=Dummy+Event+C'
   },
+  // --- Historical Events Continued ---
   { 
     id: '7', 
     title: 'Alexander\'s Conquests', 
@@ -139,7 +144,8 @@ export const MOCK_EVENTS: EventData[] = [
       certainty: 'definite', 
       customRadius: 2000000 
     }, 
-    summary: 'Alexander creates a vast empire.' 
+    summary: 'Alexander the Great creates one of the largest empires in history.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Alexander_the_Great_mosaic_%28cropped%29.jpg/440px-Alexander_the_Great_mosaic_%28cropped%29.jpg'
   },
   { 
     id: '8', 
@@ -153,7 +159,8 @@ export const MOCK_EVENTS: EventData[] = [
       certainty: 'definite', 
       regionId: 'china_heartland' 
     }, 
-    summary: 'Qin Shi Huang begins unification of the walls.' 
+    summary: 'Qin Shi Huang begins unification of the walls to protect the empire.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/The_Great_Wall_of_China_at_Jinshanling-edit.jpg/640px-The_Great_Wall_of_China_at_Jinshanling-edit.jpg'
   },
   { 
     id: '20', 
@@ -166,7 +173,8 @@ export const MOCK_EVENTS: EventData[] = [
       granularity: 'city', 
       certainty: 'definite' 
     }, 
-    summary: 'Columbus reaches Americas.' 
+    summary: 'Christopher Columbus reaches the Americas.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Landing_of_Columbus_%282%29.jpg/640px-Landing_of_Columbus_%282%29.jpg'
   },
   { 
     id: '32', 
@@ -180,7 +188,8 @@ export const MOCK_EVENTS: EventData[] = [
       certainty: 'definite', 
       customRadius: 500000 
     }, 
-    summary: 'Japan modernization.' 
+    summary: 'Japan moves from feudalism to modern imperial state.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Emperor_Meiji_1873.jpg/480px-Emperor_Meiji_1873.jpg'
   },
   { 
     id: '36', 
@@ -195,6 +204,7 @@ export const MOCK_EVENTS: EventData[] = [
       certainty: 'definite', 
       regionId: 'europe' 
     }, 
-    summary: 'Global conflict.' 
+    summary: 'Global conflict originating in Europe.',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Cheshire_Regiment_trench_Somme_1916.jpg/640px-Cheshire_Regiment_trench_Somme_1916.jpg'
   }
 ];

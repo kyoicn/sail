@@ -102,7 +102,8 @@ export default function ChronoMapPage() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        events={filteredEvents}
+        events={filteredEvents}      // Filtered list: Used to calculate visibility status
+        allEvents={MOCK_EVENTS}      // [NEW] Full list: Passed to keep nodes mounted for animation
         setJumpTargetId={setJumpTargetId}
       />
     </div>
