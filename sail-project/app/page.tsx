@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronRight, ChevronLeft, Map as MapIcon, Layers, ZoomIn, ZoomOut, Maximize, GripHorizontal, MoveHorizontal } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Map as MapIcon, Layers, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 
 // --- Types ---
 
@@ -32,6 +32,13 @@ interface EventData {
   location: ChronosLocation;
 }
 
+interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
 // --- 2. Predefined Region Shapes ---
 const PREDEFINED_REGIONS: Record<string, [number, number][]> = {
   'egypt': [[31.5, 25.0], [31.5, 34.0], [22.0, 34.0], [22.0, 25.0]],
@@ -51,7 +58,6 @@ const MOCK_EVENTS: EventData[] = [
   { id: 'dummy-1', title: 'Event West of Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8566, lng: 2.2500, placeName: 'Paris West', granularity: 'spot', certainty: 'definite' }, summary: 'Test West.' },
   { id: 'dummy-2', title: 'Event East of Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8566, lng: 2.4500, placeName: 'Paris East', granularity: 'spot', certainty: 'definite' }, summary: 'Test East.' },
   { id: 'dummy-3', title: 'Event Central Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8600, lng: 2.3500, placeName: 'Paris Center', granularity: 'spot', certainty: 'definite' }, summary: 'Test Center.' },
-  // ... Adding back more events for testing ...
   { id: '7', title: 'Alexander\'s Conquests', start: { year: -334, precision: 'year' }, end: { year: -323, precision: 'year' }, location: { lat: 34.0, lng: 44.0, placeName: 'Macedon Empire', granularity: 'continent', certainty: 'definite', customRadius: 2000000 }, summary: 'Alexander creates a vast empire.' },
   { id: '8', title: 'Great Wall of China', start: { year: -221, precision: 'year' }, location: { lat: 40.4319, lng: 116.5704, placeName: 'China', granularity: 'territory', certainty: 'definite', regionId: 'china_heartland' }, summary: 'Qin Shi Huang begins unification of the walls.' },
   { id: '20', title: 'Columbus Voyage', start: { year: 1492, month: 10, day: 12, precision: 'day' }, location: { lat: 24.1167, lng: -74.4667, placeName: 'Bahamas', granularity: 'city', certainty: 'definite' }, summary: 'Columbus reaches Americas.' },
@@ -82,21 +88,13 @@ const formatCoordinates = (lat: number, lng: number): string => {
     return `${latDeg}°${latMin}′${latDir}, ${lngDeg}°${lngMin}′${lngDir}`;
 };
 
-// --- Map Bounds Type ---
-interface MapBounds {
-    north: number;
-    south: number;
-    east: number;
-    west: number;
-}
-
 // --- 1. Component: Leaflet Map (Smart Layout) ---
 const LeafletMap = ({ 
   currentDate, 
   events, 
   viewRange,
   jumpTargetId,
-  onBoundsChange // New Prop for reporting bounds
+  onBoundsChange
 }: { 
   currentDate: number, 
   events: EventData[], 
@@ -136,7 +134,7 @@ const LeafletMap = ({
         const L = (window as any).L;
         const map = L.map(mapRef.current, {
            zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5, wheelPxPerZoomLevel: 10 
-        }).setView([48.8566, 2.3522], 2); // Start zoomed out
+        }).setView([48.8566, 2.3522], 11); 
         
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
           attribution: '&copy; CARTO',
@@ -144,24 +142,11 @@ const LeafletMap = ({
           maxZoom: 19
         }).addTo(map);
         
+        map.createPane('shapesPane').style.zIndex = '450'; 
         map.createPane('linesPane').style.zIndex = '550'; 
         map.createPane('cardsPane').style.zIndex = '700'; 
 
-        map.on('zoomend', () => {
-            setMapZoom(map.getZoom());
-            reportBounds();
-        });
-        
-        map.on('moveend', () => {
-            reportBounds();
-        });
-
-        // Initial report
-        reportBounds();
-
-        mapInstanceRef.current = map;
-        
-        function reportBounds() {
+        const updateBounds = () => {
             const bounds = map.getBounds();
             onBoundsChange({
                 north: bounds.getNorth(),
@@ -169,10 +154,20 @@ const LeafletMap = ({
                 east: bounds.getEast(),
                 west: bounds.getWest()
             });
-        }
+        };
+
+        map.on('zoomend', () => {
+            setMapZoom(map.getZoom());
+            updateBounds();
+        });
+        map.on('moveend', updateBounds);
+        
+        // Initial bounds report
+        updateBounds();
+
+        mapInstanceRef.current = map;
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => {};
   }, []);
 
@@ -273,24 +268,26 @@ const LeafletMap = ({
         const finalY = offsetY + BASE_LIFT;
         const finalX = offsetX;
 
+        // Dynamic Height Calculation
         const CARD_HEIGHT = event.imageUrl ? 220 : 120; 
+        // Line Target: Center of the card
         const lineTargetY = finalY - (CARD_HEIGHT / 2);
 
         const lineLen = Math.sqrt(finalX * finalX + lineTargetY * lineTargetY);
         const lineAngle = Math.atan2(lineTargetY, finalX) * (180 / Math.PI);
 
         if (!layersMap.has(event.id)) {
-            // 1. LINE MARKER (in linesPane)
+            // 1. LINE MARKER
             const lineHtml = `
                <div style="position: relative; width: 0; height: 0;">
-                  <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>
+                  <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10;"></div>
                   <div style="position: absolute; top: 0; left: 0; width: ${lineLen}px; height: 2px; background: #2563eb; transform-origin: 0 50%; transform: rotate(${lineAngle}deg); z-index: -1;"></div>
                </div>
             `;
             const lineIcon = L.divIcon({ className: '', html: lineHtml, iconSize: [0,0] });
             const lineMarker = L.marker([event.location.lat, event.location.lng], { icon: lineIcon, pane: 'linesPane' }).addTo(map);
 
-            // 2. CARD MARKER (in cardsPane)
+            // 2. CARD MARKER
             const cardHtml = `
                <div class="card-wrapper" style="
                    position: absolute; left: 0; top: 0; 
@@ -331,7 +328,8 @@ const LeafletMap = ({
 
             layersMap.set(event.id, { card: cardMarker, line: lineMarker, shape });
         } else {
-            const { card, line } = layersMap.get(event.id)!;
+            // UPDATE EXISTING
+            const { card, line, shape } = layersMap.get(event.id)!;
             
             const cardHtml = `
                <div style="
@@ -374,6 +372,15 @@ const LeafletMap = ({
             if (lineEl) {
                 lineEl.style.transition = 'none';
                 lineEl.style.opacity = '1';
+            }
+            
+             // Ensure shape is visible if it exists
+            if (shape) {
+                // Shapes don't use opacity CSS transition usually, but just ensuring it's added back if we removed it
+                // Leaflet handles shape addition/removal via .addTo() / .remove()
+                if (!map.hasLayer(shape)) {
+                    shape.addTo(map);
+                }
             }
         }
     });
@@ -421,8 +428,10 @@ const OverviewTimeline = ({
             const rect = containerRef.current.getBoundingClientRect();
             const deltaX = e.clientX - dragStartX;
             const yearsPerPixel = totalSpan / rect.width;
+            const deltaYears = deltaX * yearsPerPixel;
+
             const currentSpan = viewRange.max - viewRange.min;
-            let newMin = dragStartMin + (deltaX * yearsPerPixel);
+            let newMin = dragStartMin + deltaYears;
             
             if (newMin < globalMin) newMin = globalMin;
             if (newMin + currentSpan > globalMax) newMin = globalMax - currentSpan;
@@ -588,6 +597,7 @@ const TimeControl = ({
                     ${isObscuredByThumb ? 'opacity-0 pointer-events-none' : 'opacity-100'}
                     ${isHovered ? 'bg-blue-600 scale-125 shadow-sm border border-white z-30' : 'bg-slate-700/80 hover:bg-blue-500'}`}
                 style={{ left: `${percent}%` }}
+                // Added animate-in class for new markers
                 onMouseEnter={() => setHoveredEventId(event.id)}
                 onMouseLeave={() => setHoveredEventId(null)}
                 onClick={(e) => { e.stopPropagation(); smoothJump(sliderVal, event.id); }}>
@@ -653,15 +663,13 @@ export default function ChronoMapPage() {
   const [viewRange, setViewRange] = useState({ min: GLOBAL_MIN, max: GLOBAL_MAX });
   const [jumpTargetId, setJumpTargetId] = useState<string | null>(null);
   
-  // NEW: State to track map boundaries
+  // Map Boundary State
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
 
-  // Filter events based on map bounds (Spatial Filter)
-  // Note: We filter MOCK_EVENTS before passing them down.
+  // Spatial Filter
   const filteredEvents = useMemo(() => {
       if (!mapBounds) return MOCK_EVENTS;
       return MOCK_EVENTS.filter(event => {
-          // Simple bounding box check
           return (
             event.location.lat <= mapBounds.north &&
             event.location.lat >= mapBounds.south &&
@@ -694,10 +702,10 @@ export default function ChronoMapPage() {
       <main className="flex-grow relative z-0">
         <LeafletMap 
           currentDate={currentDate} 
-          events={filteredEvents} // Pass filtered events to map 
+          events={filteredEvents} 
           viewRange={viewRange}
           jumpTargetId={jumpTargetId}
-          onBoundsChange={setMapBounds} // Receive bounds updates
+          onBoundsChange={setMapBounds}
         />
       </main>
 
@@ -708,7 +716,7 @@ export default function ChronoMapPage() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        events={filteredEvents} // Pass filtered events to timeline
+        events={filteredEvents}
         setJumpTargetId={setJumpTargetId}
       />
     </div>
