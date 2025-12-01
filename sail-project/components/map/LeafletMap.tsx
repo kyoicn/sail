@@ -5,8 +5,6 @@ import { calculateSmartLayout } from '../../lib/layout-engine';
 import { toSliderValue, formatEventDateRange } from '../../lib/time-engine';
 import { getLocationString } from '../../lib/utils';
 
-// We need to define L locally because Leaflet is loaded via CDN script (MVP approach)
-// In a production app, we would use 'import L from leaflet' with dynamic imports.
 declare const L: any;
 
 interface LeafletMapProps {
@@ -15,39 +13,29 @@ interface LeafletMapProps {
   viewRange: { min: number, max: number };
   jumpTargetId: string | null;
   onBoundsChange: (bounds: MapBounds) => void;
+  initialCenter: { lat: number, lng: number };
+  initialZoom: number;
+  onViewportChange: (center: { lat: number, lng: number }, zoom: number) => void;
 }
 
-/**
- * LeafletMap Component
- * ------------------------------------------------------------------
- * A wrapper around the Leaflet library.
- * Responsibilities:
- * 1. Initialize the Map instance.
- * 2. Filter events based on the current time.
- * 3. Invoke the 'Smart Layout Engine' to calculate collision-free positions.
- * 4. Render markers, lines, and shapes (Polygons/Circles) directly to the DOM.
- */
 export const LeafletMap: React.FC<LeafletMapProps> = ({ 
   currentDate, 
   events, 
   viewRange,
   jumpTargetId,
-  onBoundsChange
+  onBoundsChange,
+  initialCenter,
+  initialZoom,
+  onViewportChange
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  
-  // Cache for Leaflet layers to avoid destroying/recreating DOM elements frequently
   const layersMapRef = useRef<Map<string, { card: any, line: any, shape?: any }>>(new Map());
-  
-  const [mapZoom, setMapZoom] = useState(2);
+  const [mapZoom, setMapZoom] = useState(initialZoom);
 
-  // Dynamic threshold for visibility when zooming out (time-wise)
   const dynamicThreshold = Math.max(0.5, (viewRange.max - viewRange.min) / 100);
 
-  // --- 1. Map Initialization ---
   useEffect(() => {
-    // Load Leaflet CSS/JS if not present (CDN strategy from original page.tsx)
     if (!document.getElementById('leaflet-css')) {
       const link = document.createElement('link');
       link.id = 'leaflet-css';
@@ -58,13 +46,15 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     
     const initMap = () => {
       if (mapRef.current && !mapInstanceRef.current && (window as any).L) {
+        const L = (window as any).L;
+        
         const map = L.map(mapRef.current, {
            zoomControl: false, 
            attributionControl: false, 
            zoomSnap: 0, 
            zoomDelta: 0.5, 
            wheelPxPerZoomLevel: 10 
-        }).setView([48.8566, 2.3522], 11); 
+        }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
         
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
           attribution: '&copy; CARTO',
@@ -72,10 +62,15 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           maxZoom: 19
         }).addTo(map);
         
-        // Create custom panes for correct Z-indexing
         map.createPane('shapesPane').style.zIndex = '450'; 
         map.createPane('linesPane').style.zIndex = '550'; 
         map.createPane('cardsPane').style.zIndex = '700'; 
+
+        const reportViewport = () => {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            onViewportChange({ lat: center.lat, lng: center.lng }, zoom);
+        };
 
         const updateBounds = () => {
             const bounds = map.getBounds();
@@ -85,6 +80,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 east: bounds.getEast(),
                 west: bounds.getWest()
             });
+            reportViewport();
         };
 
         map.on('zoomend', () => {
@@ -93,7 +89,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         });
         map.on('moveend', updateBounds);
         
-        // Initial bounds report
         updateBounds();
         mapInstanceRef.current = map;
       }
@@ -110,25 +105,21 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     }
 
     return () => {};
-  }, [onBoundsChange]); // Dependencies kept minimal for init
+  }, []); 
 
-  // --- 2. Rendering Loop (Reactive to Time/Events) ---
   useEffect(() => {
     if (!mapInstanceRef.current || !(window as any).L) return;
     const map = mapInstanceRef.current;
     const layersMap = layersMapRef.current;
 
-    // A. Filter Active Events (Temporal Filtering)
     const activeEvents = events.filter(event => {
       const startVal = toSliderValue(event.start.year);
       const endVal = event.end ? toSliderValue(event.end.year) : null;
       
       let isActive = false;
       if (jumpTargetId) {
-        // If jumping, only show the target event to reduce noise (or none if animating generic)
         isActive = (jumpTargetId === "___ANIMATING___") ? false : event.id === jumpTargetId;
       } else {
-        // Standard visibility logic
         isActive = endVal !== null 
             ? (currentDate >= startVal && currentDate <= endVal) 
             : (Math.abs(currentDate - startVal) <= dynamicThreshold);
@@ -136,19 +127,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       return isActive;
     });
 
-    // B. Calculate Layout (The heavy lifting is now delegated to layout-engine.ts)
-    // This returns the precise offsetX/Y for every event ID
     const layoutMap = calculateSmartLayout(activeEvents, map);
 
-    // C. Render / Update DOM Elements
-    
-    // 1. Cleanup inactive layers
     events.forEach(e => {
         if (!activeEvents.find(ae => ae.id === e.id) && layersMap.has(e.id)) {
              const layerGroup = layersMap.get(e.id)!;
              const cardEl = layerGroup.card.getElement();
              
-             // CSS Transition for fade out
              if (cardEl) {
                  cardEl.style.transition = 'opacity 2s ease-out'; 
                  cardEl.style.opacity = '0';
@@ -164,7 +149,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         }
     });
 
-    // 2. Draw/Update Active Layers
     activeEvents.forEach(event => {
         const layout = layoutMap.get(event.id) || { offsetX: 0, offsetY: 0 };
         const { offsetX, offsetY } = layout;
@@ -173,16 +157,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const finalY = offsetY + BASE_LIFT;
         const finalX = offsetX;
 
-        // Dynamic Line Calculation
         const CARD_HEIGHT = event.imageUrl ? 220 : 120; 
-        const lineTargetY = finalY - (CARD_HEIGHT / 2); // Connect to center of card
+        const lineTargetY = finalY - (CARD_HEIGHT / 2); 
         const lineLen = Math.sqrt(finalX * finalX + lineTargetY * lineTargetY);
         const lineAngle = Math.atan2(lineTargetY, finalX) * (180 / Math.PI);
 
         if (!layersMap.has(event.id)) {
-            // --- CREATE NEW LAYERS ---
-            
-            // 1. Line Marker
             const lineHtml = `
                <div style="position: relative; width: 0; height: 0;">
                   <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10;"></div>
@@ -192,7 +172,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             const lineIcon = L.divIcon({ className: '', html: lineHtml, iconSize: [0,0] });
             const lineMarker = L.marker([event.location.lat, event.location.lng], { icon: lineIcon, pane: 'linesPane' }).addTo(map);
 
-            // 2. Card Marker
             const cardHtml = `
                <div class="card-wrapper" style="
                    position: absolute; left: 0; top: 0; 
@@ -216,7 +195,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             const cardIcon = L.divIcon({ className: '', html: cardHtml, iconSize: [0,0] });
             const cardMarker = L.marker([event.location.lat, event.location.lng], { icon: cardIcon, pane: 'cardsPane' }).addTo(map);
 
-            // 3. Shape (Polygon/Circle)
             let shape;
             if (event.location.granularity !== 'spot') {
                  if (event.location.regionId && PREDEFINED_REGIONS[event.location.regionId]) {
@@ -234,10 +212,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             layersMap.set(event.id, { card: cardMarker, line: lineMarker, shape });
 
         } else {
-            // --- UPDATE EXISTING LAYERS ---
             const { card, line, shape } = layersMap.get(event.id)!;
             
-            // Update Card Position
             const cardHtml = `
                <div style="
                    position: absolute; left: 0; top: 0; 
@@ -260,7 +236,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             `;
             card.setIcon(L.divIcon({ className: '', html: cardHtml, iconSize: [0,0] }));
 
-            // Update Line Geometry
             const lineHtml = `
                <div style="position: relative; width: 0; height: 0;">
                   <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>
@@ -269,7 +244,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             `;
             line.setIcon(L.divIcon({ className: '', html: lineHtml, iconSize: [0,0] }));
 
-            // Reset Styles (in case it was fading out)
             const cardEl = card.getElement();
             if (cardEl) {
                 cardEl.style.transition = 'none'; 
