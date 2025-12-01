@@ -16,6 +16,8 @@ interface LeafletMapProps {
   initialCenter: { lat: number, lng: number };
   initialZoom: number;
   onViewportChange: (center: { lat: number, lng: number }, zoom: number) => void;
+  // [NEW] Callback when an event is clicked
+  onEventSelect: (event: EventData) => void;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({ 
@@ -26,7 +28,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onBoundsChange,
   initialCenter,
   initialZoom,
-  onViewportChange
+  onViewportChange,
+  onEventSelect // [NEW]
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -129,6 +132,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
     const layoutMap = calculateSmartLayout(activeEvents, map);
 
+    // Cleanup
     events.forEach(e => {
         if (!activeEvents.find(ae => ae.id === e.id) && layersMap.has(e.id)) {
              const layerGroup = layersMap.get(e.id)!;
@@ -149,6 +153,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         }
     });
 
+    // Render Active
     activeEvents.forEach(event => {
         const layout = layoutMap.get(event.id) || { offsetX: 0, offsetY: 0 };
         const { offsetX, offsetY } = layout;
@@ -163,6 +168,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const lineAngle = Math.atan2(lineTargetY, finalX) * (180 / Math.PI);
 
         if (!layersMap.has(event.id)) {
+            // ... (Line Html - unchanged)
             const lineHtml = `
                <div style="position: relative; width: 0; height: 0;">
                   <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10;"></div>
@@ -172,12 +178,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             const lineIcon = L.divIcon({ className: '', html: lineHtml, iconSize: [0,0] });
             const lineMarker = L.marker([event.location.lat, event.location.lng], { icon: lineIcon, pane: 'linesPane' }).addTo(map);
 
+            // ... (Card Html - unchanged)
             const cardHtml = `
                <div class="card-wrapper" style="
                    position: absolute; left: 0; top: 0; 
                    transform: translate(-50%, -100%) translate(${finalX}px, ${finalY}px); 
                    width: 240px; 
                    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+                   cursor: pointer; 
                ">
                   <div style="background: white; border-radius: 8px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); overflow: hidden; font-family: system-ui;">
                       ${event.imageUrl ? `<div style="height: 120px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
@@ -194,7 +202,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             `;
             const cardIcon = L.divIcon({ className: '', html: cardHtml, iconSize: [0,0] });
             const cardMarker = L.marker([event.location.lat, event.location.lng], { icon: cardIcon, pane: 'cardsPane' }).addTo(map);
+            
+            // [NEW] Add Click Listener
+            cardMarker.on('click', (e: any) => {
+                L.DomEvent.stopPropagation(e); // Prevent map click (which might close it)
+                onEventSelect(event);
+            });
 
+            // ... (Shape - unchanged)
             let shape;
             if (event.location.granularity !== 'spot') {
                  if (event.location.regionId && PREDEFINED_REGIONS[event.location.regionId]) {
@@ -212,14 +227,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             layersMap.set(event.id, { card: cardMarker, line: lineMarker, shape });
 
         } else {
+            // Update Existing (unchanged logic, just adding click listener refresh if needed)
             const { card, line, shape } = layersMap.get(event.id)!;
             
+            // ... (HTML updates for card/line/styles unchanged)
             const cardHtml = `
                <div style="
                    position: absolute; left: 0; top: 0; 
                    transform: translate(-50%, -100%) translate(${finalX}px, ${finalY}px); 
                    width: 240px; 
                    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+                   cursor: pointer;
                ">
                   <div style="background: white; border-radius: 8px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); overflow: hidden; font-family: system-ui;">
                       ${event.imageUrl ? `<div style="height: 120px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
@@ -235,8 +253,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                </div>
             `;
             card.setIcon(L.divIcon({ className: '', html: cardHtml, iconSize: [0,0] }));
-
-            const lineHtml = `
+            
+            // Update other properties...
+             const lineHtml = `
                <div style="position: relative; width: 0; height: 0;">
                   <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>
                   <div style="position: absolute; top: 0; left: 0; width: ${lineLen}px; height: 2px; background: #2563eb; transform-origin: 0 50%; transform: rotate(${lineAngle}deg); opacity: 0.6;"></div>

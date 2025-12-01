@@ -8,6 +8,7 @@ import { MOCK_EVENTS } from '../lib/constants';
 import { LeafletMap } from '../components/map/LeafletMap';
 import { TimeControl } from '../components/timeline/TimeControl';
 import { useUrlSync } from '../hooks/useUrlSync';
+import { EventDetailPanel } from '../components/panel/EventDetailPanel'; // [NEW]
 
 export default function ChronoMapPage() {
   const GLOBAL_MIN = -3000;
@@ -37,6 +38,9 @@ export default function ChronoMapPage() {
       lng: initialState.lng, 
       zoom: initialState.zoom 
   });
+
+  // [NEW] Selected Event State for the Details Panel
+  const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
 
   useEffect(() => {
       updateUrl({
@@ -92,6 +96,8 @@ export default function ChronoMapPage() {
           initialCenter={{ lat: initialState.lat, lng: initialState.lng }}
           initialZoom={initialState.zoom}
           onViewportChange={(center, zoom) => setMapViewport({ ...center, zoom })}
+          // [NEW] Handle click
+          onEventSelect={(event) => setSelectedEvent(event)}
         />
       </main>
 
@@ -102,10 +108,18 @@ export default function ChronoMapPage() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        events={filteredEvents}      // Filtered list: Used to calculate visibility status
-        allEvents={MOCK_EVENTS}      // [NEW] Full list: Passed to keep nodes mounted for animation
+        events={filteredEvents}
+        allEvents={MOCK_EVENTS}
         setJumpTargetId={setJumpTargetId}
       />
+
+      {/* [NEW] The Sliding Detail Panel */}
+      <EventDetailPanel 
+        event={selectedEvent}
+        isOpen={!!selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+      />
+
     </div>
   );
 }
