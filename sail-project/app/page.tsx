@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronLeft, Map as MapIcon, Layers, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { ChevronRight, ChevronLeft, Map as MapIcon, Layers, ZoomIn, ZoomOut, Maximize, GripHorizontal, MoveHorizontal } from 'lucide-react';
 
 // --- Types ---
 
@@ -32,55 +32,6 @@ interface EventData {
   location: ChronosLocation;
 }
 
-// --- Geometry Helpers for Layout ---
-
-// Check if line segment (p1-p2) intersects rectangle (rect)
-// p1, p2: {x, y}
-// rect: {x, y, w, h} (x,y is top-left)
-const segmentIntersectsRect = (p1: {x:number, y:number}, p2: {x:number, y:number}, rect: {x:number, y:number, w:number, h:number}) => {
-    // Helper: Check line intersection
-    const linesIntersect = (a: {x:number, y:number}, b: {x:number, y:number}, c: {x:number, y:number}, d: {x:number, y:number}) => {
-        const denominator = ((b.x - a.x) * (d.y - c.y)) - ((b.y - a.y) * (d.x - c.x));
-        if (denominator === 0) return false;
-        const numerator1 = ((a.y - c.y) * (d.x - c.x)) - ((a.x - c.x) * (d.y - c.y));
-        const numerator2 = ((a.y - c.y) * (b.x - a.x)) - ((a.x - c.x) * (b.y - a.y));
-        const r = numerator1 / denominator;
-        const s = numerator2 / denominator;
-        return (r >= 0 && r <= 1) && (s >= 0 && s <= 1);
-    };
-
-    // Rect edges
-    const topLeft = { x: rect.x, y: rect.y };
-    const topRight = { x: rect.x + rect.w, y: rect.y };
-    const bottomLeft = { x: rect.x, y: rect.y + rect.h };
-    const bottomRight = { x: rect.x + rect.w, y: rect.y + rect.h };
-
-    // Check intersection with any of the 4 sides
-    if (linesIntersect(p1, p2, topLeft, topRight)) return true;
-    if (linesIntersect(p1, p2, topRight, bottomRight)) return true;
-    if (linesIntersect(p1, p2, bottomRight, bottomLeft)) return true;
-    if (linesIntersect(p1, p2, bottomLeft, topLeft)) return true;
-
-    // Check if line is completely inside (unlikely for this use case but good for completeness)
-    // Check if p1 is inside
-    if (p1.x > rect.x && p1.x < rect.x + rect.w && p1.y > rect.y && p1.y < rect.y + rect.h) return true;
-
-    return false;
-};
-
-
-// --- Mock Data ---
-const MOCK_EVENTS: EventData[] = [
-  { id: '1', title: 'Great Pyramid', start: { year: -2560, precision: 'year' }, location: { lat: 29.9792, lng: 31.1342, placeName: 'Giza, Egypt', granularity: 'spot', certainty: 'definite', regionId: 'egypt' }, summary: 'The Great Pyramid of Giza is completed.', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Kheops-Pyramid.jpg/640px-Kheops-Pyramid.jpg' },
-  { id: '2', title: 'Code of Hammurabi', start: { year: -1750, precision: 'year' }, location: { lat: 32.5363, lng: 44.4208, placeName: 'Babylon', granularity: 'city', certainty: 'definite', customRadius: 5000, regionId: 'babylon_region' }, summary: 'Babylonian law code issued.' },
-  { id: '5', title: 'First Olympics', start: { year: -776, precision: 'year' }, location: { lat: 37.6384, lng: 21.6297, placeName: 'Olympia', granularity: 'spot', certainty: 'definite' }, summary: 'First recorded Olympic Games.' },
-  { id: '6', title: 'Rome Founded', start: { year: -753, precision: 'year' }, location: { lat: 41.8902, lng: 12.4922, placeName: 'Rome', granularity: 'city', certainty: 'approximate', regionId: 'italy' }, summary: 'Legendary founding of Rome.' },
-  // Dummy events for heavy overlap test
-  { id: 'dummy-1', title: 'Event West of Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8566, lng: 2.2500, placeName: 'Paris West', granularity: 'spot', certainty: 'definite' }, summary: 'Test West.' },
-  { id: 'dummy-2', title: 'Event East of Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8566, lng: 2.4500, placeName: 'Paris East', granularity: 'spot', certainty: 'definite' }, summary: 'Test East.' },
-  { id: 'dummy-3', title: 'Event Central Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8600, lng: 2.3500, placeName: 'Paris Center', granularity: 'spot', certainty: 'definite' }, summary: 'Test Center.' }
-];
-
 // --- 2. Predefined Region Shapes ---
 const PREDEFINED_REGIONS: Record<string, [number, number][]> = {
   'egypt': [[31.5, 25.0], [31.5, 34.0], [22.0, 34.0], [22.0, 25.0]],
@@ -90,6 +41,23 @@ const PREDEFINED_REGIONS: Record<string, [number, number][]> = {
   'usa_east': [[45.0, -85.0], [45.0, -70.0], [30.0, -80.0], [30.0, -90.0]],
   'babylon_region': [[34.0, 42.0], [34.0, 46.0], [30.0, 48.0], [30.0, 44.0]]
 };
+
+// --- 1. Mock Data ---
+const MOCK_EVENTS: EventData[] = [
+  { id: '1', title: 'Great Pyramid', start: { year: -2560, precision: 'year' }, location: { lat: 29.9792, lng: 31.1342, placeName: 'Giza, Egypt', granularity: 'spot', certainty: 'definite', regionId: 'egypt' }, summary: 'The Great Pyramid of Giza is completed.', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Kheops-Pyramid.jpg/640px-Kheops-Pyramid.jpg' },
+  { id: '2', title: 'Code of Hammurabi', start: { year: -1750, precision: 'year' }, location: { lat: 32.5363, lng: 44.4208, placeName: 'Babylon', granularity: 'city', certainty: 'definite', customRadius: 5000, regionId: 'babylon_region' }, summary: 'Babylonian law code issued.' },
+  { id: '5', title: 'First Olympics', start: { year: -776, precision: 'year' }, location: { lat: 37.6384, lng: 21.6297, placeName: 'Olympia', granularity: 'spot', certainty: 'definite' }, summary: 'First recorded Olympic Games.' },
+  { id: '6', title: 'Rome Founded', start: { year: -753, precision: 'year' }, location: { lat: 41.8902, lng: 12.4922, placeName: 'Rome', granularity: 'city', certainty: 'approximate', regionId: 'italy' }, summary: 'Legendary founding of Rome.' },
+  { id: 'dummy-1', title: 'Event West of Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8566, lng: 2.2500, placeName: 'Paris West', granularity: 'spot', certainty: 'definite' }, summary: 'Test West.' },
+  { id: 'dummy-2', title: 'Event East of Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8566, lng: 2.4500, placeName: 'Paris East', granularity: 'spot', certainty: 'definite' }, summary: 'Test East.' },
+  { id: 'dummy-3', title: 'Event Central Paris', start: { year: 2024, precision: 'year' }, location: { lat: 48.8600, lng: 2.3500, placeName: 'Paris Center', granularity: 'spot', certainty: 'definite' }, summary: 'Test Center.' },
+  // ... Adding back more events for testing ...
+  { id: '7', title: 'Alexander\'s Conquests', start: { year: -334, precision: 'year' }, end: { year: -323, precision: 'year' }, location: { lat: 34.0, lng: 44.0, placeName: 'Macedon Empire', granularity: 'continent', certainty: 'definite', customRadius: 2000000 }, summary: 'Alexander creates a vast empire.' },
+  { id: '8', title: 'Great Wall of China', start: { year: -221, precision: 'year' }, location: { lat: 40.4319, lng: 116.5704, placeName: 'China', granularity: 'territory', certainty: 'definite', regionId: 'china_heartland' }, summary: 'Qin Shi Huang begins unification of the walls.' },
+  { id: '20', title: 'Columbus Voyage', start: { year: 1492, month: 10, day: 12, precision: 'day' }, location: { lat: 24.1167, lng: -74.4667, placeName: 'Bahamas', granularity: 'city', certainty: 'definite' }, summary: 'Columbus reaches Americas.' },
+  { id: '32', title: 'Meiji Restoration', start: { year: 1868, precision: 'year' }, location: { lat: 36.2048, lng: 138.2529, placeName: 'Japan', granularity: 'territory', certainty: 'definite', customRadius: 500000 }, summary: 'Japan modernization.' },
+  { id: '36', title: 'World War I', start: { year: 1914, precision: 'year' }, end: { year: 1918, precision: 'year' }, location: { lat: 50.0, lng: 10.0, placeName: 'Europe', granularity: 'continent', certainty: 'definite', regionId: 'europe' }, summary: 'Global conflict.' }
+];
 
 // --- Helper Functions ---
 const getMonthName = (month: number) => ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month - 1] || "";
@@ -104,17 +72,37 @@ const formatNaturalDate = (sliderValue: number, sliderSpan: number) => {
 };
 const getLocationString = (event: EventData) => event.location.placeName || `${event.location.lat.toFixed(2)}, ${event.location.lng.toFixed(2)}`;
 
+const formatCoordinates = (lat: number, lng: number): string => {
+    const latDir = lat >= 0 ? 'N' : 'S';
+    const lngDir = lng >= 0 ? 'E' : 'W';
+    const latDeg = Math.floor(Math.abs(lat));
+    const latMin = Math.floor((Math.abs(lat) - latDeg) * 60);
+    const lngDeg = Math.floor(Math.abs(lng));
+    const lngMin = Math.floor((Math.abs(lng) - lngDeg) * 60);
+    return `${latDeg}°${latMin}′${latDir}, ${lngDeg}°${lngMin}′${lngDir}`;
+};
+
+// --- Map Bounds Type ---
+interface MapBounds {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+}
+
 // --- 1. Component: Leaflet Map (Smart Layout) ---
 const LeafletMap = ({ 
   currentDate, 
   events, 
   viewRange,
-  jumpTargetId
+  jumpTargetId,
+  onBoundsChange // New Prop for reporting bounds
 }: { 
   currentDate: number, 
   events: EventData[], 
   viewRange: { min: number, max: number },
-  jumpTargetId: string | null
+  jumpTargetId: string | null,
+  onBoundsChange: (bounds: MapBounds) => void
 }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -148,7 +136,7 @@ const LeafletMap = ({
         const L = (window as any).L;
         const map = L.map(mapRef.current, {
            zoomControl: false, attributionControl: false, zoomSnap: 0, zoomDelta: 0.5, wheelPxPerZoomLevel: 10 
-        }).setView([48.8566, 2.3522], 11); 
+        }).setView([48.8566, 2.3522], 2); // Start zoomed out
         
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
           attribution: '&copy; CARTO',
@@ -159,10 +147,32 @@ const LeafletMap = ({
         map.createPane('linesPane').style.zIndex = '550'; 
         map.createPane('cardsPane').style.zIndex = '700'; 
 
-        map.on('zoomend', () => setMapZoom(map.getZoom()));
+        map.on('zoomend', () => {
+            setMapZoom(map.getZoom());
+            reportBounds();
+        });
+        
+        map.on('moveend', () => {
+            reportBounds();
+        });
+
+        // Initial report
+        reportBounds();
+
         mapInstanceRef.current = map;
+        
+        function reportBounds() {
+            const bounds = map.getBounds();
+            onBoundsChange({
+                north: bounds.getNorth(),
+                south: bounds.getSouth(),
+                east: bounds.getEast(),
+                west: bounds.getWest()
+            });
+        }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => {};
   }, []);
 
@@ -187,37 +197,22 @@ const LeafletMap = ({
       return isActive;
     });
 
-    // B. Smart Layout Algorithm (Collision Free)
+    // B. Smart Layout Algorithm
     const CARD_WIDTH = 250;
     const GAP = 20;
-    const BASE_LIFT = -15;
     
-    // 1. Initial Projection
     const screenItems = activeEvents.map(e => {
         const pt = map.latLngToLayerPoint([e.location.lat, e.location.lng]);
-        return { 
-            id: e.id, 
-            anchorX: pt.x, 
-            anchorY: pt.y, 
-            event: e,
-            // Initial Layout Guess (Centered)
-            cardX: 0, 
-            cardY: 0,
-            cardHeight: e.imageUrl ? 220 : 120,
-            cardWidth: CARD_WIDTH
-        };
-    }).sort((a, b) => a.anchorX - b.anchorX); // Sort by anchor X
+        return { id: e.id, x: pt.x, y: pt.y, event: e };
+    }).sort((a, b) => a.x - b.x);
 
-    // 2. Horizontal Spreading (Cluster Logic)
-    // Group intersecting items
     const clusters: typeof screenItems[] = [];
     if (screenItems.length > 0) {
         let currentCluster = [screenItems[0]];
         for (let i = 1; i < screenItems.length; i++) {
             const prev = currentCluster[currentCluster.length - 1];
             const curr = screenItems[i];
-            // Check if Anchors are too close
-            if (Math.abs(curr.anchorX - prev.anchorX) < (CARD_WIDTH + GAP)) {
+            if (Math.abs(curr.x - prev.x) < (CARD_WIDTH + GAP)) {
                 currentCluster.push(curr);
             } else {
                 clusters.push(currentCluster);
@@ -227,87 +222,29 @@ const LeafletMap = ({
         clusters.push(currentCluster);
     }
 
-    // Assign X positions based on spread
-    clusters.forEach(cluster => {
-        const totalAnchorX = cluster.reduce((sum, item) => sum + item.anchorX, 0);
-        const avgAnchorX = totalAnchorX / cluster.length;
-        const totalSpreadWidth = cluster.length * CARD_WIDTH + (cluster.length - 1) * GAP;
-        const startScreenX = avgAnchorX - (totalSpreadWidth / 2) + (CARD_WIDTH / 2);
-
-        cluster.forEach((item, idx) => {
-            // Absolute Screen X for center of card
-            const targetScreenX = startScreenX + idx * (CARD_WIDTH + GAP);
-            // Offset from its own Anchor
-            item.cardX = targetScreenX - item.anchorX;
-            // Initial Y offset (slight arch to separate lines)
-            const midIdx = (cluster.length - 1) / 2;
-            const dist = Math.abs(idx - midIdx);
-            item.cardY = -dist * 30; 
-        });
-    });
-
-    // 3. Iterative Vertical Optimization (Line Intersection Check)
-    // Ensure no card overlaps another card's leader line
-    const iterations = 5; // Physics steps
-    for (let step = 0; step < iterations; step++) {
-        for (let i = 0; i < screenItems.length; i++) {
-            const itemA = screenItems[i];
-            // Define A's Card Box (Relative to A's Anchor for calculation simplicity, let's adjust to absolute screen coords)
-            // ItemA Card Center Bottom is at: (itemA.anchorX + itemA.cardX, itemA.anchorY + itemA.cardY + BASE_LIFT)
-            
-            const aBotX = itemA.anchorX + itemA.cardX;
-            const aBotY = itemA.anchorY + itemA.cardY + BASE_LIFT;
-            const aTopY = aBotY - itemA.cardHeight;
-            const aLeft = aBotX - (CARD_WIDTH / 2);
-            const aRight = aBotX + (CARD_WIDTH / 2);
-            
-            const boxA = { x: aLeft, y: aTopY, w: CARD_WIDTH, h: itemA.cardHeight };
-
-            for (let j = 0; j < screenItems.length; j++) {
-                if (i === j) continue;
-                const itemB = screenItems[j];
-                
-                // Define B's Leader Line
-                // From (itemB.anchorX, itemB.anchorY) to (itemB.anchorX + itemB.cardX, itemB.anchorY + itemB.cardY + BASE_LIFT - CARD_CENTER_OFFSET)
-                // Line target is roughly center of card
-                const bTargetX = itemB.anchorX + itemB.cardX;
-                const bTargetY = itemB.anchorY + itemB.cardY + BASE_LIFT - (itemB.cardHeight/2);
-                const bAnchor = { x: itemB.anchorX, y: itemB.anchorY };
-                const bCenter = { x: bTargetX, y: bTargetY };
-
-                // Check Intersection: Does Card A overlap Line B?
-                if (segmentIntersectsRect(bAnchor, bCenter, boxA)) {
-                    // Collision! Push Card A UP.
-                    // Heuristic: Shift A up by 40px
-                    itemA.cardY -= 40;
-                }
-                
-                // Also Check Card-Card Overlap (Double Safety)
-                const bBotX = itemB.anchorX + itemB.cardX;
-                const bBotY = itemB.anchorY + itemB.cardY + BASE_LIFT;
-                const bTopY = bBotY - itemB.cardHeight;
-                const bLeft = bBotX - (CARD_WIDTH / 2);
-                const boxB = { x: bLeft, y: bTopY, w: CARD_WIDTH, h: itemB.cardHeight };
-
-                // Simple AABB check
-                if (boxA.x < boxB.x + boxB.w && boxA.x + boxA.w > boxB.x &&
-                    boxA.y < boxB.y + boxB.h && boxA.y + boxA.h > boxB.y) {
-                        // Overlap. Since we sorted X, usually we just need to ensure Y separation if X separation failed (unlikely with spreading)
-                        // But if forced by lines...
-                        // Push the one with higher index further away (up or down) or just UP
-                        itemA.cardY -= 20; 
-                }
-            }
-        }
-    }
-
     const layoutMap = new Map<string, { offsetX: number, offsetY: number }>();
-    screenItems.forEach(item => {
-        layoutMap.set(item.id, { offsetX: item.cardX, offsetY: item.cardY });
+    clusters.forEach(cluster => {
+        if (cluster.length === 1) {
+            layoutMap.set(cluster[0].id, { offsetX: 0, offsetY: 0 });
+        } else {
+            const totalAnchorX = cluster.reduce((sum, item) => sum + item.x, 0);
+            const averageAnchorX = totalAnchorX / cluster.length;
+            const totalSpreadWidth = cluster.length * CARD_WIDTH + (cluster.length - 1) * GAP;
+            const startScreenX = averageAnchorX - (totalSpreadWidth / 2) + (CARD_WIDTH / 2);
+
+            cluster.forEach((item, idx) => {
+                const targetScreenX = startScreenX + idx * (CARD_WIDTH + GAP);
+                const offsetX = targetScreenX - item.x;
+                const midIdx = (cluster.length - 1) / 2;
+                const dist = Math.abs(idx - midIdx);
+                const offsetY = -dist * 25; 
+                layoutMap.set(item.id, { offsetX, offsetY });
+            });
+        }
     });
 
     // C. Render Updates
-    // Cleanup Inactive
+    // Cleanup
     events.forEach(e => {
         if (!activeEvents.find(ae => ae.id === e.id) && layersMap.has(e.id)) {
              const layerGroup = layersMap.get(e.id)!;
@@ -336,9 +273,7 @@ const LeafletMap = ({
         const finalY = offsetY + BASE_LIFT;
         const finalX = offsetX;
 
-        // DYNAMIC HEIGHT CALCULATION
         const CARD_HEIGHT = event.imageUrl ? 220 : 120; 
-        // Line Target: Center of the card
         const lineTargetY = finalY - (CARD_HEIGHT / 2);
 
         const lineLen = Math.sqrt(finalX * finalX + lineTargetY * lineTargetY);
@@ -364,7 +299,7 @@ const LeafletMap = ({
                    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
                ">
                   <div style="background: white; border-radius: 8px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); overflow: hidden; font-family: system-ui;">
-                      ${event.imageUrl ? `<div style="height: 100px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
+                      ${event.imageUrl ? `<div style="height: 120px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
                       <div style="padding: 12px;">
                           <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px;">${event.title}</div>
                           <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
@@ -396,7 +331,6 @@ const LeafletMap = ({
 
             layersMap.set(event.id, { card: cardMarker, line: lineMarker, shape });
         } else {
-            // UPDATE EXISTING
             const { card, line } = layersMap.get(event.id)!;
             
             const cardHtml = `
@@ -407,7 +341,7 @@ const LeafletMap = ({
                    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
                ">
                   <div style="background: white; border-radius: 8px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); overflow: hidden; font-family: system-ui;">
-                      ${event.imageUrl ? `<div style="height: 100px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
+                      ${event.imageUrl ? `<div style="height: 120px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
                       <div style="padding: 12px;">
                           <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px;">${event.title}</div>
                           <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
@@ -429,7 +363,6 @@ const LeafletMap = ({
             `;
             line.setIcon(L.divIcon({ className: '', html: lineHtml, iconSize: [0,0] }));
 
-            // Reset styles for instant appear
             const cardEl = card.getElement();
             if (cardEl) {
                 cardEl.style.transition = 'none'; 
@@ -488,10 +421,8 @@ const OverviewTimeline = ({
             const rect = containerRef.current.getBoundingClientRect();
             const deltaX = e.clientX - dragStartX;
             const yearsPerPixel = totalSpan / rect.width;
-            const deltaYears = deltaX * yearsPerPixel;
-
             const currentSpan = viewRange.max - viewRange.min;
-            let newMin = dragStartMin + deltaYears;
+            let newMin = dragStartMin + (deltaX * yearsPerPixel);
             
             if (newMin < globalMin) newMin = globalMin;
             if (newMin + currentSpan > globalMax) newMin = globalMax - currentSpan;
@@ -721,6 +652,24 @@ export default function ChronoMapPage() {
   const [currentDate, setCurrentDate] = useState(2024); 
   const [viewRange, setViewRange] = useState({ min: GLOBAL_MIN, max: GLOBAL_MAX });
   const [jumpTargetId, setJumpTargetId] = useState<string | null>(null);
+  
+  // NEW: State to track map boundaries
+  const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
+
+  // Filter events based on map bounds (Spatial Filter)
+  // Note: We filter MOCK_EVENTS before passing them down.
+  const filteredEvents = useMemo(() => {
+      if (!mapBounds) return MOCK_EVENTS;
+      return MOCK_EVENTS.filter(event => {
+          // Simple bounding box check
+          return (
+            event.location.lat <= mapBounds.north &&
+            event.location.lat >= mapBounds.south &&
+            event.location.lng >= mapBounds.west &&
+            event.location.lng <= mapBounds.east
+          );
+      });
+  }, [mapBounds]);
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
@@ -745,9 +694,10 @@ export default function ChronoMapPage() {
       <main className="flex-grow relative z-0">
         <LeafletMap 
           currentDate={currentDate} 
-          events={MOCK_EVENTS} 
+          events={filteredEvents} // Pass filtered events to map 
           viewRange={viewRange}
           jumpTargetId={jumpTargetId}
+          onBoundsChange={setMapBounds} // Receive bounds updates
         />
       </main>
 
@@ -758,7 +708,7 @@ export default function ChronoMapPage() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        events={MOCK_EVENTS}
+        events={filteredEvents} // Pass filtered events to timeline
         setJumpTargetId={setJumpTargetId}
       />
     </div>
