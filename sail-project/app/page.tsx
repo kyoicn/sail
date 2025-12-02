@@ -11,6 +11,7 @@ import { DebugHUD } from '../components/debug/DebugHUD';
 
 // Imported Hooks
 import { useUrlSync } from '../hooks/useUrlSync';
+import { useAppConfig } from '../hooks/useAppConfig'; // [NEW]
 import { useEventData } from '../hooks/useEventData';
 import { useLOD } from '../hooks/useLOD';
 import { useEventFilter } from '../hooks/useEventFilter';
@@ -19,7 +20,11 @@ export default function ChronoMapPage() {
   const GLOBAL_MIN = -3000;
   const GLOBAL_MAX = 2024; 
 
-  // --- 1. State & URL Sync ---
+  // --- 1. Infrastructure & Config ---
+  // Get the dataset configuration first (Logic Injection)
+  const { dataset } = useAppConfig();
+
+  // --- 2. State & URL Sync ---
   const { getInitialState, updateUrl } = useUrlSync({
     lat: 48.8566, lng: 2.3522, zoom: 11, year: 2024, span: GLOBAL_MAX - GLOBAL_MIN
   });
@@ -42,10 +47,15 @@ export default function ChronoMapPage() {
   }, [currentDate, viewRange, mapViewport, updateUrl]);
 
 
-  // --- 2. Logic Pipelines (Powered by Hooks) ---
+  // --- 3. Logic Pipelines ---
   
   // Data Fetching Pipeline
-  const { allVisibleEvents, allLoadedEvents, isLoading } = useEventData(mapBounds, mapViewport.zoom);
+  // [REFACTORED] Now explicitly passing 'dataset' from config
+  const { allVisibleEvents, allLoadedEvents, isLoading } = useEventData(
+      mapBounds, 
+      mapViewport.zoom, 
+      dataset
+  );
 
   // LOD Calculation Pipeline
   const lodThreshold = useLOD(viewRange, mapViewport.zoom);
@@ -65,7 +75,7 @@ export default function ChronoMapPage() {
   }, [mapBounds, mapViewport.zoom]);
 
 
-  // --- 3. View Layer ---
+  // --- 4. View Layer ---
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
       
@@ -92,6 +102,13 @@ export default function ChronoMapPage() {
                   <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
                   <span className="text-xs text-slate-500 font-medium">Updating...</span>
                </div>
+            )}
+            
+            {/* Optional: Show current dataset indicator in Dev mode */}
+            {dataset !== 'prod' && (
+                <span className="text-[10px] font-mono text-orange-600 bg-orange-100 px-1 rounded border border-orange-200">
+                    DATA: {dataset.toUpperCase()}
+                </span>
             )}
           </div>
           <div className="pointer-events-auto">
@@ -123,11 +140,9 @@ export default function ChronoMapPage() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        
         events={renderableEvents}          
         densityEvents={spatiallyFilteredEvents} 
         allEvents={allLoadedEvents}        
-        
         setJumpTargetId={setJumpTargetId}
       />
 

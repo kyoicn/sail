@@ -6,8 +6,17 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+
+  // [NEW] Dataset Switcher
+  // Defaults to 'prod' (events table).
+  // Can be overridden by ?dataset=dev
+  const dataset = searchParams.get('dataset') || 'prod';
+  
+  // Decide which RPC to call
+  const rpcName = dataset === 'dev' ? 'get_events_in_view_dev' : 'get_events_in_view_v2';
   
   const minYear = parseFloat(searchParams.get('minYear') || '-5000');
   const maxYear = parseFloat(searchParams.get('maxYear') || '2050');
@@ -60,7 +69,7 @@ export async function GET(request: Request) {
 
   const minImportance = 1; 
 
-  const { data, error } = await supabase.rpc('get_events_in_view_v2', {
+  const { data, error } = await supabase.rpc(rpcName, {
       min_lat: rpcSouth,
       max_lat: rpcNorth,
       min_lng: rpcWest,
