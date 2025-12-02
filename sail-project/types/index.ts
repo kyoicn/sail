@@ -1,23 +1,61 @@
 /**
  * src/types/index.ts
- * Core Data Models & Type Definitions
+ * Core Data Models (M3 Finalized)
  * ------------------------------------------------------------------
+ * Defines the contract for Time, Space, and Event Entities.
  */
 
-// --- Time System ---
+// --- Time System (Dual-Track) ---
 
 export interface ChronosTime {
+  // 1. Display Layer (Wall Time - Historical)
+  // ALWAYS represents the "Local Time" where the event occurred.
+  // We do NOT normalize historical events to UTC, because timezones didn't exist for most of history,
+  // and converting "Pearl Harbor" to UTC makes no sense for historical narrative.
+  // e.g. year: -1 represents "1 BC", year: 1 represents "1 AD".
   year: number;
-  month?: number;
-  day?: number;
-  precision: 'year' | 'month' | 'day' | 'hour' | 'minute'; 
+  month?: number;      // 1-12
+  day?: number;        // 1-31
+  hour?: number;       // 0-23
+  minute?: number;     // 0-59
+  second?: number;     // 0-59 (Added for modern precision)
+  millisecond?: number;// 0-999 (Added for scientific/modern precision)
+  
+  // 2. Calculation Layer (Linear Absolute Time - Astronomical)
+  // A continuous decimal value used ONLY for sorting, indexing, and heatmap calculations.
+  // It represents the "Astronomical Year" with fractional progress.
+  // 
+  // Conversion Rules:
+  // - 1 AD  = 1.000...
+  // - 1 BC  = 0.000... (Astronomical Year 0)
+  // - 2 BC  = -1.000...
+  // - 1970 AD = 1970.0 (Unix Epoch start)
+  //
+  // Formula: AstroYear + (DayOfYear_Index + Time_Fraction) / DaysInYear
+  // This allows O(1) comparison between "44 BC" and "1945 AD".
+  // [RENAME] Changed from 'timestamp' to 'astro_year' to avoid confusion with Unix Timestamps.
+  astro_year: number; 
+
+  // Indicator of how granular this data is.
+  // e.g. If 'day', we ignore hour/minute in UI display.
+  precision: 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond'; 
 }
 
-// --- Spatial System ---
+// --- Spatial System (Anchor + Geometry) ---
 
 export interface ChronosLocation {
+  // 1. Visual Anchor (Required)
+  // The geographic center point for placing the Marker/Label on the map. 
+  // For political regions (e.g. Roman Empire), this should be the Capital or Cultural Center,
+  // NOT the geometric centroid (which might end up in the Mediterranean Sea).
   lat: number;
   lng: number;
+
+  // 2. Geometric Shape (Optional - For Future M3 Feature)
+  // GeoJSON Polygon/MultiPolygon for rendering borders or territories.
+  // This allows highlighting "The Roman Empire" boundaries when hovered.
+  geoJson?: object; 
+
   placeName?: string; 
   granularity: 'spot' | 'city' | 'territory' | 'continent';
   certainty: 'definite' | 'approximate';
@@ -25,36 +63,42 @@ export interface ChronosLocation {
   regionId?: string; 
 }
 
-// --- Source System [NEW] ---
+// --- Source System ---
 
-/**
- * Represents an external citation or reference link.
- */
 export interface EventSource {
-  label: string; // e.g. "Wikipedia", "Britannica"
+  label: string;
   url: string;
+  // Tracks data provenance for the pipeline
+  provider?: 'wikidata' | 'gdelt' | 'manual' | 'ai';
+  providerId?: string; 
 }
 
 // --- Event Entity ---
 
 export interface EventData {
-  id: string;
+  id: string; // UUID
   title: string;
   summary: string;
   imageUrl?: string;
+  
   start: ChronosTime;
-  end?: ChronosTime;
+  end?: ChronosTime; // Optional: Defines a duration (e.g. War, Dynasty)
+  
   location: ChronosLocation;
   
-  /** External references and further reading links [NEW] */
-  sources?: EventSource[];
-
-  /** * Historical Importance / Magnitude (1-10) [NEW]
-   * Used for Level-of-Detail (LOD) filtering.
-   * 10 = Epoch-making (Visible at global zoom)
-   * 1  = Trivial details (Visible only when fully zoomed in)
-   */
+  // Historical Importance (1-10)
+  // 10: Epoch-making (Visible at Global Zoom)
+  // 1: Local detail (Visible only at Street Zoom)
   importance: number;
+  
+  sources?: EventSource[];
+  
+  // Pipeline Metadata (Internal Use)
+  pipeline?: {
+    fetchedAt: string; // ISO Date of extraction
+    version: number;   // Schema version
+    tags?: string[];   // e.g. ["war", "science"]
+  };
 }
 
 // --- Map State & Layout ---
