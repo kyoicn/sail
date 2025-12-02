@@ -1,42 +1,28 @@
 import { useMemo } from 'react';
 import { EventData, MapBounds } from '../types';
+import { isEventInBounds } from '../lib/geo-engine'; // [NEW] Import logic
 
-/**
- * Hook: Handles complex spatial and importance filtering
- * Includes the "Infinite Map Wrapping" projection logic.
- */
 export function useEventFilter(
     allVisibleEvents: EventData[],
     mapBounds: MapBounds | null,
     lodThreshold: number,
     selectedEventId: string | undefined
 ) {
-    // 1. Spatial Filter (With Nearest Neighbor Projection)
+    // 1. Spatial Filter
     const spatiallyFilteredEvents = useMemo(() => {
         if (!mapBounds) return [];
 
-        const { west, east, north, south } = mapBounds;
-        const lngSpan = east - west;
-        const isGlobalView = lngSpan >= 360; 
-        const mapCenterLng = (west + east) / 2;
-
         return allVisibleEvents.filter(event => {
-            // Latitude Check
-            if (event.location.lat > north || event.location.lat < south) return false;
-            
-            // Global Optimization
-            if (isGlobalView) return true;
-
-            // Longitude Projection Logic
-            const lng = event.location.lng;
-            const offset = Math.round((mapCenterLng - lng) / 360);
-            const projectedLng = lng + (offset * 360);
-
-            return projectedLng >= west && projectedLng <= east;
+            // Delegate math to the pure function
+            return isEventInBounds(
+                event.location.lat,
+                event.location.lng,
+                mapBounds
+            );
         });
     }, [mapBounds, allVisibleEvents]);
 
-    // 2. Render Filter (LOD Application)
+    // 2. Render Filter (LOD)
     const renderableEvents = useMemo(() => {
         return spatiallyFilteredEvents.filter(event => {
             const isSelected = selectedEventId === event.id;
