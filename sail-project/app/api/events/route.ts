@@ -9,8 +9,8 @@ const supabase = createClient(
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   
-  const minYear = parseInt(searchParams.get('minYear') || '-5000');
-  const maxYear = parseInt(searchParams.get('maxYear') || '2050');
+  const minYear = parseFloat(searchParams.get('minYear') || '-5000');
+  const maxYear = parseFloat(searchParams.get('maxYear') || '2050');
   const zoom = parseFloat(searchParams.get('z') || '10');
   
   let north = parseFloat(searchParams.get('n') || '90');
@@ -20,78 +20,97 @@ export async function GET(request: Request) {
   
   const lngSpan = east - west;
 
-  // 1. Determine "Global Mode"
-  // Logic: Zoom is small (continents) OR viewport spans the whole world.
-  const isGlobalView = zoom < 5.5 || lngSpan >= 300 || (west <= -180 && east >= 180);
+  // [CRITICAL FIX] "Antipodal Edge" Prevention
+  // PostGIS throws "Antipodal (180 degrees long) edge detected" if we try to make 
+  // a polygon that spans >= 180 degrees.
+  // Instead of trying to clamp coordinates to 179.9, we should just disable spatial 
+  // filtering entirely for any large view.
+  //
+  // New Logic: 
+  // 1. Zoom < 5.5 (Continents/World) -> Global View
+  // 2. Longitude Span > 160 degrees -> Global View (Safe margin before 180)
+  // 3. Off-map coordinates -> Global View
+  const isGlobalView = 
+      zoom < 5.5 || 
+      lngSpan >= 160 ||  // Reduced from 300 to 160 to be super safe against Antipodal errors
+      (west <= -180 && east >= 180);
 
-  // 2. Prepare RPC Arguments
-  // [ELEGANT FIX] Instead of clamping to -179.9, we pass NULL for global view.
-  // The SQL function handles NULL by skipping the spatial check entirely.
-  // This is mathematically correct (Global = No Filter) and avoids edge errors.
-  
-  let rpcArgs;
+  // Prepare RPC Arguments
+  let rpcWest, rpcEast, rpcNorth, rpcSouth;
 
   if (isGlobalView) {
-      // Global View: Pass NULLs to disable spatial filtering
-      rpcArgs = {
-          min_lat: null,
-          max_lat: null,
-          min_lng: null,
-          max_lng: null,
-          min_year: minYear,
-          max_year: maxYear,
-          min_importance: 1
-      };
+      // Pass NULL to trigger SQL short-circuit (no spatial check)
+      rpcWest = null;
+      rpcEast = null;
+      rpcNorth = null;
+      rpcSouth = null;
   } else {
-      // Local View: Clamp to valid PostGIS bounds [-180, 180]
-      let safeWest = Math.max(-180, west);
-      let safeEast = Math.min(180, east);
-      const safeNorth = Math.min(90, north);
-      const safeSouth = Math.max(-90, south);
+      // Local View: Safe to use exact bounds because we know span < 160
+      rpcWest = Math.max(-180, west);
+      rpcEast = Math.min(180, east);
+      rpcNorth = Math.min(90, north);
+      rpcSouth = Math.max(-90, south);
       
-      // Handle edge case where view is completely off-chart
-      if (safeWest > safeEast) {
-          safeWest = -180;
-          safeEast = 180;
+      // Safety fix
+      if (rpcWest > rpcEast) {
+          // If clamping broke the bounds, just fallback to global
+          rpcWest = null; rpcEast = null; rpcNorth = null; rpcSouth = null;
       }
-
-      rpcArgs = {
-          min_lat: safeSouth,
-          max_lat: safeNorth,
-          min_lng: safeWest,
-          max_lng: safeEast,
-          min_year: minYear,
-          max_year: maxYear,
-          min_importance: 1
-      };
   }
 
-  // 3. Execute RPC
-  const { data, error } = await supabase.rpc('get_events_in_view', rpcArgs);
+  const minImportance = 1; 
+
+  const { data, error } = await supabase.rpc('get_events_in_view_v2', {
+      min_lat: rpcSouth,
+      max_lat: rpcNorth,
+      min_lng: rpcWest,
+      max_lng: rpcEast,
+      min_year: minYear,
+      max_year: maxYear,
+      min_importance: minImportance
+  });
 
   if (error) {
     console.error('Supabase RPC Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 4. Format Data
-  const formattedEvents = (data || []).map((row: any) => ({
-    id: row.id,
-    title: row.title,
-    summary: row.summary,
-    imageUrl: row.image_url,
-    start: { year: row.start_year, precision: row.precision || 'year' },
-    location: {
-      lat: row.lat, 
-      lng: row.lng,
-      placeName: row.place_name,
-      granularity: row.granularity,
-      certainty: row.certainty,
-      region_id: row.region_id
-    },
-    importance: row.importance,
-    sources: row.sources || []
-  }));
+  const formattedEvents = (data || []).map((row: any) => {
+    const startBody = row.start_time_body || {};
+    
+    return {
+      id: row.id,
+      title: row.title,
+      summary: row.summary,
+      imageUrl: row.image_url,
+      
+      start: {
+        year: startBody.year ?? row.start_year,
+        month: startBody.month,
+        day: startBody.day,
+        hour: startBody.hour,
+        minute: startBody.minute,
+        second: startBody.second,
+        millisecond: startBody.millisecond,
+        astro_year: row.start_astro_year ?? row.start_year,
+        precision: row.precision || 'year'
+      },
+      
+      location: {
+        lat: row.lat, 
+        lng: row.lng,
+        placeName: row.place_name,
+        granularity: row.granularity,
+        certainty: row.certainty,
+        region_id: row.region_id,
+      },
+      
+      importance: row.importance,
+      sources: row.sources || [],
+      
+      pipeline: row.pipeline
+    };
+  });
 
   return NextResponse.json(formattedEvents, {
     headers: {
