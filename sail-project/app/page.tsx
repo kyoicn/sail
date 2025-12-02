@@ -9,6 +9,7 @@ import { LeafletMap } from '../components/map/LeafletMap';
 import { TimeControl } from '../components/timeline/TimeControl';
 import { useUrlSync } from '../hooks/useUrlSync';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';
+import { DebugHUD } from '../components/debug/DebugHUD'; // [NEW]
 
 // SWR Fetcher
 const fetcher = (url: string) => fetch(url).then(res => res.json());
@@ -28,7 +29,7 @@ export default function ChronoMapPage() {
 
   const initialState = getInitialState();
 
-  // 2. State Management
+  // 2. State
   const [currentDate, setCurrentDate] = useState(initialState.year);
   const initialMin = Math.max(GLOBAL_MIN, initialState.year - (initialState.span / 2));
   const initialMax = Math.min(GLOBAL_MAX, initialState.year + (initialState.span / 2));
@@ -45,7 +46,7 @@ export default function ChronoMapPage() {
 
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
 
-  // 3. Effect: Trigger URL Update
+  // 3. Effect: URL Update
   useEffect(() => {
       updateUrl({
           lat: mapViewport.lat,
@@ -57,7 +58,6 @@ export default function ChronoMapPage() {
   }, [currentDate, viewRange, mapViewport, updateUrl]);
 
   // 4. DATA FETCHING
-  // Add 'z' param to let backend optimize for Global/Continent views
   const queryKey = mapBounds 
     ? `/api/events?n=${mapBounds.north}&s=${mapBounds.south}&e=${mapBounds.east}&w=${mapBounds.west}&z=${mapViewport.zoom}` 
     : null;
@@ -67,10 +67,8 @@ export default function ChronoMapPage() {
     dedupingInterval: 10000, 
   });
 
-  // The raw data from the server
   const allVisibleEvents = serverEvents || [];
 
-  // [ACCUMULATOR] Keep track of ALL events seen to allow smooth fade-out animations
   const [allLoadedEvents, setAllLoadedEvents] = useState<EventData[]>([]);
 
   useEffect(() => {
@@ -107,10 +105,6 @@ export default function ChronoMapPage() {
   }, [viewRange, mapViewport.zoom]);
 
   // 6. Data Pipeline: Filter Logic
-
-  // A. Spatial Filter [FIXED: Robust Infinite Wrapping]
-  // Instead of hardcoding +/- 360 checks, we project the event's longitude
-  // to the "world copy" that is closest to the current viewport center.
   const spatiallyFilteredEvents = useMemo(() => {
       if (!mapBounds) return [];
       
@@ -120,12 +114,7 @@ export default function ChronoMapPage() {
       const mapCenterLng = (west + east) / 2;
 
       return allVisibleEvents.filter(event => {
-          // Latitude Check
-          if (event.location.lat > north || event.location.lat < south) {
-              return false;
-          }
-
-          // Longitude Check
+          if (event.location.lat > north || event.location.lat < south) return false;
           if (isGlobalView) return true;
 
           const lng = event.location.lng;
@@ -136,8 +125,6 @@ export default function ChronoMapPage() {
       });
   }, [mapBounds, allVisibleEvents]);
 
-  // B. Render Filter: Defines what shows as Markers/Cards
-  // Applies LOD (Importance) logic on top of the spatial set.
   const renderableEvents = useMemo(() => {
       return spatiallyFilteredEvents.filter(event => {
           const isSelected = selectedEvent?.id === event.id;
@@ -146,10 +133,28 @@ export default function ChronoMapPage() {
       });
   }, [spatiallyFilteredEvents, lodThreshold, selectedEvent]);
 
+  // [NEW] Debug Helper Calculation
+  const isGlobalViewGuess = useMemo(() => {
+      if (!mapBounds) return false;
+      const lngSpan = mapBounds.east - mapBounds.west;
+      // Replicates the logic in route.ts roughly
+      return mapViewport.zoom < 5.5 || lngSpan >= 300 || (mapBounds.west <= -180 && mapBounds.east >= 180);
+  }, [mapBounds, mapViewport.zoom]);
+
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
       
-      {/* Header Layer */}
+      {/* [NEW] DEBUG HUD (Top Right) */}
+      <DebugHUD 
+        zoom={mapViewport.zoom}
+        center={mapViewport}
+        bounds={mapBounds}
+        lodThreshold={lodThreshold}
+        fetchedCount={allVisibleEvents.length}
+        renderedCount={renderableEvents.length}
+        isGlobalViewGuess={isGlobalViewGuess}
+      />
+
       <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
         <div className="max-w-7xl mx-auto flex justify-between items-start">
           <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 pointer-events-auto border border-white/50 flex items-center gap-3">
@@ -158,8 +163,6 @@ export default function ChronoMapPage() {
               Sail
               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
             </h1>
-            
-            {/* Loading Indicator */}
             {isLoading && (
                <div className="flex items-center gap-2 px-2 border-l border-slate-200">
                   <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
@@ -167,7 +170,6 @@ export default function ChronoMapPage() {
                </div>
             )}
           </div>
-          
           <div className="pointer-events-auto">
              <button className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50">
                 <Layers size={20} />
@@ -176,11 +178,10 @@ export default function ChronoMapPage() {
         </div>
       </header>
 
-      {/* Map Layer */}
       <main className="flex-grow relative z-0">
         <LeafletMap 
           currentDate={currentDate} 
-          events={renderableEvents} // Render only Important events (LOD applied)
+          events={renderableEvents} 
           viewRange={viewRange}
           jumpTargetId={jumpTargetId}
           onBoundsChange={setMapBounds}
@@ -191,7 +192,6 @@ export default function ChronoMapPage() {
         />
       </main>
 
-      {/* Timeline Control Layer */}
       <TimeControl 
         currentDate={currentDate} 
         setCurrentDate={setCurrentDate}
@@ -199,15 +199,12 @@ export default function ChronoMapPage() {
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        
-        events={renderableEvents}          // Main Slider Markers: Show only Important ones
-        densityEvents={spatiallyFilteredEvents} // Heatmap: Show density of EVERYTHING on map
-        allEvents={allLoadedEvents}        // Animation: Keep DOM alive for smooth transitions
-        
+        events={renderableEvents}          
+        densityEvents={spatiallyFilteredEvents} 
+        allEvents={allLoadedEvents}        
         setJumpTargetId={setJumpTargetId}
       />
 
-      {/* Detail Panel Layer */}
       <EventDetailPanel 
         event={selectedEvent}
         isOpen={!!selectedEvent}
