@@ -1,0 +1,6 @@
+requests
+pandas
+supabase
+SPARQLWrapper
+python-dotenv
+pydantic
