@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-// Initialize Supabase client (using environment variables)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -10,90 +9,90 @@ const supabase = createClient(
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   
-  // 1. Parse query parameters (with defaults)
   const minYear = parseInt(searchParams.get('minYear') || '-5000');
   const maxYear = parseInt(searchParams.get('maxYear') || '2050');
+  const zoom = parseFloat(searchParams.get('z') || '10');
   
-  // Get raw coordinates
   let north = parseFloat(searchParams.get('n') || '90');
   let south = parseFloat(searchParams.get('s') || '-90');
   let east = parseFloat(searchParams.get('e') || '180');
   let west = parseFloat(searchParams.get('w') || '-180');
   
-  // 2. [CRITICAL FIX] Coordinate Normalization
-  // Leaflet allows panning "around the world" (e.g., west: -250, east: 110), 
-  // or zooming out to see multiple worlds (e.g., -180 to 540).
-  // PostGIS geography types require coordinates within [-180, 180].
-  
   const lngSpan = east - west;
+
+  // 1. Determine "Global Mode"
+  // Logic: Zoom is small (continents) OR viewport spans the whole world.
+  const isGlobalView = zoom < 5.5 || lngSpan >= 300 || (west <= -180 && east >= 180);
+
+  // 2. Prepare RPC Arguments
+  // [ELEGANT FIX] Instead of clamping to -179.9, we pass NULL for global view.
+  // The SQL function handles NULL by skipping the spatial check entirely.
+  // This is mathematically correct (Global = No Filter) and avoids edge errors.
   
-  // If the viewport spans the entire globe (or more), force full boundaries
-  if (lngSpan >= 360) {
-      west = -180;
-      east = 180;
+  let rpcArgs;
+
+  if (isGlobalView) {
+      // Global View: Pass NULLs to disable spatial filtering
+      rpcArgs = {
+          min_lat: null,
+          max_lat: null,
+          min_lng: null,
+          max_lng: null,
+          min_year: minYear,
+          max_year: maxYear,
+          min_importance: 1
+      };
   } else {
-      // Clamp to -180/180 to prevent PostGIS lookup failures
-      // Note: Simplified handling for date-line crossing, sufficient for MVP
-      west = Math.max(-180, west);
-      east = Math.min(180, east);
+      // Local View: Clamp to valid PostGIS bounds [-180, 180]
+      let safeWest = Math.max(-180, west);
+      let safeEast = Math.min(180, east);
+      const safeNorth = Math.min(90, north);
+      const safeSouth = Math.max(-90, south);
       
-      // If clamping results in inverted bounds (west > east), reset to full world
-      // This happens if the user was looking completely "off-chart"
-      if (west > east) {
-          west = -180;
-          east = 180;
+      // Handle edge case where view is completely off-chart
+      if (safeWest > safeEast) {
+          safeWest = -180;
+          safeEast = 180;
       }
+
+      rpcArgs = {
+          min_lat: safeSouth,
+          max_lat: safeNorth,
+          min_lng: safeWest,
+          max_lng: safeEast,
+          min_year: minYear,
+          max_year: maxYear,
+          min_importance: 1
+      };
   }
-  
-  // 3. Latitude Clamping
-  north = Math.min(90, north);
-  south = Math.max(-90, south);
 
-  // We fetch events of all importance levels to calculate density map
-  // The database limits the total count to prevent overload
-  const minImportance = 1; 
-
-  // 4. Call Database RPC Function
-  const { data, error } = await supabase
-    .rpc('get_events_in_view', {
-       min_lat: south,
-       max_lat: north,
-       min_lng: west,
-       max_lng: east,
-       min_year: minYear,
-       max_year: maxYear,
-       min_importance: minImportance
-    });
+  // 3. Execute RPC
+  const { data, error } = await supabase.rpc('get_events_in_view', rpcArgs);
 
   if (error) {
     console.error('Supabase RPC Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 5. Data Sanitization: Convert DB snake_case to frontend camelCase
-  // Must strictly match EventData interface in types/index.ts
+  // 4. Format Data
   const formattedEvents = (data || []).map((row: any) => ({
     id: row.id,
     title: row.title,
     summary: row.summary,
     imageUrl: row.image_url,
-    // Note: The 'precision' field in DB is already the string format we want
     start: { year: row.start_year, precision: row.precision || 'year' },
     location: {
-      lat: row.lat,
+      lat: row.lat, 
       lng: row.lng,
       placeName: row.place_name,
       granularity: row.granularity,
       certainty: row.certainty,
-      regionId: row.region_id
+      region_id: row.region_id
     },
     importance: row.importance,
     sources: row.sources || []
   }));
 
-  // 6. Return JSON with CDN Cache Headers (Critical Performance Optimization)
-  // s-maxage=60: Cache in public CDN for 60 seconds
-  // stale-while-revalidate=600: Allow serving stale data for 10 minutes while re-fetching in background
   return NextResponse.json(formattedEvents, {
     headers: {
       'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600'

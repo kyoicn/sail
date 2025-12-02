@@ -91,7 +91,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         });
         map.on('moveend', updateBounds);
         
-        updateBounds();
+        // [CRITICAL FIX] Force map to re-calculate size after mounting
+        // This fixes the bug where initial bounds are incorrect/zero-size
+        // causing events (like WWI) to be filtered out until the map is moved.
+        setTimeout(() => {
+            map.invalidateSize(); 
+            updateBounds();
+        }, 100);
+
         mapInstanceRef.current = map;
       }
     };
@@ -114,7 +121,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const map = mapInstanceRef.current;
     const layersMap = layersMapRef.current;
 
-    // 1. Determine which events SHOULD be on screen (Active)
+    // 1. Determine Active Events
     const activeEvents = events.filter(event => {
       const startVal = toSliderValue(event.start.year);
       const endVal = event.end ? toSliderValue(event.end.year) : null;
@@ -132,19 +139,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
     const layoutMap = calculateSmartLayout(activeEvents, map);
 
-    // 2. CLEANUP PHASE [CRITICAL FIX]
-    // Instead of iterating over 'events' (which might miss removed items),
-    // we iterate over 'layersMap' (what is CURRENTLY on screen).
-    
-    // We create a list of IDs to remove to avoid modifying the Map while iterating
-    const idsToRemove: string[] = [];
-
+    // 2. Cleanup (Iterate over existing layers to remove stale ones)
     layersMap.forEach((layerGroup, eventId) => {
-        // If the event currently on map is NOT in the new active list...
         if (!activeEvents.find(ae => ae.id === eventId)) {
              const cardEl = layerGroup.card.getElement();
              if (cardEl) {
-                 // Fade out
                  cardEl.style.transition = 'opacity 0.5s ease-out'; 
                  cardEl.style.opacity = '0';
                  cardEl.style.pointerEvents = 'none'; 
@@ -154,22 +153,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 lineEl.style.transition = 'opacity 0.5s ease-out'; 
                 lineEl.style.opacity = '0';
              }
-             if(layerGroup.shape) {
-                 // Shapes don't fade well with CSS usually, remove immediately or fade via options
-                 layerGroup.shape.remove(); 
-             }
-             
-             // Mark for garbage collection from our map
-             // We use a timeout to let the fade animation finish before DOM removal
-             // But for React logic, simple removal from tracking is often enough.
-             // Here we just mark it as "should act like deleted".
-             // In a perfect world, we'd setTimeout -> layer.remove().
-             // For now, we'll keep the DOM element but hidden (opacity 0) to avoid flicker if it comes back soon.
-             // But we MUST allow it to update if it comes back.
+             if(layerGroup.shape) layerGroup.shape.remove();
         }
     });
 
-    // 3. RENDER PHASE
+    // 3. Render Active
     activeEvents.forEach(event => {
         const layout = layoutMap.get(event.id) || { offsetX: 0, offsetY: 0 };
         const { offsetX, offsetY } = layout;
@@ -184,7 +172,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const lineAngle = Math.atan2(lineTargetY, finalX) * (180 / Math.PI);
 
         if (!layersMap.has(event.id)) {
-            // ... (CREATE Logic - Unchanged) ...
             const lineHtml = `
                <div style="position: relative; width: 0; height: 0;">
                   <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10;"></div>
@@ -240,10 +227,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             layersMap.set(event.id, { card: cardMarker, line: lineMarker, shape });
 
         } else {
-            // ... (UPDATE Logic - Unchanged) ...
             const { card, line, shape } = layersMap.get(event.id)!;
             
-            // Re-generate HTML to update position (finalX, finalY)
             const cardHtml = `
                <div style="
                    position: absolute; left: 0; top: 0; 
@@ -275,7 +260,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             `;
             line.setIcon(L.divIcon({ className: '', html: lineHtml, iconSize: [0,0] }));
 
-            // Ensure Visible (in case it was fading out)
             const cardEl = card.getElement();
             if (cardEl) {
                 cardEl.style.transition = 'none'; 

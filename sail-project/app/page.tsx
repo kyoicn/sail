@@ -10,13 +10,14 @@ import { TimeControl } from '../components/timeline/TimeControl';
 import { useUrlSync } from '../hooks/useUrlSync';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';
 
+// SWR Fetcher
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function ChronoMapPage() {
   const GLOBAL_MIN = -3000;
   const GLOBAL_MAX = 2024; 
 
-  // ... (URL Sync Logic Unchanged) ...
+  // 1. URL Sync
   const { getInitialState, updateUrl } = useUrlSync({
     lat: 48.8566,
     lng: 2.3522,
@@ -24,26 +25,41 @@ export default function ChronoMapPage() {
     year: 2024,
     span: GLOBAL_MAX - GLOBAL_MIN
   });
+
   const initialState = getInitialState();
+
+  // 2. State Management
   const [currentDate, setCurrentDate] = useState(initialState.year);
   const initialMin = Math.max(GLOBAL_MIN, initialState.year - (initialState.span / 2));
   const initialMax = Math.min(GLOBAL_MAX, initialState.year + (initialState.span / 2));
+  
   const [viewRange, setViewRange] = useState({ min: initialMin, max: initialMax });
   const [jumpTargetId, setJumpTargetId] = useState<string | null>(null);
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
+  
   const [mapViewport, setMapViewport] = useState({ 
-      lat: initialState.lat, lng: initialState.lng, zoom: initialState.zoom 
+      lat: initialState.lat, 
+      lng: initialState.lng, 
+      zoom: initialState.zoom 
   });
+
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
 
-  // ... (Effect: URL Update Unchanged) ...
+  // 3. Effect: Trigger URL Update
   useEffect(() => {
-      updateUrl({ lat: mapViewport.lat, lng: mapViewport.lng, zoom: mapViewport.zoom, year: currentDate, span: viewRange.max - viewRange.min });
+      updateUrl({
+          lat: mapViewport.lat,
+          lng: mapViewport.lng,
+          zoom: mapViewport.zoom,
+          year: currentDate,
+          span: viewRange.max - viewRange.min
+      });
   }, [currentDate, viewRange, mapViewport, updateUrl]);
 
-  // --- DATA FETCHING ---
+  // 4. DATA FETCHING
+  // Add 'z' param to let backend optimize for Global/Continent views
   const queryKey = mapBounds 
-    ? `/api/events?n=${mapBounds.north}&s=${mapBounds.south}&e=${mapBounds.east}&w=${mapBounds.west}` 
+    ? `/api/events?n=${mapBounds.north}&s=${mapBounds.south}&e=${mapBounds.east}&w=${mapBounds.west}&z=${mapViewport.zoom}` 
     : null;
 
   const { data: serverEvents, isLoading } = useSWR<EventData[]>(queryKey, fetcher, {
@@ -51,17 +67,15 @@ export default function ChronoMapPage() {
     dedupingInterval: 10000, 
   });
 
+  // The raw data from the server
   const allVisibleEvents = serverEvents || [];
 
-  // --- [CRITICAL FIX] EVENT ACCUMULATOR FOR SMOOTH ANIMATION ---
-  // We keep track of ALL events we've ever seen in this session.
-  // This ensures DOM nodes aren't removed when they go off-screen, allowing CSS opacity transitions to work.
+  // [ACCUMULATOR] Keep track of ALL events seen to allow smooth fade-out animations
   const [allLoadedEvents, setAllLoadedEvents] = useState<EventData[]>([]);
 
   useEffect(() => {
     if (serverEvents) {
         setAllLoadedEvents(prev => {
-            // Merge new events into the accumulated list, avoiding duplicates
             const newItems = serverEvents.filter(n => !prev.find(p => p.id === n.id));
             if (newItems.length === 0) return prev;
             return [...prev, ...newItems];
@@ -69,7 +83,7 @@ export default function ChronoMapPage() {
     }
   }, [serverEvents]);
 
-  // --- LOD Logic (Unchanged) ---
+  // 5. Logic: LOD Threshold Calculation
   const lodThreshold = useMemo(() => {
       const timeSpan = viewRange.max - viewRange.min;
       let timeLOD = 1;
@@ -92,25 +106,50 @@ export default function ChronoMapPage() {
       return Math.floor((timeLOD + mapLOD) / 2);
   }, [viewRange, mapViewport.zoom]);
 
-  // --- Filtering ---
-  // "Renderable" means: Important enough OR Selected.
-  // We filter from 'allVisibleEvents' (current API response) to ensure Map Cards update strictly.
-  const renderableEvents = useMemo(() => {
+  // 6. Data Pipeline: Filter Logic
+
+  // A. Spatial Filter [FIXED: Robust Infinite Wrapping]
+  // Instead of hardcoding +/- 360 checks, we project the event's longitude
+  // to the "world copy" that is closest to the current viewport center.
+  const spatiallyFilteredEvents = useMemo(() => {
+      if (!mapBounds) return [];
+      
+      const { west, east, north, south } = mapBounds;
+      const lngSpan = east - west;
+      const isGlobalView = lngSpan >= 360; 
+      const mapCenterLng = (west + east) / 2;
+
       return allVisibleEvents.filter(event => {
+          // Latitude Check
+          if (event.location.lat > north || event.location.lat < south) {
+              return false;
+          }
+
+          // Longitude Check
+          if (isGlobalView) return true;
+
+          const lng = event.location.lng;
+          const offset = Math.round((mapCenterLng - lng) / 360);
+          const projectedLng = lng + (offset * 360);
+
+          return projectedLng >= west && projectedLng <= east;
+      });
+  }, [mapBounds, allVisibleEvents]);
+
+  // B. Render Filter: Defines what shows as Markers/Cards
+  // Applies LOD (Importance) logic on top of the spatial set.
+  const renderableEvents = useMemo(() => {
+      return spatiallyFilteredEvents.filter(event => {
           const isSelected = selectedEvent?.id === event.id;
           const meetsImportance = event.importance >= lodThreshold;
           return meetsImportance || isSelected;
       });
-  }, [allVisibleEvents, lodThreshold, selectedEvent]);
-
-  // For the Timeline Marker logic ("Am I active?"), we need to know 
-  // which events are CURRENTLY returned by the API and pass the filter.
-  // We'll pass `renderableEvents` to TimeControl as the "active set".
+  }, [spatiallyFilteredEvents, lodThreshold, selectedEvent]);
 
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
       
-      {/* Header */}
+      {/* Header Layer */}
       <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
         <div className="max-w-7xl mx-auto flex justify-between items-start">
           <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 pointer-events-auto border border-white/50 flex items-center gap-3">
@@ -119,6 +158,8 @@ export default function ChronoMapPage() {
               Sail
               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
             </h1>
+            
+            {/* Loading Indicator */}
             {isLoading && (
                <div className="flex items-center gap-2 px-2 border-l border-slate-200">
                   <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
@@ -126,6 +167,7 @@ export default function ChronoMapPage() {
                </div>
             )}
           </div>
+          
           <div className="pointer-events-auto">
              <button className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50">
                 <Layers size={20} />
@@ -134,11 +176,11 @@ export default function ChronoMapPage() {
         </div>
       </header>
 
-      {/* Map */}
+      {/* Map Layer */}
       <main className="flex-grow relative z-0">
         <LeafletMap 
           currentDate={currentDate} 
-          events={renderableEvents} 
+          events={renderableEvents} // Render only Important events (LOD applied)
           viewRange={viewRange}
           jumpTargetId={jumpTargetId}
           onBoundsChange={setMapBounds}
@@ -149,7 +191,7 @@ export default function ChronoMapPage() {
         />
       </main>
 
-      {/* Timeline */}
+      {/* Timeline Control Layer */}
       <TimeControl 
         currentDate={currentDate} 
         setCurrentDate={setCurrentDate}
@@ -158,20 +200,14 @@ export default function ChronoMapPage() {
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
         
-        // 1. "events": The subset that should be HIGHLIGHTED/VISIBLE
-        events={renderableEvents} 
-        
-        // 2. "densityEvents": The subset for the HEATMAP (current viewport data)
-        densityEvents={allVisibleEvents} 
-        
-        // 3. [UPDATED] "allEvents": The SUPERSET for animation stability
-        // Pass 'allLoadedEvents' instead of 'MOCK_EVENTS' or 'allVisibleEvents'
-        // This keeps DOM nodes alive so they can fade out when they leave 'renderableEvents'
-        allEvents={allLoadedEvents}
+        events={renderableEvents}          // Main Slider Markers: Show only Important ones
+        densityEvents={spatiallyFilteredEvents} // Heatmap: Show density of EVERYTHING on map
+        allEvents={allLoadedEvents}        // Animation: Keep DOM alive for smooth transitions
         
         setJumpTargetId={setJumpTargetId}
       />
 
+      {/* Detail Panel Layer */}
       <EventDetailPanel 
         event={selectedEvent}
         isOpen={!!selectedEvent}
