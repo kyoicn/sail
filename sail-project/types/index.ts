@@ -77,6 +77,11 @@ export interface EventSource {
 
 export interface EventData {
   id: string; // UUID
+
+  // Used for data pipeline deduplication and upserts.
+  // e.g. "dbpedia:Battle_of_Waterloo", "gdelt:123456"
+  source_id?: string; 
+  
   title: string;
   summary: string;
   imageUrl?: string;

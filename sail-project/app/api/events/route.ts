@@ -89,6 +89,7 @@ export async function GET(request: Request) {
     
     return {
       id: row.id,
+      source_id: row.source_id,
       title: row.title,
       summary: row.summary,
       imageUrl: row.image_url,
