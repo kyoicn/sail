@@ -81,7 +81,7 @@ def process_event(raw_item):
             },
             
             # 默认评分 (待优化)
-            "importance": 1, 
+            "importance": importance, 
             
             "sources": [
                 {"label": "DBpedia", "url": uri, "provider": "dbpedia"}
