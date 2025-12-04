@@ -15,7 +15,7 @@ INPUT_FILENAME = "events_clean.json"
 TABLE_NAME = "events_dev" 
 
 INPUT_FILE = os.path.join(os.path.dirname(__file__), "../../data/processed/", INPUT_FILENAME)
-BATCH_SIZE = 100
+BATCH_SIZE = 500
 
 def get_supabase() -> Client:
     if not SUPABASE_URL or not SUPABASE_KEY:

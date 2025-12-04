@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+import random
 
 # 添加项目根目录到 sys.path 以便导入 src.lib
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
@@ -51,6 +52,8 @@ def process_event(raw_item):
         uri = raw_item.get('event', {}).get('value', '')
         slug = uri.split('/')[-1]
         source_id = f"dbpedia:{slug}"
+
+        importance = random.randint(1, 10)  # 默认重要性评分
 
         # 5. 构造最终对象 (符合 types/index.ts 定义)
         return {
