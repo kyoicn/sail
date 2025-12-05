@@ -227,7 +227,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
             <div ref={trackRef} className="relative flex-grow h-12 flex items-center group cursor-pointer" onMouseDown={handleTrackMouseDown}>
 
               {/* Ticks */}
-              <div className="absolute top-8 w-full h-4 overflow-hidden">
+              <div className="absolute top-8 w-full h-10">
                 {generateTicks().map((tick, i) => (
                   <div key={i} className="absolute top-0 w-px h-2 bg-slate-300 flex flex-col items-center transition-all duration-300" style={{ left: `${tick.left}%` }}>
                     <span className="text-[10px] text-slate-400 mt-2 font-mono whitespace-nowrap">
