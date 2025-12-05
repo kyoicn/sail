@@ -2,7 +2,7 @@ import random
 import os
 import json
 import sys
-from collections import Counter
+import random
 
 # 添加项目根目录到 sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
@@ -77,8 +77,58 @@ def process_event(raw_item, index, debug=False):
         stats['geo_parse_error'] += 1
         return None
         
-    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
-        stats['geo_out_of_bounds'] += 1
+        # 简单的范围校验
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            return None
+
+        # 4. 生成 ID (Source ID)
+        # 从 URI 提取: http://dbpedia.org/resource/Battle_of_Waterloo -> dbpedia:Battle_of_Waterloo
+        uri = raw_item.get('event', {}).get('value', '')
+        slug = uri.split('/')[-1]
+        source_id = f"dbpedia:{slug}"
+
+        importance = random.randint(1, 10)  # 默认重要性评分
+
+        # 5. 构造最终对象 (符合 types/index.ts 定义)
+        return {
+            "source_id": source_id,
+            "title": title,
+            "summary": f"Historical event: {title}", # 暂无摘要，后续可用 LLM 填充
+            "image_url": "", 
+            
+            # M3 时间结构
+            "start": {
+                "year": time_data['year'],
+                "month": time_data['month'],
+                "day": time_data['day'],
+                "astro_year": time_data['astro_year'],
+                "precision": time_data['precision']
+            },
+            
+            # 空间结构
+            "location": {
+                "lat": lat,
+                "lng": lng,
+                "placeName": "Unknown",
+                "granularity": "spot",
+                "certainty": "definite"
+            },
+            
+            # 默认评分 (待优化)
+            "importance": importance, 
+            
+            "sources": [
+                {"label": "DBpedia", "url": uri, "provider": "dbpedia"}
+            ],
+            
+            "pipeline": {
+                "fetchedAt": "2024-03-20", # 示例，实际应为当前时间
+                "version": 1
+            }
+        }
+
+    except Exception as e:
+        # print(f"Skipping item due to error: {e}")
         return None
 
     # 4. 生成 ID
