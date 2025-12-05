@@ -79,7 +79,7 @@ export const MOCK_EVENTS: EventData[] = [
     id: 'alex-1',
     title: 'Alexander\'s Conquests',
     start: { year: -334, precision: 'year', astro_year: -334 },
-    end: { year: -323, precision: 'year' },
+    end: { year: -323, precision: 'year', astro_year: -323 },
     location: { lat: 34.0, lng: 44.0, placeName: 'Macedon Empire', granularity: 'continent', certainty: 'definite', customRadius: 2000000 },
     summary: 'Alexander the Great creates one of the largest empires in history.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Alexander_the_Great_mosaic_%28cropped%29.jpg/440px-Alexander_the_Great_mosaic_%28cropped%29.jpg',
@@ -184,7 +184,7 @@ export const MOCK_EVENTS: EventData[] = [
     id: 'ww1-1',
     title: 'World War I',
     start: { year: 1914, precision: 'year', astro_year: 1914 },
-    end: { year: 1918, precision: 'year' },
+    end: { year: 1918, precision: 'year', astro_year: 1918 },
     location: { lat: 50.0, lng: 10.0, placeName: 'Europe', granularity: 'continent', certainty: 'definite', regionId: 'europe' },
     summary: 'Global conflict originating in Europe.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Cheshire_Regiment_trench_Somme_1916.jpg/640px-Cheshire_Regiment_trench_Somme_1916.jpg',
@@ -248,4 +248,24 @@ export const MOCK_EVENTS: EventData[] = [
   { id: 'dummy-2', title: 'Metro Construction', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8600, lng: 2.3500, placeName: 'Paris 2', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 2.0 },
   { id: 'dummy-3', title: 'Cafe Opening', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8500, lng: 2.3600, placeName: 'Paris 3', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 2.0 },
   { id: 'dummy-4', title: 'Park Renovation', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8700, lng: 2.3300, placeName: 'Paris 4', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 2.0 },
+
+  // --- PRECISION TEST (Millisecond Scale) ---
+  // A hypothetical high-speed event: "Flash Photography"
+  // Year: 2025 AD
+  // Day: 50th day (approx Feb 19)
+  // Time: 12:00:00.123
+  {
+    id: 'precision-1',
+    title: 'High-Speed Camera Test',
+    start: {
+      year: 2025,
+      precision: 'millisecond',
+      astro_year: 2025.135616780822 // Manually calculated for 2025 (365 days) -> (49 + 12.000034/24)/365
+    },
+    location: { lat: 35.6762, lng: 139.6503, placeName: 'Tokyo Lab', granularity: 'spot', certainty: 'definite' },
+    summary: 'Testing millisecond timestamp rendering.',
+    imageUrl: '',
+    sources: [],
+    importance: 5.0
+  }
 ];
