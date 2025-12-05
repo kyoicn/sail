@@ -252,23 +252,41 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
         // Calculate Ideal Indicator Width (Standard fit)
         const standardIndicatorW = containerW * ratio;
         const MIN_INDICATOR_W = 80;
+        const MAX_VIRTUAL_WIDTH = 5000000; // 5M pixels (Browser Safe Limit)
 
         let newVirtualWidth = containerW;
 
         // Tier 2: If indicator would be too small, scale up virtual width
         if (standardIndicatorW < MIN_INDICATOR_W) {
             const scale = MIN_INDICATOR_W / standardIndicatorW;
-            newVirtualWidth = containerW * scale;
+            newVirtualWidth = Math.min(containerW * scale, MAX_VIRTUAL_WIDTH);
         }
 
+        // [FIX] Race Condition: Force width update immediately so scrolLeft calculation works
+        if (contentRef.current) {
+            contentRef.current.style.width = `${newVirtualWidth}px`;
+        }
+        // Keep state sync for React render cycle
         setVirtualWidth(newVirtualWidth);
 
         // Update Position
         const viewStartPercent = ((viewRange.min - globalMin) / totalSpan); // 0-1 fraction
         // Virtual Position
-        const virtualLeft = viewStartPercent * newVirtualWidth;
-        const virtualIndicatorW = Math.max(standardIndicatorW * (newVirtualWidth / containerW), MIN_INDICATOR_W);
-        // Logic check: standard * scale = standard * (MIN/standard) = MIN. Correct.
+        let virtualIndicatorW = Math.max(standardIndicatorW * (newVirtualWidth / containerW), MIN_INDICATOR_W);
+        // Correct logic: If we clamped width, standard*scale might be < MIN? 
+        // standard * (MAX/container) might be tiny.
+        // So we strictly force MIN_INDICATOR_W if width was clamped to keep visibility.
+        if (standardIndicatorW * (newVirtualWidth / containerW) < MIN_INDICATOR_W) {
+            virtualIndicatorW = MIN_INDICATOR_W;
+        }
+
+        let virtualLeft = viewStartPercent * newVirtualWidth;
+
+        // Safety Clamp: Ensure it never overflows
+        if (virtualLeft + virtualIndicatorW > newVirtualWidth) {
+            virtualLeft = newVirtualWidth - virtualIndicatorW;
+        }
+        if (virtualLeft < 0) virtualLeft = 0;
 
         if (!isDragging && indicatorRef.current) {
             indicatorRef.current.style.left = `${virtualLeft}px`;
@@ -283,16 +301,19 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
             const viewportW = sc.clientWidth;
             const centerVirtual = virtualLeft + (virtualIndicatorW / 2);
 
-            // Check if we need to scroll:
-            // 1. If indicator is off-screen
-            // 2. OR if we just entered "Tier 2" / virtual mode (virtualWidth > containerW) - enforce centering to avoid jump
+            // Scroll Logic Refined:
+            // 1. If in "Virtual Mode" (Tier 2 - Huge Width), ALWAYS center the indicator ("Follow Camera" mode).
+            //    This prevents the "snap/jump" behavior the user reported.
+            // 2. If in "Standard Mode" (Tier 1 - Fit to Screen), only scroll if somehow off-screen (rare/failsafe).
+
             const isOffScreen = virtualLeft < sc.scrollLeft || (virtualLeft + virtualIndicatorW) > (sc.scrollLeft + viewportW);
             const isVirtual = newVirtualWidth > containerW + 1;
 
-            if (isOffScreen || (isVirtual && Math.abs(sc.scrollLeft - (centerVirtual - viewportW / 2)) > viewportW / 4)) {
-                // Smoothly scroll to center
-                // Note: Direct assignment is instant. behavior: 'smooth' might be jarring during rapid zoom.
-                // Instant is better for synchronization.
+            if (isVirtual) {
+                // Continuous Centering (Stable)
+                sc.scrollLeft = centerVirtual - (viewportW / 2);
+            } else if (isOffScreen) {
+                // Failsafe for standard mode
                 sc.scrollLeft = centerVirtual - (viewportW / 2);
             }
         }
