@@ -31,16 +31,16 @@ export const EventDataSchema = z.object({
   title: z.string(),
   summary: z.string().optional().default(''), // Fallback to empty string
   imageUrl: z.string().url().optional().or(z.literal('')), // Allow valid URL or empty string
-  
+
   start: ChronosTimeSchema,
   end: ChronosTimeSchema.optional(),
-  
+
   location: ChronosLocationSchema,
-  
-  // Coerce string to number if API returns string "10", 
-  // or default to 1 if missing.
-  importance: z.preprocess((val) => Number(val) || 1, z.number().min(1).max(10)),
-  
+
+  // Coerce string to number if API returns string "10.0", 
+  // or default to 1.0 if missing. Supports floats.
+  importance: z.preprocess((val) => Number(val) || 1.0, z.number().min(1).max(10)),
+
   sources: z.array(EventSourceSchema).optional().default([]),
 });
 

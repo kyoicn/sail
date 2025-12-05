@@ -20,7 +20,7 @@ export interface ChronosTime {
   minute?: number;     // 0-59
   second?: number;     // 0-59 (Added for modern precision)
   millisecond?: number;// 0-999 (Added for scientific/modern precision)
-  
+
   // 2. Calculation Layer (Linear Absolute Time - Astronomical)
   // A continuous decimal value used ONLY for sorting, indexing, and heatmap calculations.
   // It represents the "Astronomical Year" with fractional progress.
@@ -34,11 +34,11 @@ export interface ChronosTime {
   // Formula: AstroYear + (DayOfYear_Index + Time_Fraction) / DaysInYear
   // This allows O(1) comparison between "44 BC" and "1945 AD".
   // [RENAME] Changed from 'timestamp' to 'astro_year' to avoid confusion with Unix Timestamps.
-  astro_year: number; 
+  astro_year: number;
 
   // Indicator of how granular this data is.
   // e.g. If 'day', we ignore hour/minute in UI display.
-  precision: 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond'; 
+  precision: 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond';
 }
 
 // --- Spatial System (Anchor + Geometry) ---
@@ -54,13 +54,13 @@ export interface ChronosLocation {
   // 2. Geometric Shape (Optional - For Future M3 Feature)
   // GeoJSON Polygon/MultiPolygon for rendering borders or territories.
   // This allows highlighting "The Roman Empire" boundaries when hovered.
-  geoJson?: object; 
+  geoJson?: object;
 
-  placeName?: string; 
+  placeName?: string;
   granularity: 'spot' | 'city' | 'territory' | 'continent';
   certainty: 'definite' | 'approximate';
-  customRadius?: number; 
-  regionId?: string; 
+  customRadius?: number;
+  regionId?: string;
 }
 
 // --- Source System ---
@@ -70,7 +70,7 @@ export interface EventSource {
   url: string;
   // Tracks data provenance for the pipeline
   provider?: 'wikidata' | 'gdelt' | 'manual' | 'ai';
-  providerId?: string; 
+  providerId?: string;
 }
 
 // --- Event Entity ---
@@ -80,24 +80,25 @@ export interface EventData {
 
   // Used for data pipeline deduplication and upserts.
   // e.g. "dbpedia:Battle_of_Waterloo", "gdelt:123456"
-  source_id?: string; 
-  
+  source_id?: string;
+
   title: string;
   summary: string;
   imageUrl?: string;
-  
+
   start: ChronosTime;
   end?: ChronosTime; // Optional: Defines a duration (e.g. War, Dynasty)
-  
+
   location: ChronosLocation;
-  
-  // Historical Importance (1-10)
-  // 10: Epoch-making (Visible at Global Zoom)
-  // 1: Local detail (Visible only at Street Zoom)
+
+  // Historical Importance (1.0 - 10.0)
+  // 10.0: Epoch-making (Visible at Global Zoom)
+  // 1.0: Local detail (Visible only at Street Zoom)
+  // Now supports floating point precision (e.g. 5.5) for finer ranking.
   importance: number;
-  
+
   sources?: EventSource[];
-  
+
   // Pipeline Metadata (Internal Use)
   pipeline?: {
     fetchedAt: string; // ISO Date of extraction

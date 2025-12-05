@@ -88,7 +88,7 @@ def process_event(raw_item, index, debug=False):
         slug = uri.split('/')[-1]
         source_id = f"dbpedia:{slug}"
 
-        importance = random.randint(1, 10)  # 默认重要性评分
+        importance = random.uniform(1.0, 10.0)  # Generate float importance 1.00-10.00
 
         # 5. 构造最终对象 (符合 types/index.ts 定义)
         return {
@@ -147,7 +147,7 @@ def process_event(raw_item, index, debug=False):
         page_length = len(abstract) if abstract else 0
     
     # importance = calculate_importance(page_length)
-    importance = random.randint(1, 10)  # 临时使用随机分数，待 scorer 完善后替换
+    importance = round(random.uniform(1.0, 10.0), 2)  # Use float random score for now
 
     # 6. 构造对象
     return {
