@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:prod": "NEXT_PUBLIC_DATASET=prod next dev",
+    "dev:local": "NEXT_PUBLIC_DATASET=local next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

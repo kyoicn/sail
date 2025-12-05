@@ -6,7 +6,7 @@ export const ChronosTimeSchema = z.object({
   year: z.number(),
   month: z.number().optional(),
   day: z.number().optional(),
-  precision: z.enum(['year', 'month', 'day', 'hour', 'minute']).default('year'),
+  precision: z.enum(['year', 'month', 'day', 'hour', 'minute', 'second', 'millisecond']).default('year'),
 });
 
 export const ChronosLocationSchema = z.object({
