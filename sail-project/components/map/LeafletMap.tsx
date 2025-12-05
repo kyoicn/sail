@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { EventData, MapBounds } from '../../types';
 import { PREDEFINED_REGIONS } from '../../lib/constants';
 import { calculateSmartLayout } from '../../lib/layout-engine';
-import { toSliderValue } from '../../lib/time-engine';
+import { toSliderValue, getAstroYear } from '../../lib/time-engine';
 import { getDotHtml, getLineHtml, getCardHtml } from './MarkerTemplates';
 
 declare const L: any;
@@ -65,7 +65,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     return `rgb(${r}, ${g}, ${b})`;
   };
 
-  const dynamicThreshold = Math.max(0.5, (viewRange.max - viewRange.min) / 100);
+  // Dynamic Threshold: 1/200 of the visible span (0.5% of viewport)
+  // This matches "slider minimum movement" feel better than a hardcoded floor.
+  const dynamicThreshold = (viewRange.max - viewRange.min) / 200;
 
   useEffect(() => {
     // Inject Styles for Dot Hover and Card animations
@@ -179,8 +181,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
     // 1. Determine Active Events
     const activeEvents = events.filter(event => {
-      const startVal = toSliderValue(event.start.year);
-      const endVal = event.end ? toSliderValue(event.end.year) : null;
+      // [FIX] Use precise astro year to get the fractional part of the year
+      // Then map it to slider space (which shifts AD years by -1)
+      const startFraction = getAstroYear(event.start) - event.start.year;
+      const startVal = toSliderValue(event.start.year) + startFraction;
+
+      let endVal = null;
+      if (event.end) {
+        const endFraction = getAstroYear(event.end) - event.end.year;
+        endVal = toSliderValue(event.end.year) + endFraction;
+      }
 
       let isActive = false;
       if (jumpTargetId) {

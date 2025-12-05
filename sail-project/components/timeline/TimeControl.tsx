@@ -4,6 +4,7 @@ import { EventData } from '../../types';
 import { OverviewTimeline } from './OverviewTimeline';
 import {
   toSliderValue,
+  getAstroYear,
   formatSliderTick,
   formatNaturalDate
 } from '../../lib/time-engine';
@@ -245,7 +246,9 @@ export const TimeControl: React.FC<TimeControlProps> = ({
               {/* Event Markers: Render ALL events (from MOCK_EVENTS), animate opacity based on visibility */}
               <div className="absolute w-full h-full pointer-events-none">
                 {(allEvents || []).map(event => {
-                  const sliderVal = toSliderValue(event.start.year);
+                  // [FIX] Use precise astro year for timeline marker positioning
+                  const startFraction = getAstroYear(event.start) - event.start.year;
+                  const sliderVal = toSliderValue(event.start.year) + startFraction;
 
                   // Optimization: Only render DOM nodes for events within the current time viewRange
                   if (sliderVal < viewRange.min || sliderVal > viewRange.max) return null;
