@@ -101,7 +101,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const L = (window as any).L;
 
         const map = L.map(mapRef.current, {
-          zoomControl: false,
+          zoomControl: true,
+          doubleClickZoom: false,
           attributionControl: false,
           zoomSnap: 0,
           zoomDelta: 0.5,
