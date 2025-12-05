@@ -266,6 +266,6 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Testing millisecond timestamp rendering.',
     imageUrl: '',
     sources: [],
-    importance: 5.0
+    importance: 10.0
   }
 ];

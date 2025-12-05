@@ -19,9 +19,9 @@ interface LeafletMapProps {
   onEventSelect: (event: EventData) => void;
 }
 
-export const LeafletMap: React.FC<LeafletMapProps> = ({ 
-  currentDate, 
-  events, 
+export const LeafletMap: React.FC<LeafletMapProps> = ({
+  currentDate,
+  events,
   viewRange,
   jumpTargetId,
   onBoundsChange,
@@ -45,58 +45,63 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
       document.head.appendChild(link);
     }
-    
+
     const initMap = () => {
       if (mapRef.current && !mapInstanceRef.current && (window as any).L) {
         const L = (window as any).L;
-        
+
         const map = L.map(mapRef.current, {
-           zoomControl: false, 
-           attributionControl: false, 
-           zoomSnap: 0, 
-           zoomDelta: 0.5, 
-           wheelPxPerZoomLevel: 10 
+          zoomControl: false,
+          attributionControl: false,
+          zoomSnap: 0,
+          zoomDelta: 0.5,
+          wheelPxPerZoomLevel: 10,
+          minZoom: 2.45,
+          maxBounds: [[-90, -180], [90, 180]],
+          maxBoundsViscosity: 1.0
         }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
-        
+
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
           attribution: '&copy; CARTO',
           subdomains: 'abcd',
-          maxZoom: 19
+          maxZoom: 19,
+          noWrap: true,
+          bounds: [[-90, -180], [90, 180]]
         }).addTo(map);
-        
-        map.createPane('shapesPane').style.zIndex = '450'; 
-        map.createPane('linesPane').style.zIndex = '550'; 
-        map.createPane('cardsPane').style.zIndex = '700'; 
+
+        map.createPane('shapesPane').style.zIndex = '450';
+        map.createPane('linesPane').style.zIndex = '550';
+        map.createPane('cardsPane').style.zIndex = '700';
 
         const reportViewport = () => {
-            const center = map.getCenter();
-            const zoom = map.getZoom();
-            onViewportChange({ lat: center.lat, lng: center.lng }, zoom);
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          onViewportChange({ lat: center.lat, lng: center.lng }, zoom);
         };
 
         const updateBounds = () => {
-            const bounds = map.getBounds();
-            onBoundsChange({
-                north: bounds.getNorth(),
-                south: bounds.getSouth(),
-                east: bounds.getEast(),
-                west: bounds.getWest()
-            });
-            reportViewport();
+          const bounds = map.getBounds();
+          onBoundsChange({
+            north: bounds.getNorth(),
+            south: bounds.getSouth(),
+            east: bounds.getEast(),
+            west: bounds.getWest()
+          });
+          reportViewport();
         };
 
         map.on('zoomend', () => {
-            setMapZoom(map.getZoom());
-            updateBounds();
+          setMapZoom(map.getZoom());
+          updateBounds();
         });
         map.on('moveend', updateBounds);
-        
+
         // [CRITICAL FIX] Force map to re-calculate size after mounting
         // This fixes the bug where initial bounds are incorrect/zero-size
         // causing events (like WWI) to be filtered out until the map is moved.
         setTimeout(() => {
-            map.invalidateSize(); 
-            updateBounds();
+          map.invalidateSize();
+          updateBounds();
         }, 100);
 
         mapInstanceRef.current = map;
@@ -113,8 +118,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       initMap();
     }
 
-    return () => {};
-  }, []); 
+    return () => { };
+  }, []);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !(window as any).L) return;
@@ -125,14 +130,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const activeEvents = events.filter(event => {
       const startVal = toSliderValue(event.start.year);
       const endVal = event.end ? toSliderValue(event.end.year) : null;
-      
+
       let isActive = false;
       if (jumpTargetId) {
         isActive = (jumpTargetId === "___ANIMATING___") ? false : event.id === jumpTargetId;
       } else {
-        isActive = endVal !== null 
-            ? (currentDate >= startVal && currentDate <= endVal) 
-            : (Math.abs(currentDate - startVal) <= dynamicThreshold);
+        isActive = endVal !== null
+          ? (currentDate >= startVal && currentDate <= endVal)
+          : (Math.abs(currentDate - startVal) <= dynamicThreshold);
       }
       return isActive;
     });
@@ -141,47 +146,47 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
     // 2. Cleanup (Iterate over existing layers to remove stale ones)
     layersMap.forEach((layerGroup, eventId) => {
-        if (!activeEvents.find(ae => ae.id === eventId)) {
-             const cardEl = layerGroup.card.getElement();
-             if (cardEl) {
-                 cardEl.style.transition = 'opacity 0.5s ease-out'; 
-                 cardEl.style.opacity = '0';
-                 cardEl.style.pointerEvents = 'none'; 
-             }
-             const lineEl = layerGroup.line.getElement();
-             if (lineEl) {
-                lineEl.style.transition = 'opacity 0.5s ease-out'; 
-                lineEl.style.opacity = '0';
-             }
-             if(layerGroup.shape) layerGroup.shape.remove();
+      if (!activeEvents.find(ae => ae.id === eventId)) {
+        const cardEl = layerGroup.card.getElement();
+        if (cardEl) {
+          cardEl.style.transition = 'opacity 0.5s ease-out';
+          cardEl.style.opacity = '0';
+          cardEl.style.pointerEvents = 'none';
         }
+        const lineEl = layerGroup.line.getElement();
+        if (lineEl) {
+          lineEl.style.transition = 'opacity 0.5s ease-out';
+          lineEl.style.opacity = '0';
+        }
+        if (layerGroup.shape) layerGroup.shape.remove();
+      }
     });
 
     // 3. Render Active
     activeEvents.forEach(event => {
-        const layout = layoutMap.get(event.id) || { offsetX: 0, offsetY: 0 };
-        const { offsetX, offsetY } = layout;
-        
-        const BASE_LIFT = -15; 
-        const finalY = offsetY + BASE_LIFT;
-        const finalX = offsetX;
+      const layout = layoutMap.get(event.id) || { offsetX: 0, offsetY: 0 };
+      const { offsetX, offsetY } = layout;
 
-        const CARD_HEIGHT = event.imageUrl ? 220 : 120; 
-        const lineTargetY = finalY - (CARD_HEIGHT / 2); 
-        const lineLen = Math.sqrt(finalX * finalX + lineTargetY * lineTargetY);
-        const lineAngle = Math.atan2(lineTargetY, finalX) * (180 / Math.PI);
+      const BASE_LIFT = -15;
+      const finalY = offsetY + BASE_LIFT;
+      const finalX = offsetX;
 
-        if (!layersMap.has(event.id)) {
-            const lineHtml = `
+      const CARD_HEIGHT = event.imageUrl ? 220 : 120;
+      const lineTargetY = finalY - (CARD_HEIGHT / 2);
+      const lineLen = Math.sqrt(finalX * finalX + lineTargetY * lineTargetY);
+      const lineAngle = Math.atan2(lineTargetY, finalX) * (180 / Math.PI);
+
+      if (!layersMap.has(event.id)) {
+        const lineHtml = `
                <div style="position: relative; width: 0; height: 0;">
                   <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10;"></div>
                   <div style="position: absolute; top: 0; left: 0; width: ${lineLen}px; height: 2px; background: #2563eb; transform-origin: 0 50%; transform: rotate(${lineAngle}deg); z-index: -1;"></div>
                </div>
             `;
-            const lineIcon = L.divIcon({ className: '', html: lineHtml, iconSize: [0,0] });
-            const lineMarker = L.marker([event.location.lat, event.location.lng], { icon: lineIcon, pane: 'linesPane' }).addTo(map);
+        const lineIcon = L.divIcon({ className: '', html: lineHtml, iconSize: [0, 0] });
+        const lineMarker = L.marker([event.location.lat, event.location.lng], { icon: lineIcon, pane: 'linesPane' }).addTo(map);
 
-            const cardHtml = `
+        const cardHtml = `
                <div class="card-wrapper" style="
                    position: absolute; left: 0; top: 0; 
                    transform: translate(-50%, -100%) translate(${finalX}px, ${finalY}px); 
@@ -202,34 +207,34 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   </div>
                </div>
             `;
-            const cardIcon = L.divIcon({ className: '', html: cardHtml, iconSize: [0,0] });
-            const cardMarker = L.marker([event.location.lat, event.location.lng], { icon: cardIcon, pane: 'cardsPane' }).addTo(map);
-            
-            cardMarker.on('click', (e: any) => {
-                L.DomEvent.stopPropagation(e); 
-                onEventSelect(event);
-            });
+        const cardIcon = L.divIcon({ className: '', html: cardHtml, iconSize: [0, 0] });
+        const cardMarker = L.marker([event.location.lat, event.location.lng], { icon: cardIcon, pane: 'cardsPane' }).addTo(map);
 
-            let shape;
-            if (event.location.granularity !== 'spot') {
-                 if (event.location.regionId && PREDEFINED_REGIONS[event.location.regionId]) {
-                    const latLngs = PREDEFINED_REGIONS[event.location.regionId];
-                    const polygon = L.polygon(latLngs, { color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, weight: 2, opacity: 0.6 }).addTo(map);
-                    polygon.bringToBack();
-                    shape = polygon;
-                 } else {
-                     const circle = L.circle([event.location.lat, event.location.lng], { color: '#3b82f6', radius: event.location.customRadius || 10000, fillOpacity: 0.1 }).addTo(map);
-                     circle.bringToBack();
-                     shape = circle;
-                 }
-            }
+        cardMarker.on('click', (e: any) => {
+          L.DomEvent.stopPropagation(e);
+          onEventSelect(event);
+        });
 
-            layersMap.set(event.id, { card: cardMarker, line: lineMarker, shape });
+        let shape;
+        if (event.location.granularity !== 'spot') {
+          if (event.location.regionId && PREDEFINED_REGIONS[event.location.regionId]) {
+            const latLngs = PREDEFINED_REGIONS[event.location.regionId];
+            const polygon = L.polygon(latLngs, { color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, weight: 2, opacity: 0.6 }).addTo(map);
+            polygon.bringToBack();
+            shape = polygon;
+          } else {
+            const circle = L.circle([event.location.lat, event.location.lng], { color: '#3b82f6', radius: event.location.customRadius || 10000, fillOpacity: 0.1 }).addTo(map);
+            circle.bringToBack();
+            shape = circle;
+          }
+        }
 
-        } else {
-            const { card, line, shape } = layersMap.get(event.id)!;
-            
-            const cardHtml = `
+        layersMap.set(event.id, { card: cardMarker, line: lineMarker, shape });
+
+      } else {
+        const { card, line, shape } = layersMap.get(event.id)!;
+
+        const cardHtml = `
                <div style="
                    position: absolute; left: 0; top: 0; 
                    transform: translate(-50%, -100%) translate(${finalX}px, ${finalY}px); 
@@ -250,32 +255,32 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   </div>
                </div>
             `;
-            card.setIcon(L.divIcon({ className: '', html: cardHtml, iconSize: [0,0] }));
-            
-            const lineHtml = `
+        card.setIcon(L.divIcon({ className: '', html: cardHtml, iconSize: [0, 0] }));
+
+        const lineHtml = `
                <div style="position: relative; width: 0; height: 0;">
                   <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>
                   <div style="position: absolute; top: 0; left: 0; width: ${lineLen}px; height: 2px; background: #2563eb; transform-origin: 0 50%; transform: rotate(${lineAngle}deg); opacity: 0.6;"></div>
                </div>
             `;
-            line.setIcon(L.divIcon({ className: '', html: lineHtml, iconSize: [0,0] }));
+        line.setIcon(L.divIcon({ className: '', html: lineHtml, iconSize: [0, 0] }));
 
-            const cardEl = card.getElement();
-            if (cardEl) {
-                cardEl.style.transition = 'none'; 
-                cardEl.style.opacity = '1';
-                cardEl.style.pointerEvents = 'auto'; 
-                card.setZIndexOffset(1000);
-            }
-            const lineEl = line.getElement();
-            if (lineEl) {
-                lineEl.style.transition = 'none';
-                lineEl.style.opacity = '1';
-            }
-            if (shape && !map.hasLayer(shape)) {
-                shape.addTo(map);
-            }
+        const cardEl = card.getElement();
+        if (cardEl) {
+          cardEl.style.transition = 'none';
+          cardEl.style.opacity = '1';
+          cardEl.style.pointerEvents = 'auto';
+          card.setZIndexOffset(1000);
         }
+        const lineEl = line.getElement();
+        if (lineEl) {
+          lineEl.style.transition = 'none';
+          lineEl.style.opacity = '1';
+        }
+        if (shape && !map.hasLayer(shape)) {
+          shape.addTo(map);
+        }
+      }
     });
 
   }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom]);
