@@ -3,6 +3,7 @@ import os
 import json
 import sys
 import random
+from collections import Counter
 
 # 添加项目根目录到 sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
