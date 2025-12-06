@@ -21,7 +21,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'The largest Egyptian pyramid and tomb of pharaoh Khufu.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Kheops-Pyramid.jpg/640px-Kheops-Pyramid.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Great_Pyramid_of_Giza' }],
-    importance: 10.0
+    importance: 9.8
   },
   {
     id: 'ham-1',
@@ -31,7 +31,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'One of the earliest and most complete written legal codes.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Code_of_Hammurabi_Louvre_Sb8_full.jpg/360px-Code_of_Hammurabi_Louvre_Sb8_full.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Code_of_Hammurabi' }],
-    importance: 8.5
+    importance: 8.2
   },
 
   // --- CLASSICAL ANTIQUITY (High Density Test) ---
@@ -43,7 +43,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'First recorded Olympic Games held in Olympia.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Discobolus_in_National_Roman_Museum_Palazzo_Massimo_alle_Terme.jpg/375px-Discobolus_in_National_Roman_Museum_Palazzo_Massimo_alle_Terme.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Ancient_Olympic_Games' }],
-    importance: 7.0
+    importance: 6.8
   },
   {
     id: 'rom-1',
@@ -53,7 +53,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Legendary founding of Rome by Romulus.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/She-wolf_suckles_Romulus_and_Remus.jpg/640px-She-wolf_suckles_Romulus_and_Remus.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Founding_of_Rome' }],
-    importance: 9.0
+    importance: 8.9
   },
   {
     id: 'mar-1',
@@ -63,7 +63,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Athenians defeat the first Persian invasion of Greece.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Battle_of_Marathon_Greek_retreat.jpg/640px-Battle_of_Marathon_Greek_retreat.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Battle_of_Marathon' }],
-    importance: 6
+    importance: 6.5
   },
   {
     id: 'par-1',
@@ -73,7 +73,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Dedication of the Parthenon to Athena.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/The_Parthenon_in_Athens.jpg/640px-The_Parthenon_in_Athens.jpg',
     sources: [{ label: 'History.com', url: 'https://www.history.com/topics/ancient-greece/parthenon' }],
-    importance: 5
+    importance: 5.5
   },
   {
     id: 'alex-1',
@@ -84,7 +84,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Alexander the Great creates one of the largest empires in history.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Alexander_the_Great_mosaic_%28cropped%29.jpg/440px-Alexander_the_Great_mosaic_%28cropped%29.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Wars_of_Alexander_the_Great' }],
-    importance: 9
+    importance: 9.2
   },
   {
     id: 'chn-1',
@@ -94,7 +94,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Qin Shi Huang begins unification of the walls.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/The_Great_Wall_of_China_at_Jinshanling-edit.jpg/640px-The_Great_Wall_of_China_at_Jinshanling-edit.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Great_Wall_of_China' }],
-    importance: 8
+    importance: 8.1
   },
   {
     id: 'caesar-1',
@@ -104,7 +104,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Dictator Julius Caesar is assassinated by Roman senators.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Vincenzo_Camuccini_-_La_morte_di_Cesare.jpg/640px-Vincenzo_Camuccini_-_La_morte_di_Cesare.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Assassination_of_Julius_Caesar' }],
-    importance: 8
+    importance: 8.5
   },
 
   // --- MIDDLE AGES & RENAISSANCE ---
@@ -116,7 +116,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Romulus Augustulus is deposed, marking the end of the Western Empire.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Course_of_Empire_Destruction.jpg/640px-Course_of_Empire_Destruction.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Fall_of_the_Western_Roman_Empire' }],
-    importance: 9
+    importance: 8.8
   },
   {
     id: 'magna-1',
@@ -126,7 +126,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'King John agrees to the Magna Carta, limiting royal power.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/Magna_Carta_%28British_Library_Cotton_MS_Augustus_II.106%29.jpg/600px-Magna_Carta_%28British_Library_Cotton_MS_Augustus_II.106%29.jpg',
     sources: [{ label: 'British Library', url: 'https://www.bl.uk/magna-carta' }],
-    importance: 7
+    importance: 7.5
   },
   {
     id: 'columbus-1',
@@ -136,7 +136,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Christopher Columbus reaches the Americas.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Landing_of_Columbus_%282%29.jpg/640px-Landing_of_Columbus_%282%29.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Voyages_of_Christopher_Columbus' }],
-    importance: 9
+    importance: 9.1
   },
 
   // --- MODERN ERA (Clustering Test) ---
@@ -148,7 +148,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'The Thirteen Colonies declare independence from Britain.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Declaration_independence.jpg/640px-Declaration_independence.jpg',
     sources: [{ label: 'Archives.gov', url: 'https://www.archives.gov/founding-docs/declaration-transcript' }],
-    importance: 8
+    importance: 8.5
   },
   {
     id: 'fr-rev',
@@ -158,7 +158,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Flashpoint of the French Revolution.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Prise_de_la_Bastille.jpg/640px-Prise_de_la_Bastille.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Storming_of_the_Bastille' }],
-    importance: 8
+    importance: 7.9
   },
   {
     id: 'meiji-1',
@@ -168,7 +168,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Japan moves from feudalism to modern imperial state.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Emperor_Meiji_1873.jpg/480px-Emperor_Meiji_1873.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Meiji_Restoration' }],
-    importance: 7
+    importance: 7.2
   },
   {
     id: 'wright-1',
@@ -178,7 +178,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Wright brothers complete the first powered flight.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Kitty_hawk_gross.jpg/640px-Kitty_hawk_gross.jpg',
     sources: [{ label: 'Airandspace.si.edu', url: 'https://airandspace.si.edu/' }],
-    importance: 7
+    importance: 7.4
   },
   {
     id: 'ww1-1',
@@ -189,7 +189,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Global conflict originating in Europe.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Cheshire_Regiment_trench_Somme_1916.jpg/640px-Cheshire_Regiment_trench_Somme_1916.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/World_War_I' }],
-    importance: 10.0
+    importance: 9.7
   },
   {
     id: 'ww2-start',
@@ -199,7 +199,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Germany invades Poland, starting WWII.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Bundesarchiv_Bild_101I-380-0082-33%2C_Polen%2C_Schlagbaum_Grenz%C3%BCbergang.jpg/640px-Bundesarchiv_Bild_101I-380-0082-33%2C_Polen%2C_Schlagbaum_Grenz%C3%BCbergang.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Invasion_of_Poland' }],
-    importance: 10
+    importance: 9.9
   },
   {
     id: 'dday-1',
@@ -209,7 +209,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Allied forces invade northern France.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Into_the_Jaws_of_Death_23-0455M_edit.jpg/640px-Into_the_Jaws_of_Death_23-0455M_edit.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Normandy_landings' }],
-    importance: 8
+    importance: 8.3
   },
   {
     id: 'nuke-1',
@@ -219,7 +219,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'First use of nuclear weapons in warfare.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/Atomic_bombing_of_Japan.jpg/580px-Atomic_bombing_of_Japan.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Atomic_bombings_of_Hiroshima_and_Nagasaki' }],
-    importance: 9
+    importance: 9.4
   },
   {
     id: 'moon-1',
@@ -229,7 +229,7 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Humans walk on the Moon for the first time.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Aldrin_Apollo_11_original.jpg/600px-Aldrin_Apollo_11_original.jpg',
     sources: [{ label: 'NASA', url: 'https://www.nasa.gov/mission_pages/apollo/apollo11.html' }],
-    importance: 10
+    importance: 9.9
   },
   {
     id: 'berlin-wall',
@@ -239,15 +239,15 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Symbolic end of the Cold War.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Berlinermauer.jpg/640px-Berlinermauer.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Fall_of_the_Berlin_Wall' }],
-    importance: 8
+    importance: 8.4
   },
 
   // --- LOD TESTERS (Low Importance, High Density) ---
   // Only visible when zoomed into Paris + Recent Times
-  { id: 'dummy-1', title: 'Local Art Fair', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8566, lng: 2.3400, placeName: 'Paris 1', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 2.0 },
-  { id: 'dummy-2', title: 'Metro Construction', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8600, lng: 2.3500, placeName: 'Paris 2', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 2.0 },
-  { id: 'dummy-3', title: 'Cafe Opening', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8500, lng: 2.3600, placeName: 'Paris 3', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 2.0 },
-  { id: 'dummy-4', title: 'Park Renovation', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8700, lng: 2.3300, placeName: 'Paris 4', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 2.0 },
+  { id: 'dummy-1', title: 'Local Art Fair', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8566, lng: 2.3400, placeName: 'Paris 1', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 1.5 },
+  { id: 'dummy-2', title: 'Metro Construction', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8600, lng: 2.3500, placeName: 'Paris 2', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 1.8 },
+  { id: 'dummy-3', title: 'Cafe Opening', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8500, lng: 2.3600, placeName: 'Paris 3', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 1.2 },
+  { id: 'dummy-4', title: 'Park Renovation', start: { year: 2024, astro_year: 2024, precision: 'year' }, location: { lat: 48.8700, lng: 2.3300, placeName: 'Paris 4', granularity: 'spot', certainty: 'definite' }, summary: 'Minor local event.', imageUrl: '', sources: [], importance: 1.6 },
 
   // --- PRECISION TEST (Millisecond Scale) ---
   // A hypothetical high-speed event: "Flash Photography"
@@ -266,6 +266,6 @@ export const MOCK_EVENTS: EventData[] = [
     summary: 'Testing millisecond timestamp rendering.',
     imageUrl: '',
     sources: [],
-    importance: 10.0
+    importance: 9.999
   }
 ];
