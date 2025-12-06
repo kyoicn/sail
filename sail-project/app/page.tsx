@@ -18,7 +18,7 @@ import { useEventFilter } from '../hooks/useEventFilter';
 
 export default function ChronoMapPage() {
   const GLOBAL_MIN = -3000;
-  const GLOBAL_MAX = 2024; 
+  const GLOBAL_MAX = 2024;
 
   // --- 1. Infrastructure & Config ---
   // Get the dataset configuration first (Logic Injection)
@@ -31,30 +31,40 @@ export default function ChronoMapPage() {
   const initialState = getInitialState();
 
   const [currentDate, setCurrentDate] = useState(initialState.year);
-  const [viewRange, setViewRange] = useState({ 
-      min: Math.max(GLOBAL_MIN, initialState.year - (initialState.span / 2)), 
-      max: Math.min(GLOBAL_MAX, initialState.year + (initialState.span / 2)) 
+  const [viewRange, setViewRange] = useState({
+    min: Math.max(GLOBAL_MIN, initialState.year - (initialState.span / 2)),
+    max: Math.min(GLOBAL_MAX, initialState.year + (initialState.span / 2))
   });
   const [jumpTargetId, setJumpTargetId] = useState<string | null>(null);
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
-  const [mapViewport, setMapViewport] = useState({ 
-      lat: initialState.lat, lng: initialState.lng, zoom: initialState.zoom 
+  const [mapViewport, setMapViewport] = useState({
+    lat: initialState.lat, lng: initialState.lng, zoom: initialState.zoom
   });
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
+  const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
+
+  const handleToggleExpand = (id: string) => {
+    setExpandedEventIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
-      updateUrl({ lat: mapViewport.lat, lng: mapViewport.lng, zoom: mapViewport.zoom, year: currentDate, span: viewRange.max - viewRange.min });
+    updateUrl({ lat: mapViewport.lat, lng: mapViewport.lng, zoom: mapViewport.zoom, year: currentDate, span: viewRange.max - viewRange.min });
   }, [currentDate, viewRange, mapViewport, updateUrl]);
 
 
   // --- 3. Logic Pipelines ---
-  
+
   // Data Fetching Pipeline
   // [REFACTORED] Now explicitly passing 'dataset' from config
   const { allVisibleEvents, allLoadedEvents, isLoading } = useEventData(
-      mapBounds, 
-      mapViewport.zoom, 
-      dataset
+    mapBounds,
+    mapViewport.zoom,
+    dataset
   );
 
   // LOD Calculation Pipeline
@@ -62,24 +72,24 @@ export default function ChronoMapPage() {
 
   // Filtering Pipeline
   const { spatiallyFilteredEvents, renderableEvents } = useEventFilter(
-      allVisibleEvents, 
-      mapBounds, 
-      lodThreshold, 
-      selectedEvent?.id
+    allVisibleEvents,
+    mapBounds,
+    lodThreshold,
+    selectedEvent?.id
   );
 
   // Debug Info
   const isGlobalViewGuess = useMemo(() => {
-      if (!mapBounds) return false;
-      return mapViewport.zoom < 5.5 || (mapBounds.east - mapBounds.west) >= 300;
+    if (!mapBounds) return false;
+    return mapViewport.zoom < 5.5 || (mapBounds.east - mapBounds.west) >= 300;
   }, [mapBounds, mapViewport.zoom]);
 
 
   // --- 4. View Layer ---
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
-      
-      <DebugHUD 
+
+      <DebugHUD
         zoom={mapViewport.zoom}
         center={mapViewport}
         bounds={mapBounds}
@@ -87,6 +97,8 @@ export default function ChronoMapPage() {
         fetchedCount={allVisibleEvents.length}
         renderedCount={renderableEvents.length}
         isGlobalViewGuess={isGlobalViewGuess}
+        activeEvents={renderableEvents}
+        expandedEventIds={expandedEventIds}
       />
 
       <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
@@ -98,31 +110,31 @@ export default function ChronoMapPage() {
               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
             </h1>
             {isLoading && (
-               <div className="flex items-center gap-2 px-2 border-l border-slate-200">
-                  <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
-                  <span className="text-xs text-slate-500 font-medium">Updating...</span>
-               </div>
+              <div className="flex items-center gap-2 px-2 border-l border-slate-200">
+                <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
+                <span className="text-xs text-slate-500 font-medium">Updating...</span>
+              </div>
             )}
-            
+
             {/* Optional: Show current dataset indicator in Dev mode */}
             {dataset !== 'prod' && (
-                <span className="text-[10px] font-mono text-orange-600 bg-orange-100 px-1 rounded border border-orange-200">
-                    DATA: {dataset.toUpperCase()}
-                </span>
+              <span className="text-[10px] font-mono text-orange-600 bg-orange-100 px-1 rounded border border-orange-200">
+                DATA: {dataset.toUpperCase()}
+              </span>
             )}
           </div>
           <div className="pointer-events-auto">
-             <button className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50">
-                <Layers size={20} />
-             </button>
+            <button className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50">
+              <Layers size={20} />
+            </button>
           </div>
         </div>
       </header>
 
       <main className="flex-grow relative z-0">
-        <LeafletMap 
-          currentDate={currentDate} 
-          events={renderableEvents} 
+        <LeafletMap
+          currentDate={currentDate}
+          events={renderableEvents}
           viewRange={viewRange}
           jumpTargetId={jumpTargetId}
           onBoundsChange={setMapBounds}
@@ -130,23 +142,25 @@ export default function ChronoMapPage() {
           initialZoom={initialState.zoom}
           onViewportChange={(center, zoom) => setMapViewport({ ...center, zoom })}
           onEventSelect={(event) => setSelectedEvent(event)}
+          expandedEventIds={expandedEventIds}
+          onToggleExpand={handleToggleExpand}
         />
       </main>
 
-      <TimeControl 
-        currentDate={currentDate} 
+      <TimeControl
+        currentDate={currentDate}
         setCurrentDate={setCurrentDate}
         viewRange={viewRange}
         setViewRange={setViewRange}
         globalMin={GLOBAL_MIN}
         globalMax={GLOBAL_MAX}
-        events={renderableEvents}          
-        densityEvents={spatiallyFilteredEvents} 
-        allEvents={allLoadedEvents}        
+        events={renderableEvents}
+        densityEvents={spatiallyFilteredEvents}
+        allEvents={allLoadedEvents}
         setJumpTargetId={setJumpTargetId}
       />
 
-      <EventDetailPanel 
+      <EventDetailPanel
         event={selectedEvent}
         isOpen={!!selectedEvent}
         onClose={() => setSelectedEvent(null)}

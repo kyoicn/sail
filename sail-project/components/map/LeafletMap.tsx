@@ -17,6 +17,9 @@ interface LeafletMapProps {
   initialZoom: number;
   onViewportChange: (center: { lat: number, lng: number }, zoom: number) => void;
   onEventSelect: (event: EventData) => void;
+  // [NEW] Hoisted State Props
+  expandedEventIds: Set<string>;
+  onToggleExpand: (eventId: string) => void;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -28,13 +31,15 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   initialCenter,
   initialZoom,
   onViewportChange,
-  onEventSelect
+  onEventSelect,
+  expandedEventIds, // [NEW]
+  onToggleExpand    // [NEW]
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const layersMapRef = useRef<Map<string, { dot: any, card?: any, line?: any, shape?: any }>>(new Map());
   const [mapZoom, setMapZoom] = useState(initialZoom);
-  const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
+  // const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set()); // [REMOVED]
 
   // Dynamic Color Interpolator (Cyan -> Blue -> Indigo)
   const getDotColor = (importance: number) => {
@@ -266,15 +271,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
         dotMarker.on('click', (e: any) => {
           L.DomEvent.stopPropagation(e);
-          setExpandedEventIds(prev => {
-            const next = new Set(prev);
-            if (next.has(event.id)) {
-              next.delete(event.id);
-            } else {
-              next.add(event.id);
-            }
-            return next;
-          });
+          onToggleExpand(event.id);
         });
 
         layers = { dot: dotMarker };
@@ -331,11 +328,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 closeBtn.addEventListener('click', (e: any) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setExpandedEventIds(prev => {
-                    const next = new Set(prev);
-                    next.delete(event.id);
-                    return next;
-                  });
+                  onToggleExpand(event.id);
                 });
                 // Prevent Leaflet map click-through on the button specifically
                 L.DomEvent.disableClickPropagation(closeBtn);
