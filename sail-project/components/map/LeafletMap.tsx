@@ -203,7 +203,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       return isActive;
     });
 
-    const layoutMap = calculateSmartLayout(activeEvents, map);
+    const expandedActiveEvents = activeEvents.filter(e => expandedEventIds.has(e.id));
+    const layoutMap = calculateSmartLayout(expandedActiveEvents, map);
 
     // 2. Cleanup (Iterate over existing layers to remove stale ones)
     layersMap.forEach((layerGroup, eventId) => {
