@@ -20,7 +20,8 @@ const CONFIG = {
   CARD_HEIGHT: 180, // Approx height + margin
   ITERATIONS: 60,   // Solver steps (enough for convergence ~10 nodes)
   K_ANCHOR: 0.08,   // Strength of pull towards dot
-  K_REPULSE: 0.5    // Strength of push away from overlap
+  K_REPULSE: 0.5,   // Strength of push away from overlap
+  ANCHOR_OFFSET_Y: 20 // Vertical shift to place ideal anchor slightly above the dot
 };
 
 interface LayoutNode {
@@ -51,9 +52,9 @@ export function calculateSmartLayout(
     return {
       id: e.id,
       tx: pt.x,
-      ty: pt.y - 40, // Target is slightly above the dot
+      ty: pt.y - CONFIG.ANCHOR_OFFSET_Y, // Target is slightly above the dot
       x: pt.x,
-      y: pt.y - 40,
+      y: pt.y - CONFIG.ANCHOR_OFFSET_Y,
       vx: 0,
       vy: 0
     };
@@ -111,16 +112,16 @@ export function calculateSmartLayout(
   }
 
   // 3. Compute Final Offsets
-  // Return offset from the *Original Dot Position* (which is node.tx, node.ty+40)
+  // Return offset from the *Original Dot Position* (which is node.tx, node.ty+ANCHOR_OFFSET_Y)
   nodes.forEach(node => {
     // We want the offset relative to the dot's pixel coordinates
     // Dot X = tx
-    // Dot Y = ty + 40
+    // Dot Y = ty + ANCHOR_OFFSET_Y
 
     // Final Card Center = node.x, node.y
     // We want offset from dot
     const offsetX = node.x - node.tx;
-    const offsetY = node.y - (node.ty + 40);
+    const offsetY = node.y - (node.ty + CONFIG.ANCHOR_OFFSET_Y);
 
     layoutMap.set(node.id, { offsetX, offsetY });
   });
