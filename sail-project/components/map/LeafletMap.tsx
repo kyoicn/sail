@@ -236,11 +236,31 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       let layers = layersMap.get(event.id);
       const dotColor = getDotColor(event.importance || 1);
 
+      // [SMART SCALING]
+      // 1. Time Context Factor (Span based)
+      // Detail (<50y) -> 1.5x | Overview (>500y) -> 0.8x
+      const span = viewRange.max - viewRange.min;
+      const tTime = Math.max(0, Math.min(1, (span - 50) / (500 - 50))); // 0 at 50y, 1 at 500y
+      const timeFactor = 1.5 - (tTime * 0.7); // 1.5 -> 0.8
+
+      // 2. Map Context Factor (Zoom based range)
+      // Low Zoom (2): 6px-20px | High Zoom (12+): 10px-60px
+      const zoomClamped = Math.max(2, Math.min(12, mapZoom));
+      const tZoom = (zoomClamped - 2) / 10; // 0 to 1
+
+      const baseMin = 6 + (tZoom * 4);   // 6 -> 10
+      const baseMax = 20 + (tZoom * 40); // 20 -> 60
+
+      const imp = event.importance || 1;
+      const normalizedImp = (Math.max(1, Math.min(10, imp)) - 1) / 9; // 0 to 1
+
+      const rawSize = baseMin + (normalizedImp * (baseMax - baseMin));
+      const finalSize = rawSize * timeFactor;
+
       if (!layers) {
         // Initialize Dot
-        // Initialize Dot
-        const dotHtml = getDotHtml(dotColor);
-        const dotIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [12, 12] });
+        const dotHtml = getDotHtml(dotColor, finalSize);
+        const dotIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
         const dotMarker = L.marker([event.location.lat, event.location.lng], { icon: dotIcon, zIndexOffset: 2000 }).addTo(map);
 
         dotMarker.on('click', (e: any) => {
@@ -259,8 +279,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         layers = { dot: dotMarker };
         layersMap.set(event.id, layers);
       } else {
-        // Update Dot Position? (If moving) - Assuming static for now, but good practice
+        // Update Dot Position
         layers.dot.setLatLng([event.location.lat, event.location.lng]);
+
+        // [FIX] Update Icon Size on Zoom Change
+        const dotHtml = getDotHtml(dotColor, finalSize);
+        const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
+        layers.dot.setIcon(newIcon);
       }
 
 

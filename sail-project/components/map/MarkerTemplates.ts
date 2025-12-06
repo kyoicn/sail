@@ -3,10 +3,10 @@ import { EventData } from '../../types';
 import { formatEventDateRange } from '../../lib/time-engine';
 import { getLocationString } from '../../lib/utils';
 
-export const getDotHtml = (dotColor: string): string => {
-  return `
+export const getDotHtml = (dotColor: string, size: number): string => {
+    return `
         <div style="
-            width: 12px; height: 12px; 
+            width: ${size}px; height: ${size}px; 
             background: ${dotColor}; 
             border: 2px solid white; 
             border-radius: 50%; 
@@ -17,7 +17,7 @@ export const getDotHtml = (dotColor: string): string => {
 };
 
 export const getLineHtml = (length: number, angle: number, color: string): string => {
-  return `
+    return `
         <div style="position: relative; width: 0; height: 0;">
             <div style="position: absolute; top: 0; left: 0; width: ${length}px; height: 2px; background: ${color}; transform-origin: 0 50%; transform: rotate(${angle}deg); opacity: 0.6;"></div>
         </div>
@@ -25,11 +25,11 @@ export const getLineHtml = (length: number, angle: number, color: string): strin
 };
 
 export const getCardHtml = (
-  event: EventData,
-  x: number,
-  y: number
+    event: EventData,
+    x: number,
+    y: number
 ): string => {
-  return `
+    return `
        <div class="card-wrapper" style="
            position: absolute; left: 0; top: 0; 
            transform: translate(-50%, -100%) translate(${x}px, ${y}px); 
