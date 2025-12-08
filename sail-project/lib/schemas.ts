@@ -6,6 +6,11 @@ export const ChronosTimeSchema = z.object({
   year: z.number(),
   month: z.number().optional(),
   day: z.number().optional(),
+  hour: z.number().optional(),
+  minute: z.number().optional(),
+  second: z.number().optional(),
+  millisecond: z.number().optional(),
+  astro_year: z.number(), // Required for sorting
   precision: z.enum(['year', 'month', 'day', 'hour', 'minute', 'second', 'millisecond']).default('year'),
 });
 
@@ -13,8 +18,8 @@ export const ChronosLocationSchema = z.object({
   lat: z.number().min(-90).max(90), // Strict geo-bounds
   lng: z.number().min(-180).max(180),
   placeName: z.string().optional(),
-  granularity: z.enum(['spot', 'city', 'territory', 'continent']).optional(),
-  certainty: z.enum(['definite', 'approximate']).optional(),
+  granularity: z.enum(['spot', 'city', 'territory', 'continent']).default('spot'),
+  certainty: z.enum(['definite', 'approximate']).default('definite'),
   customRadius: z.number().optional(),
   regionId: z.string().optional(),
 });
@@ -37,9 +42,8 @@ export const EventDataSchema = z.object({
 
   location: ChronosLocationSchema,
 
-  // Coerce string to number if API returns string "10.0", 
-  // or default to 1.0 if missing. Supports floats.
-  importance: z.preprocess((val) => Number(val) || 1.0, z.number().min(1).max(10)),
+  // [FIX] Simplify importance validation
+  importance: z.coerce.number().min(0.1).max(10),
 
   sources: z.array(EventSourceSchema).optional().default([]),
 });

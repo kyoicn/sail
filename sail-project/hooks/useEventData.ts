@@ -8,13 +8,13 @@ const fetcher = async (url: string) => {
   if (!res.ok) {
     throw new Error(`API Error: ${res.status}`);
   }
-  
+
   const rawData = await res.json();
   const result = EventListSchema.safeParse(rawData);
 
   if (!result.success) {
     console.error("🚨 Data Validation Failed!", result.error.format());
-    return []; 
+    return [];
   }
 
   return result.data;
@@ -26,9 +26,9 @@ const fetcher = async (url: string) => {
  * It no longer knows about URL params or Environment variables.
  */
 export function useEventData(
-    mapBounds: MapBounds | null, 
-    zoom: number, 
-    dataset: string // <--- Injected dependency
+  mapBounds: MapBounds | null,
+  zoom: number,
+  dataset: string // <--- Injected dependency
 ) {
   const queryKey = mapBounds
     ? `/api/events?n=${mapBounds.north}&s=${mapBounds.south}&e=${mapBounds.east}&w=${mapBounds.west}&z=${zoom}&dataset=${dataset}`
@@ -58,7 +58,7 @@ export function useEventData(
   }, [serverEvents]);
 
   return {
-    allVisibleEvents, 
+    allVisibleEvents,
     allLoadedEvents,
     isLoading,
     isError: !!error

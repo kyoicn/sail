@@ -95,21 +95,23 @@ export async function GET(request: Request) {
   const formattedEvents = (data || []).map((row: any) => {
     const startBody = row.start_time_body || {};
 
+    const sanitized = (val: any) => (val === null ? undefined : val);
+
     return {
       id: row.id,
       source_id: row.source_id,
       title: row.title,
-      summary: row.summary,
-      imageUrl: row.image_url,
+      summary: row.summary || '',
+      imageUrl: sanitized(row.image_url),
 
       start: {
         year: startBody.year ?? row.start_year,
-        month: startBody.month,
-        day: startBody.day,
-        hour: startBody.hour,
-        minute: startBody.minute,
-        second: startBody.second,
-        millisecond: startBody.millisecond,
+        month: sanitized(startBody.month),
+        day: sanitized(startBody.day),
+        hour: sanitized(startBody.hour),
+        minute: sanitized(startBody.minute),
+        second: sanitized(startBody.second),
+        millisecond: sanitized(startBody.millisecond),
         astro_year: row.start_astro_year ?? row.start_year,
         precision: row.precision || 'year'
       },
@@ -117,13 +119,22 @@ export async function GET(request: Request) {
       location: {
         lat: row.lat,
         lng: row.lng,
-        placeName: row.place_name,
-        granularity: row.granularity,
-        certainty: row.certainty,
-        region_id: row.region_id,
+        location: {
+          lat: row.lat,
+          lng: row.lng,
+          placeName: sanitized(row.place_name),
+          granularity: sanitized(row.granularity),
+          certainty: sanitized(row.certainty),
+          regionId: sanitized(row.region_id),
+        },
       },
 
-      importance: row.importance,
+      // [FIX] Ensure importance is a number. 
+      // PostgreSQL might return string for numerics, or null.
+      // Number(null) -> 0. Number(undefined) -> NaN.
+      // So we use (Number(row.importance) || 1.0).
+      importance: Number(row.importance) || 1.0,
+
       sources: row.sources || [],
 
       pipeline: row.pipeline
