@@ -18,7 +18,7 @@ export const ChronosLocationSchema = z.object({
   lat: z.number().min(-90).max(90), // Strict geo-bounds
   lng: z.number().min(-180).max(180),
   placeName: z.string().optional(),
-  granularity: z.enum(['spot', 'city', 'territory', 'continent']).default('spot'),
+  granularity: z.enum(['spot', 'area']).default('spot'),
   certainty: z.enum(['definite', 'approximate']).default('definite'),
   customRadius: z.number().optional(),
   regionId: z.string().optional(),

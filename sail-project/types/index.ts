@@ -57,7 +57,7 @@ export interface ChronosLocation {
   geoJson?: object;
 
   placeName?: string;
-  granularity: 'spot' | 'city' | 'territory' | 'continent';
+  granularity: 'spot' | 'area';
   certainty: 'definite' | 'approximate';
   customRadius?: number;
   regionId?: string;
