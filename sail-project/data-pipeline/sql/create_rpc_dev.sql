@@ -3,8 +3,6 @@
 
 -- [FIX] Drop conflicting signatures
 DROP FUNCTION IF EXISTS get_events_in_view_dev(float, float, float, float, float, float, float);
-DROP FUNCTION IF EXISTS get_events_in_view_dev(float, float, float, float, int, int, int);
-DROP FUNCTION IF EXISTS get_events_in_view_dev(float, float, float, float, integer, integer, integer);
 
 CREATE OR REPLACE FUNCTION get_events_in_view_dev(
     min_lat float,
