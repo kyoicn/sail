@@ -1,6 +1,11 @@
 -- RPC: Get Events in View
 -- Run this in Supabase SQL Editor AFTER creating the table.
 
+-- [FIX] Drop conflicting signatures to avoid PGRST203 (Ambiguous Function)
+DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, float, float, float);
+DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, int, int, int);
+DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, integer, integer, integer);
+
 CREATE OR REPLACE FUNCTION get_events_in_view(
     min_lat float,
     max_lat float,
