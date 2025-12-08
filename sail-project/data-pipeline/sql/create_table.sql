@@ -59,3 +59,21 @@ CREATE INDEX events_importance_idx ON events USING BTREE (importance);
 -- Comments
 COMMENT ON COLUMN events.start_astro_year IS 'Astronomical year (float) for sorting/indexing. 1 BC = 0.0, 2 BC = -1.0';
 COMMENT ON COLUMN events.start_time_entry IS 'JSONB containing {month, day, hour, minute, second, millisecond, precision}';
+
+-- SECURITY: Enable Row Level Security (RLS)
+-- Run this to lock down your tables so only "Public Read" is allowed via API.
+-- Write operations will require the Service Role key (or authenticated users with specific policies, if you add them later).
+
+-- 1. Enable RLS
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+
+-- 2. Add Policy: Public Read Access
+-- "anon" and "authenticated" roles (i.e., everyone) can SELECT all rows.
+CREATE POLICY "Enable read access for all users" 
+ON events FOR SELECT 
+TO public 
+USING (true);
+
+-- Note: No INSERT/UPDATE/DELETE policies are created for 'public'.
+-- This means writes are BLOCKED for anonymous users by default (Safe).
+-- Your Service Role Key (used in data-pipeline) bypasses RLS, so imports still work.

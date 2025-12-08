@@ -46,3 +46,21 @@ CREATE INDEX events_dev_start_astro_year_idx ON events_dev USING BTREE (start_as
 CREATE INDEX events_dev_importance_idx ON events_dev USING BTREE (importance);
 
 COMMENT ON TABLE events_dev IS 'Development copy of events table';
+
+-- SECURITY: Enable Row Level Security (RLS)
+-- Run this to lock down your tables so only "Public Read" is allowed via API.
+-- Write operations will require the Service Role key (or authenticated users with specific policies, if you add them later).
+
+-- 1. Enable RLS
+ALTER TABLE events_dev ENABLE ROW LEVEL SECURITY;
+
+-- 2. Add Policy: Public Read Access
+-- "anon" and "authenticated" roles (i.e., everyone) can SELECT all rows.
+CREATE POLICY "Enable read access for all users" 
+ON events_dev FOR SELECT 
+TO public 
+USING (true);
+
+-- Note: No INSERT/UPDATE/DELETE policies are created for 'public'.
+-- This means writes are BLOCKED for anonymous users by default (Safe).
+-- Your Service Role Key (used in data-pipeline) bypasses RLS, so imports still work.
