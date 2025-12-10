@@ -39,6 +39,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const mapInstanceRef = useRef<any>(null);
   const layersMapRef = useRef<Map<string, { dot: any, card?: any, line?: any, shape?: any }>>(new Map());
   const [mapZoom, setMapZoom] = useState(initialZoom);
+
+  // [OPTIMIZATION] Refs to track previous visual state to avoid redundant DOM updates
+  const prevVisualState = useRef({ zoom: initialZoom, span: 0 });
   // const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set()); // [REMOVED]
 
   // Dynamic Color Interpolator (Cyan -> Blue -> Indigo)
@@ -277,13 +280,20 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         layers = { dot: dotMarker };
         layersMap.set(event.id, layers);
       } else {
-        // Update Dot Position
-        layers.dot.setLatLng([event.location.lat, event.location.lng]);
+        // Optimization: Only update if visual parameters changed
+        const spanDiff = Math.abs((viewRange.max - viewRange.min) - prevVisualState.current.span);
+        const zoomDiff = Math.abs(mapZoom - prevVisualState.current.zoom);
+        const needsVisualUpdate = spanDiff > 0.0001 || zoomDiff > 0.1;
 
-        // [FIX] Update Icon Size on Zoom Change
-        const dotHtml = getDotHtml(dotColor, finalSize);
-        const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
-        layers.dot.setIcon(newIcon);
+        if (needsVisualUpdate) {
+          // Update Icon Size on Zoom/Span Change
+          const dotHtml = getDotHtml(dotColor, finalSize);
+          const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
+          layers.dot.setIcon(newIcon);
+
+          // Update Position (rarely needed unless lat/lng changes, but cheap if we skip Icon)
+          layers.dot.setLatLng([event.location.lat, event.location.lng]);
+        }
       }
 
 
@@ -391,6 +401,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         }
       }
     });
+
+
+
+    // Update refs for next cycle
+    prevVisualState.current = { zoom: mapZoom, span: viewRange.max - viewRange.min };
 
   }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds]);
 
