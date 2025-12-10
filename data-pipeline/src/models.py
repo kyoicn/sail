@@ -9,6 +9,7 @@ class TimeEntry(BaseModel):
     minute: Optional[int] = None
     second: Optional[int] = None
     millisecond: Optional[int] = None
+    timestamp: Optional[float] = None
     precision: str = "year"
 
 class Link(BaseModel):
