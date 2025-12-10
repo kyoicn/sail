@@ -99,24 +99,25 @@ def main():
             source_id = f"gemini:{slugify(event.title)}"
             
             # 2. Time
-            start_te = TimeEntry(**event.start_time)
+            # 2. Time
+            start_te = event.start_time
             start_astro = calculate_astro_year(start_te)
             start_json = start_te.model_dump(exclude_none=True)
             
             end_astro = "NULL"
             end_json = "NULL"
             if event.end_time:
-                end_te = TimeEntry(**event.end_time)
+                end_te = event.end_time
                 end_astro = calculate_astro_year(end_te)
                 end_json = escape_jsonb(end_te.model_dump(exclude_none=True))
             
             # 3. Location
-            lat = event.location.get("latitude")
-            lng = event.location.get("longitude")
-            place_name = event.location.get("location_name")
+            lat = event.location.latitude
+            lng = event.location.longitude
+            place_name = event.location.location_name
             
             # Map Precision to Enum
-            raw_prec = event.location.get("precision", "spot").lower()
+            raw_prec = event.location.precision.lower()
             granularity = "area" if raw_prec in ["city", "territory", "continent", "area"] else "spot"
             certainty = "definite" # Default
             

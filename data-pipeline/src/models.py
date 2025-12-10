@@ -16,6 +16,12 @@ class Link(BaseModel):
     label: str
     url: str
 
+class LocationEntry(BaseModel):
+    latitude: float
+    longitude: float
+    location_name: Optional[str] = None
+    precision: str = "spot"
+
 class EventSchema(BaseModel):
     # Identity
     title: str = Field(alias="event_title")
@@ -27,7 +33,8 @@ class EventSchema(BaseModel):
     end_time: Optional[TimeEntry] = None
     
     # Location (Input is nested 'location')
-    location: dict
+    # Location (Input is nested 'location')
+    location: LocationEntry
     
     # Metadata
     importance: float = 1.0
