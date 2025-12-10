@@ -127,17 +127,14 @@ def main():
             
             # 4. Links & Images
             links = []
-            for s in event.sources:
-                # Assuming source has 'param' or 'title' vs 'url'
-                # Just map simple label/url if available
-                # JSON Format: {"source_ref": "...", "url": "..."}
-                # Let's inspect ONE raw sample if we can, but assuming 'url' exists.
-                if 'url' in s:
-                    links.append({"label": s.get("source_ref", "Source"), "url": s['url']})
+            if event.sources:
+                for s in event.sources:
+                    links.append(s.model_dump())
             
             image_urls = []
-            if event.image_url:
-                image_urls.append(event.image_url)
+            if event.images:
+                for img in event.images:
+                    image_urls.append(img.url)
             
             image_urls_sql = "'{" + ",".join([f'"{u}"' for u in image_urls]) + "}'"
             

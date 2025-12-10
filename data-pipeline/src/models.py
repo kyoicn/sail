@@ -24,10 +24,9 @@ class LocationEntry(BaseModel):
     certainty: Literal["definite", "approximate"] = "definite"
 
 class EventSchema(BaseModel):
-    # Identity
+    # Basic information
     title: str = Field(alias="event_title")
     summary: str = Field(alias="event_description", default="")
-    image_url: Optional[str] = None # Legacy field in JSON, map to array
     
     # Time
     start_time: TimeEntry
@@ -36,9 +35,10 @@ class EventSchema(BaseModel):
     # Location
     location: LocationEntry
     
-    # Metadata
+    # Annotations
     importance: float = 1.0
-    sources: List[dict] = Field(default_factory=list) # To be mapped to links
+    sources: Optional[List[Link]] = None
+    images: Optional[List[Link]] = None
 
     @field_validator('importance', mode='before')
     def set_importance(cls, v):
