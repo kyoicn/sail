@@ -23,8 +23,8 @@ class EventSchema(BaseModel):
     image_url: Optional[str] = None # Legacy field in JSON, map to array
     
     # Time (Input is nested 'start_time')
-    start_time: dict
-    end_time: Optional[dict] = None
+    start_time: TimeEntry
+    end_time: Optional[TimeEntry] = None
     
     # Location (Input is nested 'location')
     location: dict
