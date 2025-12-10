@@ -116,10 +116,9 @@ def main():
             lng = event.location.longitude
             place_name = event.location.location_name
             
-            # Map Precision to Enum
-            raw_prec = event.location.precision.lower()
-            granularity = "area" if raw_prec in ["city", "territory", "continent", "area"] else "spot"
-            certainty = "definite" # Default
+            # Map Precision/Certainty from Model
+            granularity = event.location.precision
+            certainty = event.location.certainty
             
             if lat is None or lng is None:
                 continue # Skip invalid location

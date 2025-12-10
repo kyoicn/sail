@@ -10,7 +10,7 @@ class TimeEntry(BaseModel):
     second: Optional[int] = None
     millisecond: Optional[int] = None
     timestamp: Optional[float] = None
-    precision: str = "year"
+    precision: Literal["millennium", "century", "decade", "year", "month", "day", "hour", "minute", "second", "millisecond"] = "year"
 
 class Link(BaseModel):
     label: str
@@ -20,7 +20,8 @@ class LocationEntry(BaseModel):
     latitude: float
     longitude: float
     location_name: Optional[str] = None
-    precision: str = "spot"
+    precision: Literal["spot", "area"] = "spot"
+    certainty: Literal["definite", "approximate"] = "definite"
 
 class EventSchema(BaseModel):
     # Identity
@@ -28,12 +29,11 @@ class EventSchema(BaseModel):
     summary: str = Field(alias="event_description", default="")
     image_url: Optional[str] = None # Legacy field in JSON, map to array
     
-    # Time (Input is nested 'start_time')
+    # Time
     start_time: TimeEntry
     end_time: Optional[TimeEntry] = None
     
-    # Location (Input is nested 'location')
-    # Location (Input is nested 'location')
+    # Location
     location: LocationEntry
     
     # Metadata
