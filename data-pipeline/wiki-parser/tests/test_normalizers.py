@@ -4,7 +4,7 @@ import os
 
 # 将 src 目录加入路径，以便导入模块
 # 假设运行目录是 data-pipeline/
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from src.lib.time_normalizer import normalize_time, is_leap_year
 from src.lib.geo_normalizer import normalize_geo
