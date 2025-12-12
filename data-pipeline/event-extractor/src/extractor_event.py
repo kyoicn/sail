@@ -38,8 +38,8 @@ Output must be a JSON object containing a list of events under the key "events".
 Each event must adhere to the following structure (JSON Schema):
 
 {
-  "event_title": "string (REQUIRED)",
-  "event_description": "string (REQUIRED, summary of the event)",
+  "title": "string (REQUIRED)",
+  "summary": "string (REQUIRED, summary of the event)",
   "start_time": {
     "year": int (REQUIRED),
     "month": int (optional),
@@ -66,7 +66,7 @@ Each event must adhere to the following structure (JSON Schema):
 1. Extract ALL relevant events mentioned in the text.
 2. If exact coordinates are not mentioned, omit latitude/longitude in the extraction (Enrichment step will fix this).
 3. If year is not mentioned, you may try to infer from context if unambiguous, otherwise omit the event or time.
-4. 'event_title' and 'event_description' are MANDATORY.
+4. 'title' and 'summary' are MANDATORY.
 5. Output valid JSON only. No markdown formatting.
 """
 

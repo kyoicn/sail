@@ -4,6 +4,7 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Optional
+from pydantic import ValidationError
 from dotenv import load_dotenv
 import ollama
 
@@ -63,14 +64,15 @@ Here is an example:
 If you need validation or don't know, use the 'search_web' tool.
 
 Here are some guidelines:
-1. DO NOT MAKE UP ANY FAKE INFORMATION.
+1. DO NOT USE ANY FAKE OR MADE-UP INFORMATION.
 2. If the event start time is incomplete, try your best to figure out the most precise time that you're 100 percent sure of, and set the time precision accordingly. If it's really unknown, set the precision to 'unknown'.
 3. Event end time is optional to populate, use your best judgement to determine whether an end time is necessary for the event.
 4. If the event location is incomplete, try your best to first figure out location name (if missing), then determine the location precision ("spot", "area", "unknown"), then figure out coordinates, and finally populate your certainty accordingly ("definite", "approximate", "unknown").
 5. DO NOT infer "importance" unless you are explicitly required to do so.
 
 When you have the information, output the FINAL JSON with the filled fields.
-IMPORTANT: The final output MUST be the valid JSON of the single EventSchema object.
+
+IMPORTANT: You MUST just output the valid JSON of the single EventSchema object.
 """
 
 class LLMOrchestrator:
@@ -89,9 +91,10 @@ class LLMOrchestrator:
         return enriched
 
     def enrich_single_event(self, event: EventSchema) -> EventSchema:
-        logger.info(f"Enriching event: {event.title}")
+        separator = "=" * 60
+        sub_sep = "-" * 40
+        logger.info(f"\n{separator}\nENRICHING EVENT: {event.title}\n{separator}")
         
-        # Enriche every event
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Enrich this event:\n{event.model_dump_json()}"}
@@ -99,7 +102,9 @@ class LLMOrchestrator:
 
         # Max turns to prevent infinite loops
         client = ollama.Client(host=OLLAMA_HOST)
-        for _ in range(5):
+        for turn in range(5):
+            logger.info(f"\n{sub_sep}\nTurn {turn + 1}/5\n{sub_sep}")
+            
             response = client.chat(
                 model=self.model_name,
                 messages=messages,
@@ -108,13 +113,12 @@ class LLMOrchestrator:
             
             message = response['message']
             messages.append(message)
-
+            
             if message.get('tool_calls'):
                 logger.info(f"LLM requested tool execution ({len(message['tool_calls'])} calls).")
                 for tool_call in message['tool_calls']:
                     if tool_call['function']['name'] == "search_web":
                         args = tool_call['function']['arguments']
-                        # args might be a dict already or string depending on version, usually dict in ollama-python
                         if isinstance(args, str):
                             args = json.loads(args)
                         
@@ -125,11 +129,9 @@ class LLMOrchestrator:
                         
                         logger.info(f"Tool Result:\n{json.dumps(search_res, indent=2)}")
 
-                        # Ollama expects tool outputs with role 'tool'
                         messages.append({
                             "role": "tool",
                             "content": json.dumps(search_res),
-                            # "name": "search_web" # optional in some versions, good practice
                         })
             else:
                 # No tool call, assume final answer or text
@@ -144,31 +146,26 @@ class LLMOrchestrator:
                     # Try to parse as JSON
                     data = json.loads(content)
                     
-                    # Sometimes LLM wraps in "event": {...}
+                    # Normalization logic
                     if "events" in data and isinstance(data["events"], list):
                          updated_data = data["events"][0]
                     elif "event" in data:
                         updated_data = data["event"]
                     else:
                         updated_data = data
-
-                    # Validate and return
                     
-                    # Ensure location structure is correct
-                    if "location" in updated_data:
-                         loc = updated_data["location"]
-                         # Ensure enums are valid strings or default
-                         if "precision" not in loc: loc["precision"] = "spot"
-                         if "certainty" not in loc: loc["certainty"] = "definite"
-
+                    # Success
+                    logger.info(f"Successfully enriched event: \033[97;42m{event.title}\033[0m with:\n\033[97;42m{json.dumps(updated_data, indent=2)}\033[0m")
                     return EventSchema(**updated_data)
+                    
                 except json.JSONDecodeError as e:
-                    logger.warning(f"LLM response was not valid JSON. Error: {e}\nContent: {content}\nContinuing/Retrying...")
+                    logger.warning(f"LLM response was not valid JSON. Error: {e}\nContinuing/Retrying...")
                     continue
                 except ValidationError as ve:
-                    logger.warning(f"Validation failed on enriched data: {ve}")
-                    # Might try to ask LLM to fix, or just return original
+                    # Log the DATA causing validation failure
+                    logger.warning(f"Validation failed on enriched data: {ve}\nData:\n{json.dumps(updated_data, indent=2)}")
+                    # Return original if validation fails, or could retry
                     return event
 
-        logger.warning("Max enrichment turns reached.")
+        logger.warning(f"Max enrichment turns reached for event: {event.title}")
         return event

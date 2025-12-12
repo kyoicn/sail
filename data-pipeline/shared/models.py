@@ -25,8 +25,8 @@ class LocationEntry(BaseModel):
 
 class EventSchema(BaseModel):
     ## Basic information
-    title: str = Field(alias="event_title")
-    summary: str = Field(alias="event_description", default="")
+    title: str
+    summary: str
     
     ## Time
     start_time: TimeEntry

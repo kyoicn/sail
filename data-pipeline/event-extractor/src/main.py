@@ -62,7 +62,7 @@ def main():
         # 4. Output
         record = ExtractionRecord(
             source_url=args.url,
-            model_name=OLLAMA_MODEL or "unknown",
+            model_name=OLLAMA_MODEL,
             clean_text=clean_text,
             events=enriched_events
         )
