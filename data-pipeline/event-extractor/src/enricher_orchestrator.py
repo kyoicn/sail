@@ -64,8 +64,10 @@ If you need validation or don't know, use the 'search_web' tool.
 
 Here are some guidelines:
 1. DO NOT MAKE UP ANY FAKE INFORMATION.
-2. If the event time is incomplete, try your best to figure out the most precise time that you're 100 percent sure of, and set the time precision accordingly. If it's really unknown, set the precision to 'unknown'.
-3. If the event location is incomplete, try your best to first figure out location name (if missing), then determine the location precision ("spot", "area", "unknown"), then figure out coordinates, and finally populate your certainty accordingly ("definite", "approximate", "unknown").
+2. If the event start time is incomplete, try your best to figure out the most precise time that you're 100 percent sure of, and set the time precision accordingly. If it's really unknown, set the precision to 'unknown'.
+3. Event end time is optional to populate, use your best judgement to determine whether an end time is necessary for the event.
+4. If the event location is incomplete, try your best to first figure out location name (if missing), then determine the location precision ("spot", "area", "unknown"), then figure out coordinates, and finally populate your certainty accordingly ("definite", "approximate", "unknown").
+5. DO NOT infer "importance" unless you are explicitly required to do so.
 
 When you have the information, output the FINAL JSON with the filled fields.
 IMPORTANT: The final output MUST be the valid JSON of the single EventSchema object.
