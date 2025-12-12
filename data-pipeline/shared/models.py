@@ -40,7 +40,7 @@ class EventSchema(BaseModel):
     # Importance score of the event (range 0.0-10.0).
     # Higher values indicate higher importance.
     # The minimum effective importance is 1.0.
-    # Values below 1.0 signify that the importance score is either not computed,
+    # Values below 1.0 or above 10.0 signify that the importance score is either not computed,
     # or there was insufficient information to compute it, requiring re-assessment.
     importance: float = 0.0
 
@@ -55,3 +55,12 @@ class EventSchema(BaseModel):
             return max(0, min(10, val))
         except:
             return 1.0
+
+from datetime import datetime
+
+class ExtractionRecord(BaseModel):
+    created_at: datetime = Field(default_factory=datetime.now)
+    source_url: str
+    model_name: str
+    clean_text: str
+    events: List[EventSchema]
