@@ -10,7 +10,7 @@ class TimeEntry(BaseModel):
     second: Optional[int] = None
     millisecond: Optional[int] = None
     timestamp: Optional[float] = None
-    precision: Literal["millennium", "century", "decade", "year", "month", "day", "hour", "minute", "second", "millisecond"] = "year"
+    precision: Literal["millennium", "century", "decade", "year", "month", "day", "hour", "minute", "second", "millisecond", "unknown"] = "unknown"
 
 class Link(BaseModel):
     label: str
