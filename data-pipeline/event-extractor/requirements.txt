@@ -1,0 +1,8 @@
+trafilatura
+readability-lxml
+ollama
+duckduckgo-search
+pydantic
+httpx
+beautifulsoup4
+python-dotenv
