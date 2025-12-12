@@ -2,7 +2,7 @@ from typing import Optional, List, Literal
 from pydantic import BaseModel, Field, field_validator
 
 class TimeEntry(BaseModel):
-    year: int
+    year: Optional[int] = None
     month: Optional[int] = None
     day: Optional[int] = None
     hour: Optional[int] = None
@@ -17,11 +17,11 @@ class Link(BaseModel):
     url: str
 
 class LocationEntry(BaseModel):
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     location_name: Optional[str] = None
-    precision: Literal["spot", "area"] = "spot"
-    certainty: Literal["definite", "approximate"] = "definite"
+    precision: Literal["spot", "area", "unknown"] = "unknown"
+    certainty: Literal["definite", "approximate", "unknown"] = "unknown"
 
 class EventSchema(BaseModel):
     ## Basic information
