@@ -91,12 +91,11 @@ def extract_events(clean_text: str, model_name: str) -> List[EventSchema]:
         
         content = response['message']['content']
         try:
-            parsed = json.loads(content)
-            logger.debug(f"LLM Raw Output:\n{json.dumps(parsed, indent=2)}")
-        except:
-            logger.debug(f"LLM Raw Output: {content}")
-
-        data = json.loads(content)
+            data = json.loads(content)
+            logger.debug(f"LLM Raw Output:\n{json.dumps(data, indent=2)}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM output as JSON: {e}\nContent: {content}")
+            return []
         events_data = data.get("events", [])
         
         parsed_events = []

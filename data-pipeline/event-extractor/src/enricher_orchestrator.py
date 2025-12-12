@@ -160,8 +160,8 @@ class LLMOrchestrator:
                          if "certainty" not in loc: loc["certainty"] = "definite"
 
                     return EventSchema(**updated_data)
-                except json.JSONDecodeError:
-                    logger.warning("LLM response was not valid JSON. Continuing/Retrying...")
+                except json.JSONDecodeError as e:
+                    logger.warning(f"LLM response was not valid JSON. Error: {e}\nContent: {content}\nContinuing/Retrying...")
                     continue
                 except ValidationError as ve:
                     logger.warning(f"Validation failed on enriched data: {ve}")
