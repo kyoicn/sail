@@ -24,6 +24,9 @@ if str(event_extractor_root) not in sys.path:
 from src.parser_web import fetch_and_parse
 from src.extractor_event import extract_events
 from src.enricher_orchestrator import LLMOrchestrator
+from shared.models import ExtractionRecord, Link
+
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -39,25 +42,37 @@ def main():
     try:
         # 1. Parse
         clean_text = fetch_and_parse(args.url)
-        print(f"--- Extracted Text ---\n{clean_text}...\n")
+        print(f"--- Extracted Text ---\n{clean_text}\n")
 
         # 2. Extract
         events = extract_events(clean_text, OLLAMA_MODEL)
         print(f"--- Extracted {len(events)} Events ---")
         for e in events:
-            print(f"- {e.title}: {e.summary[:50]}...")
+            if e.sources is None:
+                e.sources = []
+            e.sources.append(Link(label="Original Source", url=args.url))
+            # Default all extracted events to importance 11.0
+            e.importance = 11.0
+            print(f"- {e.title}: {e.summary}")
 
         # 3. Enrich
         orchestrator = LLMOrchestrator(OLLAMA_MODEL)
         enriched_events = orchestrator.enrich_events(events)
         
         # 4. Output
-        output_data = [json.loads(e.model_dump_json()) for e in enriched_events]
+        record = ExtractionRecord(
+            source_url=args.url,
+            model_name=OLLAMA_MODEL or "unknown",
+            clean_text=clean_text,
+            events=enriched_events
+        )
+        
+        output_data = json.loads(record.model_dump_json())
         
         with open(args.output, "w") as f:
             json.dump(output_data, f, indent=2)
             
-        print(f"\nSuccessfully saved {len(output_data)} enriched events to {args.output}")
+        print(f"\nSuccessfully saved extraction record with {len(enriched_events)} events to {args.output}")
 
     except Exception as e:
         logger.error(f"Pipeline failed: {e}")
