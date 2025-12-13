@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { Map as MapIcon, Layers, Loader2 } from 'lucide-react';
 
 import { EventData, MapBounds } from '../types';
@@ -16,7 +16,7 @@ import { useEventData } from '../hooks/useEventData';
 import { useLOD } from '../hooks/useLOD';
 import { useEventFilter } from '../hooks/useEventFilter';
 
-export default function ChronoMapPage() {
+function ChronoMapContent() {
   const GLOBAL_MIN = -3000;
   const GLOBAL_MAX = 2024;
 
@@ -167,5 +167,17 @@ export default function ChronoMapPage() {
       />
 
     </div>
+  );
+}
+
+export default function ChronoMapPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+        <Loader2 className="animate-spin text-blue-500 w-8 h-8" />
+      </div>
+    }>
+      <ChronoMapContent />
+    </Suspense>
   );
 }
