@@ -1,6 +1,7 @@
 import os
 import sys
 import psycopg2
+import argparse
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -24,37 +25,89 @@ def get_connection():
         print(f"Failed to connect to DB: {e}")
         sys.exit(1)
 
-def ensure_migration_table(cur):
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS schema_migrations (
+def ensure_migration_table(cur, table_suffix):
+    """
+    Creates a specific version table for the target table.
+    e.g. if target='events', table='schema_migrations'
+         if target='events_dev', table='schema_migrations_events_dev'
+    """
+    # Sanitize table_suffix
+    if table_suffix == 'events':
+        migration_table = 'schema_migrations'
+    else:
+        migration_table = f'schema_migrations_{table_suffix}'
+        
+    cur.execute(f"""
+        CREATE TABLE IF NOT EXISTS {migration_table} (
             version text PRIMARY KEY,
             applied_at timestamptz DEFAULT now()
         );
     """)
+    return migration_table
 
-def get_applied_migrations(cur):
-    cur.execute("SELECT version FROM schema_migrations ORDER BY version ASC;")
+def get_applied_migrations(cur, migration_table):
+    cur.execute(f"SELECT version FROM {migration_table} ORDER BY version ASC;")
     return {row[0] for row in cur.fetchall()}
 
-def record_migration(cur, version):
-    cur.execute("INSERT INTO schema_migrations (version) VALUES (%s);", (version,))
+def record_migration(cur, migration_table, version):
+    cur.execute(f"INSERT INTO {migration_table} (version) VALUES (%s);", (version,))
 
-def run_migration_file(cur, filepath):
-    print(f"Applying {filepath.name}...")
-    with open(filepath, 'r') as f:
-        sql = f.read()
-    cur.execute(sql)
+def run_migration_file_content(cur, sql_content):
+    if sql_content.strip():
+        cur.execute(sql_content)
+
+def transform_sql(sql: str, target_table: str) -> str:
+    """
+    Replaces generic 'events' references with 'target_table'.
+    Also adjusts function names if target_table != 'events'.
+    """
+    if target_table == 'events':
+        return sql
+    
+    # 1. Replace table name
+    # We replace 'events' with 'events_dev'
+    # Be careful not to replace 'events' inside other words if possible, 
+    # but 'events' is quite specific in this schema.
+    # A simple replace is 90% effective here.
+    new_sql = sql.replace('events', target_table)
+    
+    # 2. Adjust function names to avoid conflict
+    # 'get_events_in_view' -> 'get_events_in_view_dev' (if target is events_dev)
+    # We use a suffix logic.
+    suffix = target_table.replace('events', '') # e.g. '_dev'
+    
+    if suffix:
+        # Replace function def
+        new_sql = new_sql.replace('get_events_in_view', f'get_events_in_view{suffix}')
+        # Replace new function get_all_collections
+        new_sql = new_sql.replace('get_all_collections', f'get_all_collections{suffix}')
+        
+        # Also replace index names to avoid conflict
+        # events_location_idx -> events_dev_location_idx
+        # (This is handled by the initial 'events'->'events_dev' replace)
+        pass
+
+    return new_sql
 
 def main():
+    parser = argparse.ArgumentParser(description="Run DB migrations.")
+    parser.add_argument("--table", help="Target table to migrate.")
+    args = parser.parse_args()
+    
+    target_table = args.table
+    if not target_table:
+      target_table = input("Please enter the target table name: ")
+    print(f"Targeting table: {target_table}")
+
     conn = get_connection()
     conn.autocommit = False # Use transactions
     
     try:
         cur = conn.cursor()
-        ensure_migration_table(cur)
+        migration_table_name = ensure_migration_table(cur, target_table)
         conn.commit()
 
-        applied = get_applied_migrations(cur)
+        applied = get_applied_migrations(cur, migration_table_name)
         
         migrations_dir = data_pipeline_root / 'migrations'
         if not migrations_dir.exists():
@@ -67,11 +120,17 @@ def main():
         new_migrations_count = 0
         
         for mf in migration_files:
-            version = mf.name # e.g. "001_initial_schema.sql"
+            version = mf.name 
             if version not in applied:
+                print(f"applying {version}...")
                 try:
-                    run_migration_file(cur, mf)
-                    record_migration(cur, version)
+                    with open(mf, 'r') as f:
+                        raw_sql = f.read()
+                    
+                    final_sql = transform_sql(raw_sql, target_table)
+                    
+                    run_migration_file_content(cur, final_sql)
+                    record_migration(cur, migration_table_name, version)
                     conn.commit()
                     print(f"✔ Successfully applied {version}")
                     new_migrations_count += 1
@@ -91,7 +150,8 @@ def main():
 
     except Exception as e:
         print(f"Unexpected error: {e}")
-        conn.close()
+        if conn:
+            conn.close()
         sys.exit(1)
 
 if __name__ == "__main__":
