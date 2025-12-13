@@ -59,6 +59,9 @@ class EventSchema(BaseModel):
     # Sources and images
     sources: Optional[List[Link]] = None
     images: Optional[List[Link]] = None
+    
+    # Collections/Tags
+    collections: Optional[List[str]] = []
 
     @field_validator('importance', mode='before')
     def set_importance(cls, v):
