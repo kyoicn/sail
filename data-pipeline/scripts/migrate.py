@@ -56,6 +56,8 @@ def run_migration_file_content(cur, sql_content):
     if sql_content.strip():
         cur.execute(sql_content)
 
+import re
+
 def transform_sql(sql: str, target_table: str) -> str:
     """
     Replaces generic 'events' references with 'target_table'.
@@ -64,30 +66,23 @@ def transform_sql(sql: str, target_table: str) -> str:
     if target_table == 'events':
         return sql
     
-    # 1. Replace table name
-    # We replace 'events' with 'events_dev'
-    # Be careful not to replace 'events' inside other words if possible, 
-    # but 'events' is quite specific in this schema.
-    # A simple replace is 90% effective here.
-    new_sql = sql.replace('events', target_table)
+    # 1. Standardize Function Names First (Before 'events' replacement messes them up)
+    # This ensures "get_events_in_view" -> "get_events_in_view_dev"
+    # instead of "get_events_dev_in_view"
     
-    # 2. Adjust function names to avoid conflict
-    # 'get_events_in_view' -> 'get_events_in_view_dev' (if target is events_dev)
-    # We use a suffix logic.
     suffix = target_table.replace('events', '') # e.g. '_dev'
-    
     if suffix:
-        # Replace function def
-        new_sql = new_sql.replace('get_events_in_view', f'get_events_in_view{suffix}')
-        # Replace new function get_all_collections
-        new_sql = new_sql.replace('get_all_collections', f'get_all_collections{suffix}')
-        
-        # Also replace index names to avoid conflict
-        # events_location_idx -> events_dev_location_idx
-        # (This is handled by the initial 'events'->'events_dev' replace)
-        pass
+        # Replace function definitions and calls
+        # Use regex to be safe, matching specific function names
+        sql = re.sub(r'\bget_events_in_view\b', f'get_events_in_view{suffix}', sql)
+        sql = re.sub(r'\bget_all_collections\b', f'get_all_collections{suffix}', sql)
+    
+    # 2. Replace table name using Word Boundary
+    # This prevents matching "events" inside "get_events_in_view" (if step 1 didn't catch it or for other cases)
+    # \bevents\b matches " events " or "events," but not "my_events_table" or "get_events"
+    sql = re.sub(r'\bevents\b', target_table, sql)
 
-    return new_sql
+    return sql
 
 def main():
     parser = argparse.ArgumentParser(description="Run DB migrations.")
