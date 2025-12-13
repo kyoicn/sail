@@ -58,28 +58,37 @@ class TestEventPipeline(unittest.TestCase):
     @patch('src.enricher_orchestrator.ollama.Client')
     def test_enricher(self, mock_client_cls):
         mock_client = MagicMock()
-        # Mock LLM response: first turn asks for tool, second turn provides answer
-        # For simplicity, let's just mock immediate answer
-        mock_response = {
-            'message': {
-                'tool_calls': None, # or []
-                'content': """
-                    {
-                        "event_title": "Test Event Enriched",
-                        "event_description": "A test event description.",
-                        "start_time": {"year": 2023},
-                        "location": {
-                            "latitude": 48.8566,
-                            "longitude": 2.3522,
-                            "location_name": "Paris",
-                            "certainty": "definite"
-                        },
-                        "importance": 5.0
-                    }
-                """
+        
+        # Mock Response 1: Location Enrichment
+        loc_content = """
+            ```json
+            {
+                "latitude": 48.8566,
+                "longitude": 2.3522,
+                "location_name": "Paris",
+                "certainty": "definite",
+                "precision": "spot"
             }
-        }
-        mock_client.chat.return_value = mock_response
+            ```
+        """
+        mock_loc_response = {'message': {'tool_calls': None, 'content': loc_content}}
+
+        # Mock Response 2: Time Enrichment
+        time_content = """
+            <THOUGHTS>
+            Reasoning about time...
+            </THOUGHTS>
+            ```json
+            {
+                "start_time": {"year": 2023, "precision": "year"},
+                "end_time": null
+            }
+            ```
+        """
+        mock_time_response = {'message': {'tool_calls': None, 'content': time_content}}
+
+        # Set side_effect for sequential calls
+        mock_client.chat.side_effect = [mock_loc_response, mock_time_response]
         mock_client_cls.return_value = mock_client
 
         # Create a dummy input event (missing lat/lon)
@@ -91,11 +100,16 @@ class TestEventPipeline(unittest.TestCase):
         )
         
         orchestrator = LLMOrchestrator("llama3")
-        enriched = orchestrator.enrich_events([input_event])
+        enriched = orchestrator.enrich_events([input_event], "Dummy context text")
         
         self.assertEqual(len(enriched), 1)
+        # Check Location updates
         self.assertEqual(enriched[0].location.latitude, 48.8566)
         self.assertEqual(enriched[0].location.location_name, "Paris")
+        # Check Time updates (should remain 2023)
+        self.assertEqual(enriched[0].start_time.year, 2023)
+        # Check Enrichment Log
+        self.assertIn("[Time Enrichment]", enriched[0].enrichment_log)
 
 if __name__ == '__main__':
     unittest.main()
