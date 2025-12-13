@@ -135,18 +135,19 @@ class LLMOrchestrator:
 
     def enrich_events(self, events: List[EventSchema], orignal_text: str) -> List[EventSchema]:
         enriched = []
-        for event in events:
+        total = len(events)
+        for i, event in enumerate(events):
             try:
-                enriched_event = self.enrich_single_event(event, orignal_text)
+                enriched_event = self.enrich_single_event(event, orignal_text, i + 1, total)
                 enriched.append(enriched_event)
             except Exception as e:
                 logger.error(f"Failed to enrich event {event.title}: {e}")
                 enriched.append(event)
         return enriched
 
-    def enrich_single_event(self, event: EventSchema, original_text: str) -> EventSchema:
+    def enrich_single_event(self, event: EventSchema, original_text: str, index: int = 1, total: int = 1) -> EventSchema:
         separator = "=" * 60
-        logger.info(f"\n{separator}\nENRICHING EVENT: {event.title}\n{separator}")
+        logger.info(f"\n{separator}\nENRICHING EVENT [{index}/{total}]: {event.title}\n{separator}")
         
         # Step 1: Enrich Location
         event = self._enrich_location(event, original_text)
