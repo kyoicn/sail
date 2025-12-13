@@ -29,7 +29,7 @@ def fetch_and_parse(url: str) -> str:
     downloaded = trafilatura.fetch_url(url)
     
     if downloaded:
-        text = trafilatura.extract(downloaded)
+        text = trafilatura.extract(downloaded, favor_recall=True, include_tables=True)
         if text and len(text) > 100:
             logger.info("Successfully extracted text using trafilatura")
             return text
