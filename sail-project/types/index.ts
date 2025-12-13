@@ -1,8 +1,15 @@
 /**
  * src/types/index.ts
- * Core Data Models (M3 Finalized)
+ * 
+ * APPLICATION LAYER SCHEMA (CANONICAL)
  * ------------------------------------------------------------------
- * Defines the contract for Time, Space, and Event Entities.
+ * This file defines the Data Application Layer's data schema.
+ * It is the Canonical Source of Truth for the Frontend application.
+ * 
+ * Relationship:
+ * - Decoupled from the Database Schema ('create_table.sql').
+ * - Populated by the Adapter Layer ('api/events/route.ts').
+ * - Validated by the Runtime Validation Layer ('lib/schemas.ts').
  */
 
 // --- Time System (Dual-Track) ---

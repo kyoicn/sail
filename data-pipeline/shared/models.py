@@ -1,3 +1,15 @@
+# ------------------------------------------------------------------------------
+# DATA LAYER SCHEMA (PIPELINE)
+# ------------------------------------------------------------------------------
+# This file defines the data schema used by the Python Data Pipeline.
+# It acts as the source of truth for generating, validating, and processing
+# data BEFORE it is inserted into the Database.
+#
+# Relationship:
+# - Generates data that matches 'create_table.sql' (Storage Schema).
+# - Is distinct from 'sail-project/types/index.ts' (Application Schema).
+# ------------------------------------------------------------------------------
+
 from typing import Optional, List, Literal
 from pydantic import BaseModel, Field, field_validator
 

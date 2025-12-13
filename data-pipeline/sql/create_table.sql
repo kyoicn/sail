@@ -1,3 +1,14 @@
+-- ------------------------------------------------------------------------------
+-- DATA LAYER SCHEMA (STORAGE)
+-- ------------------------------------------------------------------------------
+-- This file defines the actual Database Schema (PostgreSQL/PostGIS).
+-- It is optimized for storage, indexing, and querying (e.g. flattened fields).
+--
+-- Relationship:
+-- - Receives data matching 'shared/models.py' (Pipeline Schema).
+-- - Is transformed by 'api/events/route.ts' (Adapter) into 'types/index.ts' (App Schema).
+-- ------------------------------------------------------------------------------
+
 -- DDL: Recreate Events Table (Perfect Schema)
 -- Run this in Supabase SQL Editor
 

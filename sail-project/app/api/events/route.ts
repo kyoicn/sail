@@ -1,3 +1,17 @@
+/**
+ * app/api/events/route.ts
+ * 
+ * ADAPTER LAYER (DATA <=> APPLICATION)
+ * ------------------------------------------------------------------
+ * This file acts as the Adapter connecting the Data Layer to the Application Layer.
+ * It is responsible for fetching raw data from the DB and transforming it
+ * into the Canonical Application Schema.
+ * 
+ * Relationship:
+ * - Fetches raw data from 'create_table.sql' (Data Layer).
+ * - Transforms/Maps data to match 'types/index.ts' (Application Layer).
+ */
+
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { MOCK_EVENTS } from '../../../lib/constants';

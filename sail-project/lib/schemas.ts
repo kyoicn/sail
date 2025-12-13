@@ -1,3 +1,16 @@
+/**
+ * src/lib/schemas.ts
+ * 
+ * APPLICATION LAYER VALIDATION
+ * ------------------------------------------------------------------
+ * This file contains Zod schemas for runtime validation of the
+ * Application Layer Schema ('types/index.ts').
+ * 
+ * Relationship:
+ * - Ensures data integrity for the Frontend Application.
+ * - Mirrors the structures defined in 'types/index.ts'.
+ */
+
 import { z } from 'zod';
 
 // --- Sub-Schemas ---
