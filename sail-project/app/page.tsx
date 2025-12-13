@@ -8,10 +8,11 @@ import { LeafletMap } from '../components/map/LeafletMap';
 import { TimeControl } from '../components/timeline/TimeControl';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';
 import { DebugHUD } from '../components/debug/DebugHUD';
+import { CollectionSelector } from '../components/CollectionSelector';
 
 // Imported Hooks
 import { useUrlSync } from '../hooks/useUrlSync';
-import { useAppConfig } from '../hooks/useAppConfig'; // [NEW]
+import { useAppConfig } from '../hooks/useAppConfig';
 import { useEventData } from '../hooks/useEventData';
 import { useLOD } from '../hooks/useLOD';
 import { useEventFilter } from '../hooks/useEventFilter';
@@ -21,7 +22,6 @@ function ChronoMapContent() {
   const GLOBAL_MAX = 2024;
 
   // --- 1. Infrastructure & Config ---
-  // Get the dataset configuration first (Logic Injection)
   const { dataset } = useAppConfig();
 
   // --- 2. State & URL Sync ---
@@ -31,6 +31,7 @@ function ChronoMapContent() {
   const initialState = getInitialState();
 
   const [currentDate, setCurrentDate] = useState(initialState.year);
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [viewRange, setViewRange] = useState({
     min: Math.max(GLOBAL_MIN, initialState.year - (initialState.span / 2)),
     max: Math.min(GLOBAL_MAX, initialState.year + (initialState.span / 2))
@@ -60,11 +61,11 @@ function ChronoMapContent() {
   // --- 3. Logic Pipelines ---
 
   // Data Fetching Pipeline
-  // [REFACTORED] Now explicitly passing 'dataset' from config
   const { allVisibleEvents, allLoadedEvents, isLoading } = useEventData(
     mapBounds,
     mapViewport.zoom,
-    dataset
+    dataset,
+    selectedCollection
   );
 
   // LOD Calculation Pipeline
@@ -111,6 +112,15 @@ function ChronoMapContent() {
               Sail
               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
             </h1>
+
+            <div className="h-6 w-px bg-slate-200 mx-1" />
+
+            <CollectionSelector
+              selectedCollection={selectedCollection}
+              onSelect={setSelectedCollection}
+              dataset={dataset}
+            />
+
             {isLoading && (
               <div className="flex items-center gap-2 px-2 border-l border-slate-200">
                 <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
@@ -118,7 +128,6 @@ function ChronoMapContent() {
               </div>
             )}
 
-            {/* Optional: Show current dataset indicator in Dev mode */}
             {dataset !== 'prod' && (
               <span className="text-[10px] font-mono text-orange-600 bg-orange-100 px-1 rounded border border-orange-200">
                 DATA: {dataset.toUpperCase()}

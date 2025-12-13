@@ -45,7 +45,7 @@ export interface ChronosTime {
 
   // Indicator of how granular this data is.
   // e.g. If 'day', we ignore hour/minute in UI display.
-  precision: 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond';
+  precision: 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond' | 'unknown';
 }
 
 // --- Spatial System (Anchor + Geometry) ---
@@ -64,8 +64,8 @@ export interface ChronosLocation {
   geoJson?: object;
 
   placeName?: string;
-  granularity: 'spot' | 'area';
-  certainty: 'definite' | 'approximate';
+  granularity: 'spot' | 'area' | 'unknown';
+  certainty: 'definite' | 'approximate' | 'unknown';
   customRadius?: number;
   regionId?: string;
 }
@@ -103,6 +103,8 @@ export interface EventData {
   // 1.0: Local detail (Visible only at Street Zoom)
   // Now supports floating point precision (e.g. 5.5) for finer ranking.
   importance: number;
+
+  collections?: string[];
 
   sources?: EventSource[];
 

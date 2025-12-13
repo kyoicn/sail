@@ -78,6 +78,9 @@ export async function GET(request: Request) {
 
   const minImportance = 1;
 
+  // Collection Filter
+  const collectionFilter = searchParams.get('collection') || null;
+
   const { data, error } = await supabase.rpc(rpcName, {
     min_lat: rpcSouth,
     max_lat: rpcNorth,
@@ -85,7 +88,8 @@ export async function GET(request: Request) {
     max_lng: rpcEast,
     min_year: minYear,
     max_year: maxYear,
-    min_importance: minImportance
+    min_importance: minImportance,
+    collection_filter: collectionFilter
   });
 
   if (error) {
@@ -147,6 +151,8 @@ export async function GET(request: Request) {
       },
 
       importance: Number(row.importance) || 1.0,
+
+      collections: row.collections || [],
 
       sources: row.links || [],
 
