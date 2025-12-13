@@ -57,7 +57,7 @@ def main():
 
         # 3. Enrich
         orchestrator = LLMOrchestrator(OLLAMA_MODEL)
-        enriched_events = orchestrator.enrich_events(events)
+        enriched_events = orchestrator.enrich_events(events, clean_text)
         
         # 4. Output
         record = ExtractionRecord(
