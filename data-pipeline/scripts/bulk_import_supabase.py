@@ -59,7 +59,7 @@ def main():
     table_name = args.table_name
     if not table_name:
         try:
-            table_name = input("Enter target table name (default: events): ").strip()
+            table_name = input("Enter target table name: ").strip()
         except EOFError:
             pass # Handle non-interactive environments
 
@@ -70,6 +70,9 @@ def main():
     logger.info(f"Found {len(files)} JSON files in {input_dir}")
 
     all_payloads = []
+    total_events = 0
+    successful_imports = 0
+    failed_imports = 0
 
     for file_path in files:
         logger.info(f"Processing {file_path.name}...")
@@ -178,7 +181,7 @@ def main():
         for i in range(0, len(all_payloads), BATCH_SIZE):
             batch = all_payloads[i:i + BATCH_SIZE]
             try:
-                response = supabase.table(table_name).upsert(batch).execute()
+                response = supabase.table(table_name).upsert(batch, on_conflict='source_id').execute()
                 if response.data:
                     count = len(response.data)
                     successful_imports += count
