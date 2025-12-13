@@ -320,25 +320,6 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
 
     }, [viewRange, globalMin, globalMax, isDragging]);
 
-    // Add Scroll Listener to trigger Canvas Repaint
-    useEffect(() => {
-        const sc = scrollContainerRef.current;
-        if (!sc) return;
-
-        const handleScroll = () => {
-            if (!animationFrameId.current) {
-                animationFrameId.current = requestAnimationFrame(render);
-            }
-        };
-
-        sc.addEventListener('scroll', handleScroll);
-        return () => {
-            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-            animationFrameId.current = null;
-            sc.removeEventListener('scroll', handleScroll);
-        };
-    }, [events, virtualWidth]);
-
 
     // --- 4. Drag Logic ---
 
