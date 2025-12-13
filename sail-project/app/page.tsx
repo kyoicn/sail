@@ -89,17 +89,19 @@ function ChronoMapContent() {
   return (
     <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
 
-      <DebugHUD
-        zoom={mapViewport.zoom}
-        center={mapViewport}
-        bounds={mapBounds}
-        lodThreshold={lodThreshold}
-        fetchedCount={allVisibleEvents.length}
-        renderedCount={renderableEvents.length}
-        isGlobalViewGuess={isGlobalViewGuess}
-        activeEvents={renderableEvents}
-        expandedEventIds={expandedEventIds}
-      />
+      {dataset !== 'prod' && (
+        <DebugHUD
+          zoom={mapViewport.zoom}
+          center={mapViewport}
+          bounds={mapBounds}
+          lodThreshold={lodThreshold}
+          fetchedCount={allVisibleEvents.length}
+          renderedCount={renderableEvents.length}
+          isGlobalViewGuess={isGlobalViewGuess}
+          activeEvents={renderableEvents}
+          expandedEventIds={expandedEventIds}
+        />
+      )}
 
       <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
         <div className="max-w-7xl mx-auto flex justify-between items-start">
