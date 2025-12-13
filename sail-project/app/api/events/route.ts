@@ -15,6 +15,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { MOCK_EVENTS } from '../../../lib/constants';
+import { EventData } from '../../../types';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -92,7 +93,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const formattedEvents = (data || []).map((row: any) => {
+  // Explicitly map to EventData[]
+  const formattedEvents: EventData[] = (data || []).map((row: any): EventData => {
     // Unpack JSONB Time Entries
     const startEntry = row.start_time_entry || {};
     const endEntry = row.end_time_entry || null;
@@ -102,14 +104,14 @@ export async function GET(request: Request) {
     // Pick first image if available
     const primaryImage = (row.image_urls && row.image_urls.length > 0)
       ? row.image_urls[0]
-      : '';
+      : undefined; // EventData expects string | undefined for optional fields, or depends on interface
 
     return {
       id: row.id,
       source_id: row.source_id,
       title: row.title,
       summary: row.summary || '',
-      imageUrl: primaryImage,
+      imageUrl: primaryImage, // Match interface
 
       start: {
         year: startEntry.year ?? Math.floor(row.start_astro_year),
