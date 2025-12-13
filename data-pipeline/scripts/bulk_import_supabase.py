@@ -137,7 +137,8 @@ def main():
                         "place_name": place_name,
                         "granularity": granularity,
                         "certainty": certainty,
-                        "importance": event.importance
+                        "importance": event.importance,
+                        "collections": event.collections
                     }
                     all_payloads.append(payload)
 
