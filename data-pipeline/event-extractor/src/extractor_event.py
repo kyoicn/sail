@@ -70,7 +70,7 @@ Each event must adhere to the following structure (JSON Schema):
 5. Output valid JSON only. No markdown formatting.
 """
 
-def extract_events(clean_text: str, model_name: str, collection: str = None) -> List[EventSchema]:
+def extract_events(clean_text: str, model_name: str, timeout: int, collection: str = None) -> List[EventSchema]:
     """
     Extracts events from clean text using a local LLM.
     Returns a list of EventSchema objects.
@@ -78,7 +78,7 @@ def extract_events(clean_text: str, model_name: str, collection: str = None) -> 
     logger.info(f"Extracting events from text (length: {len(clean_text)}) using model {model_name}...")
     
     try:
-        client = ollama.Client(host=OLLAMA_HOST, timeout=60.0)
+        client = ollama.Client(host=OLLAMA_HOST, timeout=timeout)
         response = client.chat(
             model=model_name,
             messages=[

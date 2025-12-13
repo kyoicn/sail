@@ -11,6 +11,8 @@ from datetime import datetime
 load_dotenv()
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
+EXTRACT_EVENTS_TIMEOUT = 120
+ENRICH_TIMEOUT = 60
 
 # Adjust path
 current_file = Path(__file__).resolve()
@@ -45,7 +47,7 @@ def process_url(url: str, output_file: str, output_dir: str, collection: str = N
         print(f"--- Extracted Text ---\n{clean_text}\n")
 
         # 2. Extract
-        events = extract_events(clean_text, OLLAMA_MODEL, collection)
+        events = extract_events(clean_text, OLLAMA_MODEL, EXTRACT_EVENTS_TIMEOUT, collection)
         print(f"--- Extracted {len(events)} Events ---")
         for e in events:
             if e.sources is None:
@@ -56,7 +58,7 @@ def process_url(url: str, output_file: str, output_dir: str, collection: str = N
             print(f"- {e.title}: {e.summary}")
 
         # 3. Enrich
-        orchestrator = LLMOrchestrator(OLLAMA_MODEL)
+        orchestrator = LLMOrchestrator(OLLAMA_MODEL, ENRICH_TIMEOUT)
         enriched_events = orchestrator.enrich_events(events, clean_text)
         
         # 4. Output
