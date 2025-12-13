@@ -78,7 +78,7 @@ def extract_events(clean_text: str, model_name: str) -> List[EventSchema]:
     logger.info(f"Extracting events from text (length: {len(clean_text)}) using model {model_name}...")
     
     try:
-        client = ollama.Client(host=OLLAMA_HOST)
+        client = ollama.Client(host=OLLAMA_HOST, timeout=60.0)
         response = client.chat(
             model=model_name,
             messages=[

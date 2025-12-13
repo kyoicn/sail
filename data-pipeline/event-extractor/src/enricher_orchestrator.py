@@ -130,7 +130,7 @@ You must strictly follow this format.
 class LLMOrchestrator:
     def __init__(self, model_name: str):
         self.model_name = model_name
-        self.client = ollama.Client(host=OLLAMA_HOST)
+        self.client = ollama.Client(host=OLLAMA_HOST, timeout=60.0)
         self.max_turns = 2
 
     def enrich_events(self, events: List[EventSchema], orignal_text: str) -> List[EventSchema]:
