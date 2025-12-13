@@ -195,7 +195,7 @@ export const MOCK_EVENTS: EventData[] = [
     id: 'ww2-start',
     title: 'World War II Begins',
     start: { year: 1939, month: 9, day: 1, precision: 'day', astro_year: 1939 },
-    location: { lat: 52.0, lng: 20.0, placeName: 'Poland/Europe', granularity: 'continent', certainty: 'definite' },
+    location: { lat: 52.0, lng: 20.0, placeName: 'Poland/Europe', granularity: 'area', certainty: 'definite' },
     summary: 'Germany invades Poland, starting WWII.',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Bundesarchiv_Bild_101I-380-0082-33%2C_Polen%2C_Schlagbaum_Grenz%C3%BCbergang.jpg/640px-Bundesarchiv_Bild_101I-380-0082-33%2C_Polen%2C_Schlagbaum_Grenz%C3%BCbergang.jpg',
     sources: [{ label: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Invasion_of_Poland' }],
