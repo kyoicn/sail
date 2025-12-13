@@ -5,6 +5,7 @@ import os
 import sys
 from dotenv import load_dotenv
 from pathlib import Path
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -35,10 +36,12 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="Event Extractor & Enricher")
     parser.add_argument("--url", help="URL to extract events from", required=True)
-    parser.add_argument("--output", help="Output file for JSON", default="output.json")
+    parser.add_argument("--output", help="Output file for JSON", default="")
     
     args = parser.parse_args()
-    
+    url = args.url
+    current_time = datetime.now().strftime("%Y%m%d%H%M%S")
+
     try:
         # 1. Parse
         clean_text = fetch_and_parse(args.url)
@@ -68,11 +71,14 @@ def main():
         )
         
         output_data = json.loads(record.model_dump_json())
+        output_path = args.output
+        if output_path == "":
+            output_path = f"{url.replace('/', '|')}_{current_time}_{len(enriched_events)}_events.json"
         
-        with open(args.output, "w") as f:
+        with open(output_path, "w") as f:
             json.dump(output_data, f, indent=2)
             
-        print(f"\nSuccessfully saved extraction record with {len(enriched_events)} events to {args.output}")
+        print(f"\nSuccessfully saved extraction record with {len(enriched_events)} events to {output_path}")
 
     except Exception as e:
         logger.error(f"Pipeline failed: {e}")
