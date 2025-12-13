@@ -70,7 +70,7 @@ Each event must adhere to the following structure (JSON Schema):
 5. Output valid JSON only. No markdown formatting.
 """
 
-def extract_events(clean_text: str, model_name: str) -> List[EventSchema]:
+def extract_events(clean_text: str, model_name: str, collection: str = None) -> List[EventSchema]:
     """
     Extracts events from clean text using a local LLM.
     Returns a list of EventSchema objects.
@@ -142,6 +142,14 @@ def extract_events(clean_text: str, model_name: str) -> List[EventSchema]:
                          event_dict["start_time"]["year"] = None
 
                 event = EventSchema(**event_dict)
+                
+                # Assign Collection if provided
+                if collection:
+                     if event.collections is None:
+                         event.collections = []
+                     if collection not in event.collections:
+                         event.collections.append(collection)
+
                 parsed_events.append(event)
             except ValidationError as ve:
                 logger.error(f"Validation error for event: {ve} - Data: {event_dict}")

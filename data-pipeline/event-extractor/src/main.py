@@ -33,7 +33,7 @@ from shared.models import ExtractionRecord, Link
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def process_url(url: str, output_file: str, output_dir: str):
+def process_url(url: str, output_file: str, output_dir: str, collection: str = None):
     """
     Orchestrates the extraction process for a single URL.
     """
@@ -45,7 +45,7 @@ def process_url(url: str, output_file: str, output_dir: str):
         print(f"--- Extracted Text ---\n{clean_text}\n")
 
         # 2. Extract
-        events = extract_events(clean_text, OLLAMA_MODEL)
+        events = extract_events(clean_text, OLLAMA_MODEL, collection)
         print(f"--- Extracted {len(events)} Events ---")
         for e in events:
             if e.sources is None:
@@ -95,13 +95,14 @@ def main():
     parser.add_argument("--input_file", help="File containing list of URLs to process", required=False)
     parser.add_argument("--output_file", help="Output filename for JSON", default="")
     parser.add_argument("--output_dir", help="Output directory for JSON", default="")
+    parser.add_argument("--collection", help="Tag all extracted events with this collection name", default=None)
     
     args = parser.parse_args()
 
     # Priority 1: Single URL
     if args.url:
         try:
-            process_url(args.url, args.output_file, args.output_dir)
+            process_url(args.url, args.output_file, args.output_dir, args.collection)
         except Exception:
             sys.exit(1)
             
@@ -125,7 +126,7 @@ def main():
                 # Usually batch processing implies auto-naming. If args.output_file is set, it would overwrite provided file for every URL.
                 # So we should probably ignore args.output_file for batch mode to be safe, or let user decide.
                 # Given the user didn't specify, passing "" (auto-name) is safer for batch.
-                process_url(url, "", args.output_dir)
+                process_url(url, "", args.output_dir, args.collection)
             except Exception as e:
                 logger.error(f"Failed to process {url}")
                 failures += 1
