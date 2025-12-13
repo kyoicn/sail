@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="Event Extractor & Enricher")
     parser.add_argument("--url", help="URL to extract events from", required=True)
-    parser.add_argument("--output", help="Output file for JSON", default="")
+    parser.add_argument("--output_file", help="Output filename for JSON", default="")
+    parser.add_argument("--output_dir", help="Output directory for JSON", default="")
     
     args = parser.parse_args()
     url = args.url
@@ -71,9 +72,16 @@ def main():
         )
         
         output_data = json.loads(record.model_dump_json())
-        output_path = args.output
-        if output_path == "":
-            output_path = f"{url.replace('/', '|')}_{current_time}_{len(enriched_events)}_events.json"
+        
+        filename = args.output_file
+        if not filename:
+            filename = f"{url.replace('/', '|')}__{current_time}_{len(enriched_events)}_events.json"
+            
+        if args.output_dir:
+            os.makedirs(args.output_dir, exist_ok=True)
+            output_path = os.path.join(args.output_dir, filename)
+        else:
+            output_path = filename
         
         with open(output_path, "w") as f:
             json.dump(output_data, f, indent=2)
