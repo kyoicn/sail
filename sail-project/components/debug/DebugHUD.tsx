@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Activity, ChevronDown, ChevronUp, Database, Eye, Map as MapIcon, Globe, Layers } from 'lucide-react';
 import { EventData, MapBounds } from '../../types';
 
@@ -29,23 +29,68 @@ export const DebugHUD: React.FC<DebugHUDProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const [inspectedEventId, setInspectedEventId] = useState<string | null>(null);
 
+  // [NEW] Drag State
+  const [position, setPosition] = useState({ x: 24, y: 96 }); // Default: left-6 (24px), top-24 (96px)
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      setPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    });
+  };
+
   // Derive expanded events from the active list (or just check IDs)
   // Note: expanded events might not be in activeEvents if filtered out, 
   // but essentially we just want to show what's passed in.
   const openEvents = activeEvents.filter(e => expandedEventIds.has(e.id));
 
   return (
-    <div className="fixed top-24 left-6 z-[9999] font-mono text-xs shadow-2xl border border-slate-200 bg-white/90 backdrop-blur-md rounded-lg overflow-hidden w-64 transition-all max-h-[80vh] flex flex-col">
+    <div
+      className="fixed z-[9999] font-mono text-xs shadow-2xl border border-slate-200 bg-white/90 backdrop-blur-md rounded-lg overflow-hidden w-64 transition-shadow max-h-[80vh] flex flex-col"
+      style={{ left: position.x, top: position.y }}
+    >
       {/* Header / Toggle */}
       <div
-        className="flex items-center justify-between px-3 py-2 bg-slate-100 cursor-pointer hover:bg-slate-200 transition-colors shrink-0"
-        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center justify-between px-3 py-2 bg-slate-100 cursor-move hover:bg-slate-200 transition-colors shrink-0 select-none"
+        onMouseDown={handleMouseDown}
       >
-        <div className="flex items-center gap-2 font-bold text-slate-700">
+        <div className="flex items-center gap-2 font-bold text-slate-700 pointer-events-none">
           <Activity size={14} className="text-blue-600" />
           <span>Dev Monitor</span>
         </div>
-        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        <div
+          className="p-1 -mr-1 hover:bg-slate-300 rounded cursor-pointer"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </div>
       </div>
 
       {/* Content */}
