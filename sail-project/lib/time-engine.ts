@@ -220,3 +220,41 @@ export const formatNaturalDate = (sliderValue: number, sliderSpan: number): stri
 
   return `${year} ${era}`;
 };
+
+/**
+ * Zoom Scale Constants (Span in Years)
+ */
+export const ZOOM_SCALES = {
+  MILLENNIUM: 1000,
+  CENTURY: 100,
+  DECADE: 10,
+  YEAR: 1,
+  MONTH: 1 / 12,      // ~0.0833
+  DAY: 1 / 365.25     // ~0.0027
+};
+
+/**
+ * Determining the current zoom scale name based on the viewport span.
+ * Returns the key of the closest scale (e.g. 'YEAR', 'CENTURY') or 'ALL'/'CUSTOM'
+ */
+export const getClosestScale = (span: number, globalSpan: number): string => {
+  // 1. Check if "All" (approximate match to global span)
+  if (Math.abs(span - globalSpan) < 1) return 'ALL';
+
+  // 2. Find closest standard scale
+  const scales = Object.entries(ZOOM_SCALES);
+  let closest = 'CUSTOM';
+  let minDiff = Infinity;
+
+  for (const [key, val] of scales) {
+    // Logarithmic distance is better for scale comparison
+    const diff = Math.abs(Math.log(span) - Math.log(val));
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = key;
+    }
+  }
+
+  // Always return the closest scale, regardless of exact match
+  return closest;
+};

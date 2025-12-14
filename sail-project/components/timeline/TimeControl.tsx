@@ -9,7 +9,9 @@ import {
   getAstroYear,
   fromSliderValue,
   getMonthName,
-  formatNaturalDate
+  formatNaturalDate,
+  ZOOM_SCALES,
+  getClosestScale
 } from '../../lib/time-engine';
 
 interface TimeControlProps {
@@ -266,16 +268,61 @@ export const TimeControl: React.FC<TimeControlProps> = ({
             {getHeaderContent()}
           </div>
 
-          {/* Right Controls Group */}
-          <div className="flex gap-2 relative z-10">
-            <button
-              onClick={resetZoom}
-              className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm"
-              title="Reset View"
-            >
-              <Maximize2 size={20} />
-            </button>
-            <div className="w-px h-9 bg-slate-200 mx-1"></div> {/* Separator */}
+          {/* Right Controls Group (Hover Trigger for Zoom Menu) */}
+          <div className="flex gap-2 relative z-10 group">
+
+            {/* Vertical Scale Menu (Drop-up) - Centered above zoom buttons */}
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 flex flex-col items-center opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 ease-out">
+              <div className="bg-white/95 backdrop-blur-md rounded-lg shadow-xl border border-white/40 p-1 flex flex-col gap-0.5">
+                {[
+                  { label: 'All / Reset', id: 'ALL', span: globalMax - globalMin },
+                  { label: 'Millennium', id: 'MILLENNIUM', span: ZOOM_SCALES.MILLENNIUM },
+                  { label: 'Century', id: 'CENTURY', span: ZOOM_SCALES.CENTURY },
+                  { label: 'Decade', id: 'DECADE', span: ZOOM_SCALES.DECADE },
+                  { label: 'Year', id: 'YEAR', span: ZOOM_SCALES.YEAR },
+                  { label: 'Month', id: 'MONTH', span: ZOOM_SCALES.MONTH },
+                  { label: 'Day', id: 'DAY', span: ZOOM_SCALES.DAY },
+                ].map((scale) => {
+                  const currentSpan = viewRange.max - viewRange.min;
+                  const activeKey = getClosestScale(currentSpan, globalMax - globalMin);
+                  const isActive = activeKey === scale.id;
+
+                  return (
+                    <button
+                      key={scale.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Special case for 'All' or just standard setViewRange
+                        if (scale.id === 'ALL') {
+                          resetZoom();
+                        } else {
+                          const newSpan = scale.span;
+                          const newMin = Math.max(globalMin, currentDate - newSpan / 2);
+                          const newMax = Math.min(globalMax, newMin + newSpan);
+                          // Clamp bounds if needed, but centering on currentDate is priority
+                          if (newMin <= globalMin) setViewRange({ min: globalMin, max: globalMin + newSpan });
+                          else if (newMax >= globalMax) setViewRange({ min: globalMax - newSpan, max: globalMax });
+                          else setViewRange({ min: newMin, max: newMax });
+                        }
+                      }}
+                      className={`
+                        px-3 py-1.5 text-xs font-medium text-left rounded-md w-full whitespace-nowrap transition-colors
+                        ${isActive
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}
+                      `}
+                    >
+                      {scale.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Connector nub */}
+              <div className="w-4 h-4 overflow-hidden -mt-2">
+                {/* Invisible spacer or visual connector if desired */}
+              </div>
+            </div>
+
             <button onClick={() => handleZoom(0.5)} className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm" title="Zoom Out">
               <ZoomOut size={20} />
             </button>
