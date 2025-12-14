@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
-import { Map as MapIcon, Layers, Loader2 } from 'lucide-react';
+import { Map as MapIcon, Layers, Loader2, Plus, Minus } from 'lucide-react';
 
 import { EventData, MapBounds } from '../types';
 import { LeafletMap } from '../components/map/LeafletMap';
@@ -43,6 +43,11 @@ function ChronoMapContent() {
   });
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
   const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
+  const [zoomAction, setZoomAction] = useState<{ type: 'in' | 'out', id: number } | null>(null);
+
+  const handleZoomClick = (type: 'in' | 'out') => {
+    setZoomAction({ type, id: Date.now() });
+  };
 
   const handleToggleExpand = (id: string) => {
     setExpandedEventIds(prev => {
@@ -134,10 +139,25 @@ function ChronoMapContent() {
               </span>
             )}
           </div>
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto flex flex-col gap-2">
             <button className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50">
               <Layers size={20} />
             </button>
+            <div className="flex flex-col gap-px bg-white/90 backdrop-blur-md rounded-full shadow-sm border border-white/50 overflow-hidden">
+              <button
+                onClick={() => handleZoomClick('in')}
+                className="p-2.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all"
+              >
+                <Plus size={20} />
+              </button>
+              <div className="h-px bg-slate-200 mx-2" />
+              <button
+                onClick={() => handleZoomClick('out')}
+                className="p-2.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all"
+              >
+                <Minus size={20} />
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -155,6 +175,7 @@ function ChronoMapContent() {
           onEventSelect={(event) => setSelectedEvent(event)}
           expandedEventIds={expandedEventIds}
           onToggleExpand={handleToggleExpand}
+          zoomAction={zoomAction}
         />
       </main>
 

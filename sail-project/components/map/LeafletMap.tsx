@@ -17,9 +17,10 @@ interface LeafletMapProps {
   initialZoom: number;
   onViewportChange: (center: { lat: number, lng: number }, zoom: number) => void;
   onEventSelect: (event: EventData) => void;
-  // [NEW] Hoisted State Props
+  // [NEW]
   expandedEventIds: Set<string>;
   onToggleExpand: (eventId: string) => void;
+  zoomAction?: { type: 'in' | 'out', id: number } | null;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -33,7 +34,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onViewportChange,
   onEventSelect,
   expandedEventIds, // [NEW]
-  onToggleExpand    // [NEW]
+  onToggleExpand,    // [NEW]
+  zoomAction
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -111,7 +113,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const L = (window as any).L;
 
         const map = L.map(mapRef.current, {
-          zoomControl: true,
+          zoomControl: false, // [MODIFIED] Custom control externally
           doubleClickZoom: false,
           attributionControl: false,
           zoomSnap: 0,
@@ -181,6 +183,15 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
     return () => { };
   }, []);
+
+  // [NEW] Handle External Zoom Actions
+  useEffect(() => {
+    if (!mapInstanceRef.current || !zoomAction) return;
+    const map = mapInstanceRef.current;
+    if (zoomAction.type === 'in') map.zoomIn();
+    if (zoomAction.type === 'out') map.zoomOut();
+  }, [zoomAction]);
+
 
   useEffect(() => {
     if (!mapInstanceRef.current || !(window as any).L) return;
