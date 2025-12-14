@@ -160,6 +160,10 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
   // [NEW] Header Formatting Logic
   const getHeaderContent = () => {
+    // Shared subtitle container class for height stability
+    // h-6 ensures enough space for the button without jumping
+    const subtitleClass = "h-6 flex items-center justify-center gap-2 mt-1";
+
     if (interactionMode === 'exploration') {
       const formatYear = (val: number) => {
         const { year, era } = fromSliderValue(val);
@@ -170,7 +174,9 @@ export const TimeControl: React.FC<TimeControlProps> = ({
           <span className="text-3xl font-bold font-mono tracking-tight text-slate-800">
             {formatYear(viewRange.min)} - {formatYear(viewRange.max)}
           </span>
-          <span className="text-xs text-slate-400 font-medium tracking-widest uppercase mt-1">Exploration Mode</span>
+          <div className={subtitleClass}>
+            <span className="text-xs text-slate-400 font-medium tracking-widest uppercase">Exploration Mode</span>
+          </div>
         </div>
       );
     }
@@ -189,7 +195,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
         <span className="text-3xl font-bold font-mono tracking-tight text-slate-800">
           {formatNaturalDate(currentDate, viewRange.max - viewRange.min)}
         </span>
-        <div className="flex items-center gap-2 mt-1">
+        <div className={subtitleClass}>
           <span className="text-xs text-blue-500 font-medium tracking-wide">
             {rangeSubtitle()}
           </span>
