@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Maximize2, ZoomIn, ZoomOut, ArrowLeft } from 'lucide-react';
+import { Maximize2, ZoomIn, ZoomOut, ArrowLeft, ArrowRight } from 'lucide-react';
 import { EventData } from '../../types';
 import { OverviewTimeline } from './OverviewTimeline';
 import { TimelineCanvas } from './TimelineCanvas';
@@ -175,11 +175,31 @@ export const TimeControl: React.FC<TimeControlProps> = ({
         const { year, era } = fromSliderValue(val);
         return `${year} ${era} `;
       };
+
+      const handleEnterInvestigation = () => {
+        setInteractionMode('investigation');
+        // Jump to center of the current view range
+        setCurrentDate((viewRange.min + viewRange.max) / 2);
+      };
+
       return (
         <div className="flex flex-col items-center">
-          <span className="text-3xl font-bold font-mono tracking-tight text-slate-800">
-            {formatYear(viewRange.min)} - {formatYear(viewRange.max)}
-          </span>
+          <div className="relative flex items-center justify-center hidden-scrollbar">
+            <span className="text-3xl font-bold font-mono tracking-tight text-slate-800 leading-9">
+              {formatYear(viewRange.min)} - {formatYear(viewRange.max)}
+            </span>
+            {/* Absolute positioned button to the right of text */}
+            <div className="absolute left-full ml-6 top-1/2 -translate-y-1/2">
+              <button
+                onClick={handleEnterInvestigation}
+                className="group flex items-center gap-2 h-9 px-4 bg-white hover:bg-slate-50 border border-slate-200 hover:border-blue-300 text-slate-600 hover:text-blue-600 text-sm font-medium rounded-lg shadow-sm transition-all whitespace-nowrap"
+                title="Examine specific time point"
+              >
+                Examine a specific time
+                <ArrowRight size={16} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
+              </button>
+            </div>
+          </div>
           <div className={subtitleClass}>
             {/* Height placeholder to prevent layout shift when switching modes */}
           </div>
@@ -198,20 +218,28 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
     return (
       <div className="flex flex-col items-center relative group">
-        <span className="text-3xl font-bold font-mono tracking-tight text-slate-800">
-          {formatNaturalDate(currentDate, viewRange.max - viewRange.min)}
-        </span>
+        <div className="relative flex items-center justify-center">
+          {/* Absolute positioned button to the left of text */}
+          <div className="absolute right-full mr-6 top-1/2 -translate-y-1/2">
+            <button
+              onClick={() => setInteractionMode('exploration')}
+              className="group flex items-center gap-2 h-9 px-4 bg-white hover:bg-slate-50 border border-slate-200 hover:border-blue-300 text-slate-600 hover:text-blue-600 text-sm font-medium rounded-lg shadow-sm transition-all whitespace-nowrap"
+              title="Return to Exploration Mode"
+            >
+              <ArrowLeft size={16} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
+              Back to Range
+            </button>
+          </div>
+
+          <span className="text-3xl font-bold font-mono tracking-tight text-slate-800 leading-9">
+            {formatNaturalDate(currentDate, viewRange.max - viewRange.min)}
+          </span>
+        </div>
+
         <div className={subtitleClass}>
           <span className="text-xs text-blue-500 font-medium tracking-wide">
             {rangeSubtitle()}
           </span>
-          <button
-            onClick={() => setInteractionMode('exploration')}
-            className="flex items-center gap-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full transition-colors"
-          >
-            <ArrowLeft size={10} />
-            Return to Range
-          </button>
         </div>
       </div>
     );
