@@ -182,10 +182,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
     const subtitleClass = "h-6 flex items-center justify-center gap-2 mt-1";
 
     if (interactionMode === 'exploration') {
-      const formatYear = (val: number) => {
-        const { year, era } = fromSliderValue(val);
-        return `${year} ${era} `;
-      };
+
 
       const handleEnterInvestigation = () => {
         setInteractionMode('investigation');
@@ -197,7 +194,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
         <div className="flex flex-col items-center">
           <div className="relative flex items-center justify-center hidden-scrollbar">
             <span className="text-3xl font-bold font-mono tracking-tight text-slate-800 leading-9">
-              {formatYear(viewRange.min)} - {formatYear(viewRange.max)}
+              {formatNaturalDate(viewRange.min, viewRange.max - viewRange.min)} - {formatNaturalDate(viewRange.max, viewRange.max - viewRange.min)}
             </span>
             {/* Absolute positioned button to the right of text */}
             <div className="absolute left-full ml-6 top-1/2 -translate-y-1/2">
@@ -220,11 +217,8 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
     // Investigation Mode
     const rangeSubtitle = () => {
-      const formatYear = (val: number) => {
-        const { year, era } = fromSliderValue(val);
-        return `${year} ${era} `;
-      };
-      return `View: ${formatYear(viewRange.min)} - ${formatYear(viewRange.max)} `;
+      const span = viewRange.max - viewRange.min;
+      return `View: ${formatNaturalDate(viewRange.min, span)} - ${formatNaturalDate(viewRange.max, span)} `;
     };
 
     return (
