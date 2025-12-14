@@ -200,6 +200,8 @@ function ChronoMapContent() {
         setInteractionMode={setInteractionMode}
         hoveredEventId={hoveredEventId}
         setHoveredEventId={setHoveredEventId}
+        onToggleExpand={handleToggleExpand}
+        expandedEventIds={expandedEventIds}
       />
 
       <EventDetailPanel

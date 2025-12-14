@@ -8,8 +8,9 @@ interface TimelineCanvasProps {
   viewRange: { min: number, max: number };
   events: EventData[]; // Filtered explicitly visible events
   allEvents: EventData[]; // All events for potential density rendering? (actually we just need the visible ones for markers)
-  onEventClick: (date: number, id: string) => void;
+  onEventClick: (id: string) => void; // [CHANGE] Only ID needed now
   onHoverChange: (id: string | null) => void;
+  expandedEventIds: Set<string>; // [NEW]
 }
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
@@ -17,7 +18,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
   viewRange,
   events,
   onEventClick,
-  onHoverChange
+  onHoverChange,
+  expandedEventIds
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,13 +32,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
   const stateRef = useRef({
     viewRange,
     events,
-    hoveredEventId
+    hoveredEventId,
+    expandedEventIds // [NEW]
   });
 
   // Sync Refs
   useEffect(() => {
-    stateRef.current = { viewRange, events, hoveredEventId };
-  }, [viewRange, events, hoveredEventId]);
+    stateRef.current = { viewRange, events, hoveredEventId, expandedEventIds };
+  }, [viewRange, events, hoveredEventId, expandedEventIds]);
 
 
   // --- Helper: Generate Ticks (Pure Logic) ---
@@ -103,7 +106,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
       if (!ctx) return;
 
       // Read latest state from Ref
-      const { viewRange: currentViewRange, events: currentEvents, hoveredEventId: currentHoveredId } = stateRef.current;
+      const { viewRange: currentViewRange, events: currentEvents, hoveredEventId: currentHoveredId, expandedEventIds: currentExpanded } = stateRef.current;
       const width = rect.width;
       const height = rect.height;
 
@@ -171,6 +174,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
         // Hit Test
         const isHovered = currentHoveredId === event.id;
+        const isExpanded = currentExpanded.has(event.id); // [NEW] Check expansion state
+
+        // Use either hovered OR expanded for highlight state
+        const isHighlighted = isHovered || isExpanded;
 
         // If mouse is active, check specific collision
         if (mouseRef.current) {
@@ -187,9 +194,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         }
 
         // Draw Logic
-        ctx.fillStyle = isHovered ? '#2563eb' : 'rgba(51, 65, 85, 0.8)'; // blue-600 vs slate-700
-        if (isHovered) {
+        // Highlight expanded ones same as hovered ones? User said "with the marker itself also highlighted"
+        ctx.fillStyle = isHighlighted ? '#2563eb' : 'rgba(51, 65, 85, 0.8)'; // blue-600 vs slate-700
+
+        if (isHighlighted) {
           // Highlight scale
+          // Maybe make expanded ones distinct? For now, same "active" blue style is good.
+          // Or maybe expanded is persistent blue, hovered is dynamic scale?
+          // Let's use same style for both for consistent "Active" feel.
           const scale = 1.5;
           const hw = (MARKER_W * scale) / 2;
           const hh = (MARKER_H * scale) / 2;
@@ -291,13 +303,19 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
       const event = events.find(ev => ev.id === hoveredEventId);
       if (event) {
         e.stopPropagation(); // Prevent track click
-        const startFraction = getAstroYear(event.start) - event.start.year;
-        const val = toSliderValue(event.start.year) + startFraction;
-        onEventClick(val, event.id);
+        onEventClick(event.id); // [CHANGE] Only pass ID
       }
     }
   };
 
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (hoveredEventId) {
+      // Important: Stop propagation to prevent TimeControl track from
+      // initiating drag/seek or switching to Investigation Mode.
+      e.stopPropagation();
+    }
+  };
 
   return (
     <div
@@ -305,6 +323,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
       className="absolute inset-0 z-20"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onMouseDown={handleMouseDown}
       onClick={handleClick}
     >
       <canvas ref={canvasRef} className="block w-full h-full" />

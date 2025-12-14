@@ -24,9 +24,11 @@ interface TimeControlProps {
   allEvents?: EventData[];     // All (for animation stability)
   setJumpTargetId?: (id: string | null) => void;
   interactionMode: 'exploration' | 'investigation';
-  setInteractionMode: (mode: 'exploration' | 'investigation') => void;
+  setInteractionMode: (mode: 'exploration' | 'investigation') => void; // [NEW] Shared Hover State
   hoveredEventId: string | null;
   setHoveredEventId: (id: string | null) => void;
+  onToggleExpand: (id: string) => void;
+  expandedEventIds: Set<string>;
 }
 
 export const TimeControl: React.FC<TimeControlProps> = ({
@@ -43,7 +45,9 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   interactionMode,
   setInteractionMode,
   hoveredEventId,
-  setHoveredEventId
+  setHoveredEventId,
+  onToggleExpand,
+  expandedEventIds
 }) => {
 
   const animationRef = useRef<number | null>(null);
@@ -248,8 +252,9 @@ export const TimeControl: React.FC<TimeControlProps> = ({
               viewRange={viewRange}
               events={events} // Render only filtered logic events
               allEvents={allEvents}
-              onEventClick={smoothJump}
+              onEventClick={onToggleExpand} // [CHANGE] Use toggle instead of smoothJump
               onHoverChange={setHoveredEventId}
+              expandedEventIds={expandedEventIds} // [NEW]
             />
 
             {/* Track Background */}
