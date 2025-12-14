@@ -41,11 +41,18 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
         propsRef.current = { viewRange, setViewRange, globalMin, globalMax };
     });
 
-    const dragInfo = useRef({
+    const dragInfo = useRef<{
+        startX: number;
+        startLeftPixel: number;
+        virtualWidth: number;
+        widthPixel: number;
+        mode: 'pan' | 'resize-left' | 'resize-right';
+    }>({
         startX: 0,
-        startLeftPixel: 0, // Relative to virtual track
+        startLeftPixel: 0,
         virtualWidth: 0,
-        widthPixel: 0
+        widthPixel: 0,
+        mode: 'pan' // Default
     });
     const rafLock = useRef<number | null>(null);
 
@@ -331,28 +338,54 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
         const clientX = e.clientX;
 
         rafLock.current = requestAnimationFrame(() => {
-            const { startX, startLeftPixel, virtualWidth: vWidth, widthPixel } = dragInfo.current;
+            const { startX, startLeftPixel, virtualWidth: vWidth, widthPixel, mode } = dragInfo.current;
             const { globalMin, globalMax, setViewRange } = propsRef.current;
-
-            const totalSpan = globalMax - globalMin;
             const deltaPixels = clientX - startX;
+            const MIN_W = 80;
 
-            let newLeftPixel = startLeftPixel + deltaPixels;
-            const maxLeft = vWidth - widthPixel;
+            let newLeftPixel = startLeftPixel;
+            let newWidthPixel = widthPixel;
 
-            // Clamp
-            if (newLeftPixel < 0) newLeftPixel = 0;
-            if (newLeftPixel > maxLeft) newLeftPixel = maxLeft;
+            if (mode === 'pan') {
+                newLeftPixel = startLeftPixel + deltaPixels;
+                const maxLeft = vWidth - widthPixel;
+                if (newLeftPixel < 0) newLeftPixel = 0;
+                if (newLeftPixel > maxLeft) newLeftPixel = maxLeft;
+            } else if (mode === 'resize-left') {
+                // Moving left edge: changes left and width
+                // Right edge stays fixed at (startLeft + startWidth)
+                const rightPixel = startLeftPixel + widthPixel;
+                newLeftPixel = startLeftPixel + deltaPixels;
+
+                // Constraints
+                if (newLeftPixel < 0) newLeftPixel = 0;
+                // Don't let width go below min
+                if (rightPixel - newLeftPixel < MIN_W) {
+                    newLeftPixel = rightPixel - MIN_W;
+                }
+                newWidthPixel = rightPixel - newLeftPixel;
+
+            } else if (mode === 'resize-right') {
+                // Moving right edge: changes width only
+                newWidthPixel = widthPixel + deltaPixels;
+
+                // Constraints
+                if (newWidthPixel < MIN_W) newWidthPixel = MIN_W;
+                if (newLeftPixel + newWidthPixel > vWidth) {
+                    newWidthPixel = vWidth - newLeftPixel;
+                }
+            }
 
             // 1. Visual Update
             if (indicatorRef.current) {
                 indicatorRef.current.style.left = `${newLeftPixel}px`;
+                indicatorRef.current.style.width = `${newWidthPixel}px`;
             }
 
             // 2. Logic Update
-            // Calculate new global MIN based on pixel ratio
+            const totalSpan = globalMax - globalMin;
             const newLeftFraction = newLeftPixel / vWidth;
-            const widthFraction = widthPixel / vWidth;
+            const widthFraction = newWidthPixel / vWidth;
 
             const newMin = globalMin + (newLeftFraction * totalSpan);
             const currentSpan = widthFraction * totalSpan;
@@ -372,7 +405,7 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
         rafLock.current = null;
     }, [handleWindowMouseMove]);
 
-    const handleMouseDown = (e: React.MouseEvent) => {
+    const startDrag = (e: React.MouseEvent, mode: 'pan' | 'resize-left' | 'resize-right') => {
         e.preventDefault();
         e.stopPropagation();
 
@@ -384,7 +417,8 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
             startX: e.clientX,
             startLeftPixel: indicatorRef.current.offsetLeft,
             virtualWidth: virtualWidth || scrollContainerRef.current?.offsetWidth || 0,
-            widthPixel: indicatorRef.current.offsetWidth
+            widthPixel: indicatorRef.current.offsetWidth,
+            mode
         };
 
         window.addEventListener('mousemove', handleWindowMouseMove);
@@ -419,17 +453,26 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
                     {/* Viewport Window / Indicator */}
                     <div
                         ref={indicatorRef}
-                        onMouseDown={handleMouseDown}
-                        className="absolute top-0 h-full bg-blue-500/5 border-x-2 border-y-2 border-blue-500 rounded-md cursor-grab active:cursor-grabbing hover:bg-blue-500/10 transition-colors z-10 box-border flex items-center justify-between shadow-sm"
+                        onMouseDown={(e) => startDrag(e, 'pan')}
+                        className="absolute top-0 h-full bg-blue-500/5 border-y-2 border-blue-500 rounded-md cursor-grab active:cursor-grabbing hover:bg-blue-500/10 transition-colors z-10 box-border flex items-center justify-between shadow-sm"
                         style={{
                             minWidth: '80px',
                             // display controlled via effect
                         }}
                     >
-                        <div className="h-full flex items-center pl-0.5">
+                        {/* Left Resize Handle */}
+                        <div
+                            className="h-full w-4 flex items-center justify-center cursor-w-resize hover:bg-blue-500/20 active:bg-blue-500/40 rounded-l-md border-l-2 border-blue-500 transition-colors"
+                            onMouseDown={(e) => startDrag(e, 'resize-left')}
+                        >
                             <ChevronLeft size={14} strokeWidth={2.5} className="text-blue-600" />
                         </div>
-                        <div className="h-full flex items-center pr-0.5">
+
+                        {/* Right Resize Handle */}
+                        <div
+                            className="h-full w-4 flex items-center justify-center cursor-e-resize hover:bg-blue-500/20 active:bg-blue-500/40 rounded-r-md border-r-2 border-blue-500 transition-colors"
+                            onMouseDown={(e) => startDrag(e, 'resize-right')}
+                        >
                             <ChevronRight size={14} strokeWidth={2.5} className="text-blue-600" />
                         </div>
                     </div>
