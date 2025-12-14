@@ -45,6 +45,8 @@ function ChronoMapContent() {
   const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
   const [zoomAction, setZoomAction] = useState<{ type: 'in' | 'out', id: number } | null>(null);
   const [interactionMode, setInteractionMode] = useState<'exploration' | 'investigation'>('exploration');
+  // [NEW] Shared Hover State for Maps and Timeline
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
   const handleZoomClick = (type: 'in' | 'out') => {
     setZoomAction({ type, id: Date.now() });
@@ -178,6 +180,8 @@ function ChronoMapContent() {
           onToggleExpand={handleToggleExpand}
           zoomAction={zoomAction}
           interactionMode={interactionMode}
+          hoveredEventId={hoveredEventId}
+          setHoveredEventId={setHoveredEventId}
         />
       </main>
 
@@ -194,6 +198,8 @@ function ChronoMapContent() {
         setJumpTargetId={setJumpTargetId}
         interactionMode={interactionMode}
         setInteractionMode={setInteractionMode}
+        hoveredEventId={hoveredEventId}
+        setHoveredEventId={setHoveredEventId}
       />
 
       <EventDetailPanel

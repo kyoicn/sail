@@ -23,9 +23,10 @@ interface TimeControlProps {
   densityEvents: EventData[]; // For Heatmap (Spatially filtered only)
   allEvents?: EventData[];     // All (for animation stability)
   setJumpTargetId?: (id: string | null) => void;
-  // [NEW] Mode Props
   interactionMode: 'exploration' | 'investigation';
   setInteractionMode: (mode: 'exploration' | 'investigation') => void;
+  hoveredEventId: string | null;
+  setHoveredEventId: (id: string | null) => void;
 }
 
 export const TimeControl: React.FC<TimeControlProps> = ({
@@ -40,13 +41,14 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   allEvents = [],
   setJumpTargetId,
   interactionMode,
-  setInteractionMode
+  setInteractionMode,
+  hoveredEventId,
+  setHoveredEventId
 }) => {
 
   const animationRef = useRef<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [isThumbDragging, setIsThumbDragging] = useState(false);
-  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null); // State for DOM Tooltip
 
   // --- Animation Logic (Smooth Jump) ---
   const smoothJump = (targetDate: number, eventId: string | null) => {

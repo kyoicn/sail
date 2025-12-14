@@ -17,11 +17,12 @@ interface LeafletMapProps {
   initialZoom: number;
   onViewportChange: (center: { lat: number, lng: number }, zoom: number) => void;
   onEventSelect: (event: EventData) => void;
-  // [NEW]
   expandedEventIds: Set<string>;
   onToggleExpand: (eventId: string) => void;
   zoomAction?: { type: 'in' | 'out', id: number } | null;
   interactionMode: 'exploration' | 'investigation';
+  hoveredEventId: string | null;
+  setHoveredEventId: (id: string | null) => void;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -37,7 +38,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   expandedEventIds, // [NEW]
   onToggleExpand,    // [NEW]
   zoomAction,
-  interactionMode
+  interactionMode,
+  hoveredEventId,    // [NEW] Props
+  setHoveredEventId
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -46,9 +49,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
   // [OPTIMIZATION] Refs to track previous visual state to avoid redundant DOM updates
   const prevVisualState = useRef({ zoom: initialZoom, span: 0 });
-
-  // [NEW] Local Hover State for "Peek" functionality
-  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
   // Dynamic Color Interpolator (Cyan -> Blue -> Indigo)
   const getDotColor = (importance: number) => {
