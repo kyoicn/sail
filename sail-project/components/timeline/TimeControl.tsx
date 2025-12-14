@@ -283,7 +283,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
               return (
                 <div
-                  className="absolute bottom-full left-0 mb-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded shadow-lg whitespace-nowrap z-50 pointer-events-none transform -translate-x-1/2 transition-opacity duration-150"
+                  className="absolute bottom-1/2 left-0 mb-6 px-3 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded shadow-lg whitespace-nowrap z-50 pointer-events-none transform -translate-x-1/2 transition-opacity duration-150"
                   style={{ left: `${xPercent}% ` }}
                 >
                   {event.title}
