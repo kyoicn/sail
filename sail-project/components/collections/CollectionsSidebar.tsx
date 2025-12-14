@@ -33,7 +33,7 @@ export function CollectionsSidebar({ selectedCollection, onSelect, dataset }: Co
   if (collections.length === 0 && !isLoading) return null;
 
   return (
-    <div className="fixed left-6 bottom-8 z-10 w-64 bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 overflow-hidden flex flex-col p-4 gap-3 animate-in fade-in slide-in-from-left-4 duration-500">
+    <div className="fixed left-6 bottom-8 z-10 w-[18vw] min-w-[230px] max-w-[350px] bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 overflow-hidden flex flex-col p-4 gap-3 animate-in fade-in slide-in-from-left-4 duration-500">
       <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
         <Hash className="w-4 h-4 text-slate-400" />
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">

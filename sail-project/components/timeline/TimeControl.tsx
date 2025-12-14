@@ -145,7 +145,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   const isThumbVisible = currentDate >= viewRange.min && currentDate <= viewRange.max;
 
   return (
-    <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-4xl px-4 z-10 w-full">
+    <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-[55vw] px-4 z-10">
       <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-6 transition-all hover:shadow-3xl">
 
         {/* Controls Header */}
