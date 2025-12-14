@@ -272,8 +272,8 @@ export const TimeControl: React.FC<TimeControlProps> = ({
               onMouseDown={handleThumbMouseDown}
             />
 
-            {/* [NEW] DOM Tooltip Layer (Overlay) */}
-            {hoveredEventId && (() => {
+            {/* [NEW] DOM Tooltip Layer (Overlay) - Only in Investigation Mode */}
+            {hoveredEventId && interactionMode === 'investigation' && (() => {
               const event = events.find(e => e.id === hoveredEventId);
               if (!event) return null;
 
