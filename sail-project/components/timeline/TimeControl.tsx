@@ -1,12 +1,14 @@
+
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { Maximize2, ZoomIn, ZoomOut, ArrowLeft } from 'lucide-react';
 import { EventData } from '../../types';
 import { OverviewTimeline } from './OverviewTimeline';
 import { TimelineCanvas } from './TimelineCanvas';
 import {
   toSliderValue,
   getAstroYear,
-  formatSliderTick,
+  fromSliderValue,
+  getMonthName,
   formatNaturalDate
 } from '../../lib/time-engine';
 
@@ -19,8 +21,11 @@ interface TimeControlProps {
   globalMax: number;
   events: EventData[];        // Renderable (LOD filtered)
   densityEvents: EventData[]; // For Heatmap (Spatially filtered only)
-  allEvents: EventData[];     // All (for animation stability)
-  setJumpTargetId: (id: string | null) => void;
+  allEvents?: EventData[];     // All (for animation stability)
+  setJumpTargetId?: (id: string | null) => void;
+  // [NEW] Mode Props
+  interactionMode: 'exploration' | 'investigation';
+  setInteractionMode: (mode: 'exploration' | 'investigation') => void;
 }
 
 export const TimeControl: React.FC<TimeControlProps> = ({
@@ -32,8 +37,10 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   globalMax,
   events,
   densityEvents,
-  allEvents,
-  setJumpTargetId
+  allEvents = [],
+  setJumpTargetId,
+  interactionMode,
+  setInteractionMode
 }) => {
 
   const animationRef = useRef<number | null>(null);
@@ -44,7 +51,10 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   // --- Animation Logic (Smooth Jump) ---
   const smoothJump = (targetDate: number, eventId: string | null) => {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    setJumpTargetId(eventId || "___ANIMATING___");
+    setJumpTargetId?.("___ANIMATING___");
+
+    // Resetting View (Maximize) should revert to Exploration Mode
+    setInteractionMode('exploration');
 
     const startValue = currentDate;
     const distance = targetDate - startValue;
@@ -63,7 +73,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
         animationRef.current = requestAnimationFrame(animate);
       } else {
         animationRef.current = null;
-        setJumpTargetId(null);
+        setJumpTargetId?.(null);
       }
     };
     animationRef.current = requestAnimationFrame(animate);
@@ -71,16 +81,20 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
   // --- Interaction Handlers ---
 
-  const handleTrackMouseDown = (e: React.MouseEvent) => {
-    // If we clicked on the Canvas (which is overlaying), and it wasn't handled by a marker click (stopPropagation),
-    // then it bubbles here?
-    // TimelineCanvas stops propagation on marker click, so this only runs on empty space click.
+  const handleTrackMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // If in Exploration mode, seeking immediately switches to Investigation mode
+    if (interactionMode === 'exploration') {
+      setInteractionMode('investigation');
+    }
 
-    if (!trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const percent = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-    const span = viewRange.max - viewRange.min;
-    smoothJump(viewRange.min + (span * percent), null);
+    setIsThumbDragging(true);
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (rect) {
+      const offsetX = e.clientX - rect.left;
+      const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
+      const newValue = viewRange.min + percentage * (viewRange.max - viewRange.min);
+      setCurrentDate(newValue);
+    }
   };
 
   const handleThumbMouseDown = (e: React.MouseEvent) => {
@@ -90,7 +104,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
-      setJumpTargetId(null);
+      setJumpTargetId?.(null);
     }
   };
 
@@ -144,22 +158,65 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   const thumbPercent = ((currentDate - viewRange.min) / span) * 100;
   const isThumbVisible = currentDate >= viewRange.min && currentDate <= viewRange.max;
 
+  // [NEW] Header Formatting Logic
+  const getHeaderContent = () => {
+    if (interactionMode === 'exploration') {
+      const formatYear = (val: number) => {
+        const { year, era } = fromSliderValue(val);
+        return `${year} ${era} `;
+      };
+      return (
+        <div className="flex flex-col items-center">
+          <span className="text-3xl font-bold font-mono tracking-tight text-slate-800">
+            {formatYear(viewRange.min)} - {formatYear(viewRange.max)}
+          </span>
+          <span className="text-xs text-slate-400 font-medium tracking-widest uppercase mt-1">Exploration Mode</span>
+        </div>
+      );
+    }
+
+    // Investigation Mode
+    const rangeSubtitle = () => {
+      const formatYear = (val: number) => {
+        const { year, era } = fromSliderValue(val);
+        return `${year} ${era} `;
+      };
+      return `View: ${formatYear(viewRange.min)} - ${formatYear(viewRange.max)} `;
+    };
+
+    return (
+      <div className="flex flex-col items-center relative group">
+        <span className="text-3xl font-bold font-mono tracking-tight text-slate-800">
+          {formatNaturalDate(currentDate, viewRange.max - viewRange.min)}
+        </span>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-xs text-blue-500 font-medium tracking-wide">
+            {rangeSubtitle()}
+          </span>
+          <button
+            onClick={() => setInteractionMode('exploration')}
+            className="flex items-center gap-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full transition-colors"
+          >
+            <ArrowLeft size={10} />
+            Return to Range
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-[55vw] px-4 z-10">
       <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-6 transition-all hover:shadow-3xl">
 
         {/* Controls Header */}
-        <div className="flex justify-between items-end mb-4">
-          <div className="flex gap-2">
-            <button onClick={resetZoom} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors" title="Reset View">
-              <Maximize size={18} />
-            </button>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="text-4xl font-black text-slate-800 tracking-tight flex items-baseline gap-2 font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>
-              {formatNaturalDate(currentDate, span)}
-            </div>
-          </div>
+        <div className="flex justify-between items-start mb-6">
+          <button onClick={resetZoom} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400" title="Reset View">
+            <Maximize2 size={20} />
+          </button>
+
+          {getHeaderContent()}
+
           <div className="flex gap-2">
             <button onClick={() => handleZoom(0.5)} className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm" title="Zoom Out">
               <ZoomOut size={20} />
@@ -172,72 +229,73 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
         {/* Slider Track */}
         <div className="px-4">
-          <div className="flex items-center gap-4 relative">
-            <div ref={trackRef} className="relative flex-grow h-12 flex items-center group cursor-pointer" onMouseDown={handleTrackMouseDown}>
+          <div
+            ref={trackRef}
+            className="relative h-16 mb-2 group cursor-pointer select-none"
+            onMouseDown={handleTrackMouseDown}
+          >
+            {/* [MOVED] Canvas Layer (Replaces DOM Ticks and DOM Markers) */}
+            <TimelineCanvas
+              currentDate={currentDate}
+              viewRange={viewRange}
+              events={events} // Render only filtered logic events
+              allEvents={allEvents}
+              onEventClick={smoothJump}
+              onHoverChange={setHoveredEventId}
+            />
 
-              {/* [MOVED] Canvas Layer (Replaces DOM Ticks and DOM Markers) */}
-              <TimelineCanvas
-                currentDate={currentDate}
-                viewRange={viewRange}
-                events={events} // Render only filtered logic events
-                allEvents={allEvents}
-                onEventClick={smoothJump}
-                onHoverChange={setHoveredEventId}
-              />
+            {/* Track Background */}
+            <div className="absolute top-1/2 -translate-y-1/2 w-full h-2 bg-slate-100 rounded-full overflow-hidden z-0 pointer-events-none">
+              <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
+            </div>
 
-              {/* Track Background */}
-              <div className="absolute w-full h-2 bg-slate-100 rounded-full overflow-hidden z-0 pointer-events-none">
-                <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
-              </div>
-
-              {/* Draggable Thumb */}
-              <div
-                className={`absolute top-1/2 w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
+            {/* Slider Thumb - Hidden in Exploration Mode */}
+            <div
+              className={`absolute top-1/2 w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
                         ${isThumbDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'} 
                         transition-transform duration-75 
-                        ${isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                style={{ left: `${Math.max(0, Math.min(100, thumbPercent))}%` }}
-                onMouseDown={handleThumbMouseDown}
-              />
+                        ${interactionMode === 'investigation' && isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              style={{ left: `${Math.max(0, Math.min(100, thumbPercent))}%` }}
+              onMouseDown={handleThumbMouseDown}
+            />
 
-              {/* [NEW] DOM Tooltip Layer (Overlay) */}
-              {hoveredEventId && (() => {
-                const event = events.find(e => e.id === hoveredEventId);
-                if (!event) return null;
+            {/* [NEW] DOM Tooltip Layer (Overlay) */}
+            {hoveredEventId && (() => {
+              const event = events.find(e => e.id === hoveredEventId);
+              if (!event) return null;
 
-                const startFraction = getAstroYear(event.start) - event.start.year;
-                const sliderVal = toSliderValue(event.start.year) + startFraction;
-                const percent = (sliderVal - viewRange.min) / span;
+              const startFraction = getAstroYear(event.start) - event.start.year;
+              const sliderVal = toSliderValue(event.start.year) + startFraction;
+              const percent = (sliderVal - viewRange.min) / span;
 
-                // If out of view, don't show (should be filtered by interaction logic anyway)
-                if (percent < 0 || percent > 1) return null;
+              // If out of view, don't show (should be filtered by interaction logic anyway)
+              if (percent < 0 || percent > 1) return null;
 
-                const xPercent = percent * 100;
+              const xPercent = percent * 100;
 
-                return (
-                  <div
-                    className="absolute bottom-full left-0 mb-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded shadow-lg whitespace-nowrap z-50 pointer-events-none transform -translate-x-1/2 transition-opacity duration-150"
-                    style={{ left: `${xPercent}%` }}
-                  >
-                    {event.title}
-                    {/* Arrow */}
-                    <div className="absolute top-full left-1/2 -ml-1 border-4 border-transparent border-t-slate-800"></div>
-                  </div>
-                );
-              })()}
+              return (
+                <div
+                  className="absolute bottom-full left-0 mb-3 px-3 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded shadow-lg whitespace-nowrap z-50 pointer-events-none transform -translate-x-1/2 transition-opacity duration-150"
+                  style={{ left: `${xPercent}% ` }}
+                >
+                  {event.title}
+                  {/* Arrow */}
+                  <div className="absolute top-full left-1/2 -ml-1 border-4 border-transparent border-t-slate-800"></div>
+                </div>
+              );
+            })()}
 
-            </div>
           </div>
-
-          {/* Heatmap Overview */}
-          <OverviewTimeline
-            viewRange={viewRange}
-            setViewRange={setViewRange}
-            globalMin={globalMin}
-            globalMax={globalMax}
-            events={densityEvents} // Pass Spatially Filtered events (High density)
-          />
         </div>
+
+        {/* Heatmap Overview */}
+        <OverviewTimeline
+          viewRange={viewRange}
+          setViewRange={setViewRange}
+          globalMin={globalMin}
+          globalMax={globalMax}
+          events={densityEvents} // Pass Spatially Filtered events (High density)
+        />
       </div>
     </div>
   );

@@ -116,6 +116,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
       // --- A. Draw Ticks ---
       const ticks = generateTicks(currentViewRange.min, currentViewRange.max, width);
+      const centerY = height / 2;
 
       ctx.fillStyle = '#94a3b8'; // slate-400
       ctx.font = '10px monospace';
@@ -130,13 +131,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         ctx.beginPath();
         ctx.strokeStyle = '#cbd5e1'; // slate-300
         ctx.lineWidth = 1;
-        ctx.moveTo(x, 28); // Start below the track (track is ~20px to 28px)
-        ctx.lineTo(x, 36); // Extend downwards
+        ctx.moveTo(x, centerY + 12); // Start below the track
+        ctx.lineTo(x, centerY + 20); // Extend downwards
         ctx.stroke();
 
         // Label
         const label = formatSliderTick(tick.value, span);
-        ctx.fillText(label, x, 38); // Draw text below the ticks
+        ctx.fillText(label, x, centerY + 22); // Draw text below the ticks
       });
 
 
@@ -144,7 +145,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
       // Marker Params
       const MARKER_W = 6;
       const MARKER_H = 12;
-      const MARKER_Y = height / 2; // Center vertically
+      const MARKER_Y = centerY; // Center vertically
 
       let hitEventId: string | null = null;
 

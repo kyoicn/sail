@@ -21,6 +21,7 @@ interface LeafletMapProps {
   expandedEventIds: Set<string>;
   onToggleExpand: (eventId: string) => void;
   zoomAction?: { type: 'in' | 'out', id: number } | null;
+  interactionMode: 'exploration' | 'investigation';
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -35,7 +36,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onEventSelect,
   expandedEventIds, // [NEW]
   onToggleExpand,    // [NEW]
-  zoomAction
+  zoomAction,
+  interactionMode
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -212,12 +214,26 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
 
       let isActive = false;
-      if (jumpTargetId) {
-        isActive = (jumpTargetId === "___ANIMATING___") ? false : event.id === jumpTargetId;
+
+      // [MODE LOGIC]
+      if (interactionMode === 'exploration') {
+        // In Exploration Mode, filter by viewRange instead of specific currentDate
+        if (endVal !== null) {
+          // Range Intersects View (Standard Overlap Logic: Start <= ViewMax && End >= ViewMin)
+          isActive = startVal <= viewRange.max && endVal >= viewRange.min;
+        } else {
+          // Point contained in View
+          isActive = startVal >= viewRange.min && startVal <= viewRange.max;
+        }
       } else {
-        isActive = endVal !== null
-          ? (currentDate >= startVal && currentDate <= endVal)
-          : (Math.abs(currentDate - startVal) <= dynamicThreshold);
+        // Investigation Mode: Strict Time Checking
+        if (jumpTargetId) {
+          isActive = (jumpTargetId === "___ANIMATING___") ? false : event.id === jumpTargetId;
+        } else {
+          isActive = endVal !== null
+            ? (currentDate >= startVal && currentDate <= endVal)
+            : (Math.abs(currentDate - startVal) <= dynamicThreshold);
+        }
       }
       return isActive;
     });
@@ -418,7 +434,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     // Update refs for next cycle
     prevVisualState.current = { zoom: mapZoom, span: viewRange.max - viewRange.min };
 
-  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds]);
+  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max]);
 
   return <div ref={mapRef} className="w-full h-full z-0 bg-slate-100" />;
 };

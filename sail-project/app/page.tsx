@@ -44,6 +44,7 @@ function ChronoMapContent() {
   const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
   const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
   const [zoomAction, setZoomAction] = useState<{ type: 'in' | 'out', id: number } | null>(null);
+  const [interactionMode, setInteractionMode] = useState<'exploration' | 'investigation'>('exploration');
 
   const handleZoomClick = (type: 'in' | 'out') => {
     setZoomAction({ type, id: Date.now() });
@@ -176,6 +177,7 @@ function ChronoMapContent() {
           expandedEventIds={expandedEventIds}
           onToggleExpand={handleToggleExpand}
           zoomAction={zoomAction}
+          interactionMode={interactionMode}
         />
       </main>
 
@@ -190,6 +192,8 @@ function ChronoMapContent() {
         densityEvents={spatiallyFilteredEvents}
         allEvents={allLoadedEvents}
         setJumpTargetId={setJumpTargetId}
+        interactionMode={interactionMode}
+        setInteractionMode={setInteractionMode}
       />
 
       <EventDetailPanel
