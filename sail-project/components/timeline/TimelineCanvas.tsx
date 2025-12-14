@@ -146,7 +146,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
       // --- B. Draw Events ---
       // Marker Params
-      const MARKER_W = 6;
+      const MARKER_W = 4; // [CHANGE] Wider marker (was 2)
       const MARKER_H = 12;
       const MARKER_Y = centerY; // Center vertically
 

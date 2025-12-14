@@ -114,9 +114,18 @@ export const TimeControl: React.FC<TimeControlProps> = ({
     }
   };
 
+  // [NEW] Throttle Ref for Dragging
+  const lastUpdateRef = useRef<number>(0);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isThumbDragging || !trackRef.current) return;
+
+      const now = performance.now();
+      // Throttle to ~30fps (33ms) to prevent excessive Map re-renders
+      if (now - lastUpdateRef.current < 32) return;
+      lastUpdateRef.current = now;
+
       const rect = trackRef.current.getBoundingClientRect();
       const percent = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
       const span = viewRange.max - viewRange.min;
