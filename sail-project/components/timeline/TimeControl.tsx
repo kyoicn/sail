@@ -177,7 +177,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
             {formatYear(viewRange.min)} - {formatYear(viewRange.max)}
           </span>
           <div className={subtitleClass}>
-            <span className="text-xs text-slate-400 font-medium tracking-widest uppercase">Exploration Mode</span>
+            {/* Height placeholder to prevent layout shift when switching modes */}
           </div>
         </div>
       );
