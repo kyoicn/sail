@@ -46,7 +46,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
   // [OPTIMIZATION] Refs to track previous visual state to avoid redundant DOM updates
   const prevVisualState = useRef({ zoom: initialZoom, span: 0 });
-  // const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set()); // [REMOVED]
+
+  // [NEW] Local Hover State for "Peek" functionality
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
   // Dynamic Color Interpolator (Cyan -> Blue -> Indigo)
   const getDotColor = (importance: number) => {
@@ -245,6 +247,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     layersMap.forEach((layerGroup, eventId) => {
       const isActive = activeEvents.find(ae => ae.id === eventId);
       const isExpanded = expandedEventIds.has(eventId);
+      const isHovered = hoveredEventId === eventId;
+      const shouldShowCard = isExpanded || isHovered;
 
       // Remove Dot if no longer active
       if (!isActive) {
@@ -257,7 +261,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
 
       // Handle Collapse State (Remove expanded elements if they exist but shouldn't)
-      if (!isExpanded) {
+      if (!shouldShowCard) {
         if (layerGroup.card) { layerGroup.card.remove(); delete layerGroup.card; }
         if (layerGroup.line) { layerGroup.line.remove(); delete layerGroup.line; }
         if (layerGroup.shape) { layerGroup.shape.remove(); delete layerGroup.shape; }
@@ -267,6 +271,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     // 3. Render Active
     activeEvents.forEach(event => {
       const isExpanded = expandedEventIds.has(event.id);
+      const isHovered = hoveredEventId === event.id;
+      const shouldShowCard = isExpanded || isHovered;
 
       // --- DOT RENDERING (Always) ---
       let layers = layersMap.get(event.id);
@@ -304,6 +310,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           onToggleExpand(event.id);
         });
 
+        // [NEW] Hover Listeners on Dot
+        dotMarker.on('mouseover', () => setHoveredEventId(event.id));
+        dotMarker.on('mouseout', () => setHoveredEventId(null));
+
         layers = { dot: dotMarker };
         layersMap.set(event.id, layers);
       } else {
@@ -325,7 +335,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
 
       // --- EXPANDED RENDERING (Conditional) ---
-      if (isExpanded) {
+      if (shouldShowCard) {
         const layout = layoutMap.get(event.id) || { offsetX: 0, offsetY: 0 };
         const { offsetX, offsetY } = layout;
 
@@ -434,7 +444,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     // Update refs for next cycle
     prevVisualState.current = { zoom: mapZoom, span: viewRange.max - viewRange.min };
 
-  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max]);
+  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max, hoveredEventId]);
 
   return <div ref={mapRef} className="w-full h-full z-0 bg-slate-100" />;
 };
