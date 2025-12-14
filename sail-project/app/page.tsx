@@ -8,7 +8,7 @@ import { LeafletMap } from '../components/map/LeafletMap';
 import { TimeControl } from '../components/timeline/TimeControl';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';
 import { DebugHUD } from '../components/debug/DebugHUD';
-import { CollectionSelector } from '../components/CollectionSelector';
+import { CollectionsSidebar } from '../components/collections/CollectionsSidebar';
 
 // Imported Hooks
 import { useUrlSync } from '../hooks/useUrlSync';
@@ -104,6 +104,12 @@ function ChronoMapContent() {
         />
       )}
 
+      <CollectionsSidebar
+        selectedCollection={selectedCollection}
+        onSelect={setSelectedCollection}
+        dataset={dataset}
+      />
+
       <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
         <div className="max-w-7xl mx-auto flex justify-between items-start">
           <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 pointer-events-auto border border-white/50 flex items-center gap-3">
@@ -113,13 +119,7 @@ function ChronoMapContent() {
               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
             </h1>
 
-            <div className="h-6 w-px bg-slate-200 mx-1" />
 
-            <CollectionSelector
-              selectedCollection={selectedCollection}
-              onSelect={setSelectedCollection}
-              dataset={dataset}
-            />
 
             {isLoading && (
               <div className="flex items-center gap-2 px-2 border-l border-slate-200">
