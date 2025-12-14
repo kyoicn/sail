@@ -259,14 +259,23 @@ export const TimeControl: React.FC<TimeControlProps> = ({
       <div className="bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-6 transition-all hover:shadow-3xl">
 
         {/* Controls Header */}
-        <div className="flex justify-between items-start mb-6">
-          <button onClick={resetZoom} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400" title="Reset View">
-            <Maximize2 size={20} />
-          </button>
+        <div className="relative flex justify-end items-start mb-6">
 
-          {getHeaderContent()}
+          {/* Centered Title */}
+          <div className="absolute left-1/2 top-0 -translate-x-1/2">
+            {getHeaderContent()}
+          </div>
 
-          <div className="flex gap-2">
+          {/* Right Controls Group */}
+          <div className="flex gap-2 relative z-10">
+            <button
+              onClick={resetZoom}
+              className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm"
+              title="Reset View"
+            >
+              <Maximize2 size={20} />
+            </button>
+            <div className="w-px h-9 bg-slate-200 mx-1"></div> {/* Separator */}
             <button onClick={() => handleZoom(0.5)} className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm" title="Zoom Out">
               <ZoomOut size={20} />
             </button>
