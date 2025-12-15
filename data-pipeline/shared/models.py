@@ -80,6 +80,13 @@ class ExtractionRecord(BaseModel):
     clean_text: str
     events: List[EventSchema]
 
+
+# Type Aliases for Geometry
+Coordinate = List[float] # [lng, lat]
+Ring = List[Coordinate]    # A closed loop of coordinates
+Polygon = List[Ring]       # [OuterRing, InnerRing1, InnerRing2, ...]
+MultiPolygon = List[Polygon] # [Polygon1, Polygon2, ...]
+
 class AreaModel(BaseModel):
     """
     Represents a named geographic area with a polygon boundary.
@@ -88,9 +95,8 @@ class AreaModel(BaseModel):
     area_id: str  # Slug, e.g. 'china_proper'
     display_name: str
     description: Optional[str] = None
-    # List of (lng, lat) tuples defining the polygon.
-    # Note: GeoJSON uses (lng, lat). PostGIS uses (lng, lat).
-    polygon_coords: List[List[float]] 
+    # GeoJSON MultiPolygon structure
+    multi_polygon_coords: MultiPolygon 
 
 class HistoricalPeriodModel(BaseModel):
     """
