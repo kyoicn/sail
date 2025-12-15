@@ -1,5 +1,6 @@
 "use client";
 
+import { Analytics } from "@vercel/analytics/next"
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { Map as MapIcon, Layers, Loader2, Plus, Minus } from 'lucide-react';
 
