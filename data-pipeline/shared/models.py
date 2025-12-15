@@ -79,3 +79,29 @@ class ExtractionRecord(BaseModel):
     model_name: str
     clean_text: str
     events: List[EventSchema]
+
+class AreaModel(BaseModel):
+    """
+    Represents a named geographic area with a polygon boundary.
+    Corresponds to the 'areas' table.
+    """
+    area_id: str  # Slug, e.g. 'china_proper'
+    display_name: str
+    description: Optional[str] = None
+    # List of (lng, lat) tuples defining the polygon.
+    # Note: GeoJSON uses (lng, lat). PostGIS uses (lng, lat).
+    polygon_coords: List[List[float]] 
+
+class HistoricalPeriodModel(BaseModel):
+    """
+    Represents a named historical period.
+    Corresponds to the 'historical_periods' table.
+    """
+    period_id: str  # Slug, e.g. 'qing_dynasty'
+    display_name: str
+    description: Optional[str] = None
+    start_astro_year: float
+    end_astro_year: float
+    # List of Area slugs this period is associated with.
+    area_ids: List[str]
+    importance: float = 1.0
