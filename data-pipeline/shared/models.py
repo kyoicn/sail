@@ -96,7 +96,7 @@ class AreaModel(BaseModel):
     display_name: str
     description: Optional[str] = None
     # GeoJSON MultiPolygon structure
-    multi_polygon_coords: MultiPolygon 
+    geometry: MultiPolygon 
 
 class HistoricalPeriodModel(BaseModel):
     """
