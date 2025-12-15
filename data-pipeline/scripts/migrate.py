@@ -4,6 +4,7 @@ import psycopg2
 import argparse
 from pathlib import Path
 from dotenv import load_dotenv
+import re
 
 # Load env from data-pipeline/.env
 current_file = Path(__file__).resolve()
@@ -25,17 +26,16 @@ def get_connection():
         print(f"Failed to connect to DB: {e}")
         sys.exit(1)
 
-def ensure_migration_table(cur, table_suffix):
+def ensure_migration_table(cur, instance):
     """
-    Creates a specific version table for the target table.
-    e.g. if target='events', table='schema_migrations'
-         if target='events_dev', table='schema_migrations_events_dev'
+    Creates a specific version table for the target instance.
+    prod -> schema_migrations
+    dev  -> schema_migrations_dev
     """
-    # Sanitize table_suffix
-    if table_suffix == 'events':
+    if instance == 'prod':
         migration_table = 'schema_migrations'
     else:
-        migration_table = f'schema_migrations_{table_suffix}'
+        migration_table = f'schema_migrations_{instance}'
         
     cur.execute(f"""
         CREATE TABLE IF NOT EXISTS {migration_table} (
@@ -56,50 +56,69 @@ def run_migration_file_content(cur, sql_content):
     if sql_content.strip():
         cur.execute(sql_content)
 
-import re
-
-def transform_sql(sql: str, target_table: str) -> str:
+def transform_sql(sql: str, suffix: str) -> str:
     """
-    Replaces generic 'events' references with 'target_table'.
-    Also adjusts function names if target_table != 'events'.
+    Transforms SQL to target specific table versions (prod/dev).
+    
+    Logic:
+    If suffix is empty (Prod):
+        No changes needed.
+    
+    If suffix is present (e.g. '_dev'):
+        1. Append Suffix to KNOWN table names:
+           - events -> events_dev
+           - areas -> areas_dev
+           - historical_periods -> historical_periods_dev
+           - period_areas -> period_areas_dev
+        2. Append Suffix to KNOWN function names:
+           - get_events_in_view -> get_events_in_view_dev
+           - get_all_collections -> get_all_collections_dev
+           - get_active_periods -> get_active_periods_dev
     """
-    if target_table == 'events':
+    if not suffix:
         return sql
     
-    # 1. Standardize Function Names First (Before 'events' replacement messes them up)
-    # This ensures "get_events_in_view" -> "get_events_in_view_dev"
-    # instead of "get_events_dev_in_view"
+    # List of Tables/Functions to Transform
+    # Order matters? Not heavily, but good to likely be specific
+    tables = ['events', 'areas', 'historical_periods', 'period_areas']
+    functions = ['get_events_in_view', 'get_all_collections', 'get_active_periods']
+
+    # Apply Transformations
     
-    suffix = target_table.replace('events', '') # e.g. '_dev'
-    if suffix:
-        # Replace function definitions and calls
-        # Use regex to be safe, matching specific function names
-        sql = re.sub(r'\bget_events_in_view\b', f'get_events_in_view{suffix}', sql)
-        sql = re.sub(r'\bget_all_collections\b', f'get_all_collections{suffix}', sql)
-    
-    # 2. Replace table name using Word Boundary
-    # This prevents matching "events" inside "get_events_in_view" (if step 1 didn't catch it or for other cases)
-    # \bevents\b matches " events " or "events," but not "my_events_table" or "get_events"
-    sql = re.sub(r'\bevents\b', target_table, sql)
+    # Transform Functions
+    for func in functions:
+        # Regex: \bfunc_name\b -> func_name_suffix
+        sql = re.sub(rf'\b{func}\b', f'{func}{suffix}', sql)
+
+    # Transform Tables
+    for table in tables:
+        # Regex: \btable_name\b -> table_name_suffix
+        sql = re.sub(rf'\b{table}\b', f'{table}{suffix}', sql)
 
     return sql
 
 def main():
     parser = argparse.ArgumentParser(description="Run DB migrations.")
-    parser.add_argument("--table", help="Target table to migrate.")
+    parser.add_argument("--instance", choices=['prod', 'dev'], help="Instance to migrate: prod or dev")
     args = parser.parse_args()
     
-    target_table = args.table
-    if not target_table:
-      target_table = input("Please enter the target table name: ")
-    print(f"Targeting table: {target_table}")
+    instance = args.instance
+    if not instance:
+        instance = input("Please enter the target instance (prod or dev): ")
+    print(f"Targeting instance: {instance}")
+
+    # Determine suffix
+    if instance == 'prod':
+        suffix = ""
+    else:
+        suffix = f"_{instance}" # e.g. '_dev'
 
     conn = get_connection()
     conn.autocommit = False # Use transactions
     
     try:
         cur = conn.cursor()
-        migration_table_name = ensure_migration_table(cur, target_table)
+        migration_table_name = ensure_migration_table(cur, instance)
         conn.commit()
 
         applied = get_applied_migrations(cur, migration_table_name)
@@ -122,7 +141,7 @@ def main():
                     with open(mf, 'r') as f:
                         raw_sql = f.read()
                     
-                    final_sql = transform_sql(raw_sql, target_table)
+                    final_sql = transform_sql(raw_sql, suffix)
                     
                     run_migration_file_content(cur, final_sql)
                     record_migration(cur, migration_table_name, version)
