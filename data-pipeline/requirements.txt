@@ -5,3 +5,4 @@ SPARQLWrapper
 python-dotenv
 pydantic
 psycopg2-binary
+shapely
