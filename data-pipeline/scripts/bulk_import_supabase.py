@@ -4,9 +4,9 @@ import json
 import argparse
 import logging
 import re
+import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
-from supabase import create_client, Client
 from pydantic import ValidationError
 
 # Adjust path to allow importing from src/shared
@@ -25,11 +25,10 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv(os.path.join(data_pipeline_root, ".env"))
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    logger.error("SUPABASE_URL or SUPABASE_SERVICE_KEY not found in environment variables.")
+if not DATABASE_URL:
+    logger.error("DATABASE_URL not found in environment variables.")
     sys.exit(1)
 
 def slugify(text):
@@ -37,17 +36,17 @@ def slugify(text):
     text = re.sub(r'[^a-z0-9]+', '_', text)
     return text.strip('_')
 
-def connect_supabase() -> Client:
+def get_connection():
     try:
-        return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        return psycopg2.connect(DATABASE_URL)
     except Exception as e:
-        logger.error(f"Failed to connect to Supabase: {e}")
+        logger.error(f"Failed to connect to Database: {e}")
         sys.exit(1)
 
 def main():
-    parser = argparse.ArgumentParser(description="Bulk Import Events to Supabase")
+    parser = argparse.ArgumentParser(description="Bulk Import Events to Database (via psycopg2)")
     parser.add_argument("--input_dir", help="Directory containing ExtractionRecord JSON files", required=True)
-    parser.add_argument("--table_name", help="Target table name in Supabase", default=None)
+    parser.add_argument("--table_name", help="Target table name", default=None)
     args = parser.parse_args()
 
     input_dir = Path(args.input_dir)
@@ -61,15 +60,12 @@ def main():
         try:
             table_name = input("Enter target table name: ").strip()
         except EOFError:
-            pass # Handle non-interactive environments
+            pass 
 
-    # Connect to DB
-    supabase = connect_supabase()
-    
     files = list(input_dir.glob("*.json"))
     logger.info(f"Found {len(files)} JSON files in {input_dir}")
 
-    all_payloads = []
+    all_payloads_data = [] # List of tuples/dicts ready for SQL
     total_events = 0
     successful_imports = 0
     failed_imports = 0
@@ -116,31 +112,33 @@ def main():
                         logger.warning(f"Event '{event.title}' missing coordinates. Skipping.")
                         continue
                     
-                    # Format as WKT for Supabase/PostGIS
+                    # Format WKT
                     location_wkt = f"POINT({lng} {lat})" 
                     
                     # 4. Links & Images
                     links = [s.model_dump() for s in event.sources] if event.sources else []
                     image_urls = [img.url for img in event.images] if event.images else []
                     
-                    payload = {
+                    # Store as dictionary for easy inspection before insert
+                    row_data = {
                         "source_id": source_id,
                         "title": event.title,
                         "summary": event.summary,
                         "image_urls": image_urls,
-                        "links": links,
+                        "links": json.dumps(links), # JSONB needs string or dict, psycopg2 handles dicts often, but dumps is safer for debugging
                         "start_astro_year": start_astro,
                         "end_astro_year": end_astro,
-                        "start_time_entry": start_json,
-                        "end_time_entry": end_json,
-                        "location": location_wkt, 
+                        "start_time_entry": json.dumps(start_json),
+                        "end_time_entry": json.dumps(end_json) if end_json else None,
+                        "location_wkt": location_wkt, 
                         "place_name": place_name,
                         "granularity": granularity,
                         "certainty": certainty,
                         "importance": event.importance,
-                        "collections": event.collections
+                        "collections": event.collections,
+                        "area_id": event.location.area_id
                     }
-                    all_payloads.append(payload)
+                    all_payloads_data.append(row_data)
 
                 except Exception as e:
                     logger.error(f"Error preparing event '{event.title}': {e}")
@@ -152,21 +150,15 @@ def main():
             logger.error(f"Unexpected error processing {file_path.name}: {e}")
 
     # Confirmation Step
-    if all_payloads:
-        print(f"\n--- Ready to Import {len(all_payloads)} Events ---")
-        for i, p in enumerate(all_payloads): # Show all events
-            # Metrics for indicators
-            missing_time = ""
-            if not p.get('start_time_entry', {}).get('year'):
-                 # Red background for visibility
-                 missing_time = "\033[41m [NO TIME] \033[0m"
-            
+    if all_payloads_data:
+        print(f"\n--- Ready to Import {len(all_payloads_data)} Events ---")
+        for i, p in enumerate(all_payloads_data):
+            # Simple check for missing critical data
             missing_loc = ""
-            if not p.get('place_name'):
-                 # Red background for visibility
-                 missing_loc = "\033[41m [NO LOC NAME] \033[0m"
+            if not p['place_name']:
+                 missing_loc = " [NO LOC NAME]"
 
-            print(f"{i+1}. {p['title']} ({p['source_id']}){missing_time}{missing_loc}")
+            print(f"{i+1}. {p['title']} ({p['source_id']}){missing_loc}")
             
         print(f"\nTarget Table: {table_name}")
         confirm = input("Proceed with import? [y/N]: ").strip().lower()
@@ -174,24 +166,73 @@ def main():
             logger.info("Import cancelled by user.")
             sys.exit(0)
 
-    # Upsert in chunks (e.g., 1000 events per request) to avoid payload limits
-    BATCH_SIZE = 1000
-    if all_payloads:
-        logger.info(f"Starting bulk import of {len(all_payloads)} events (Batch size: {BATCH_SIZE})...")
+    # Bulk Insert
+    if all_payloads_data:
+        conn = get_connection()
+        cur = conn.cursor()
         
-        for i in range(0, len(all_payloads), BATCH_SIZE):
-            batch = all_payloads[i:i + BATCH_SIZE]
-            try:
-                response = supabase.table(table_name).upsert(batch, on_conflict='source_id').execute()
-                if response.data:
-                    count = len(response.data)
-                    successful_imports += count
-                    logger.info(f"Imported batch {i//BATCH_SIZE + 1}: {count} events")
-                else:
-                    logger.warning(f"Batch {i//BATCH_SIZE + 1} returned no data.")
-            except Exception as e:
-                logger.error(f"Supabase Upsert failed for batch {i//BATCH_SIZE + 1}: {e}")
-                failed_imports += len(batch)
+        logger.info(f"Starting bulk import of {len(all_payloads_data)} events...")
+        
+        # We process item by item or batch, but using Executemany or simple loop is fine unless scale is massive.
+        # For better error handling/reporting matching the previous script, a loop with individual upserts (or small batches) is safer.
+        
+        try:
+            inserted_count = 0
+            for p in all_payloads_data:
+                try:
+                    query = f"""
+                        INSERT INTO {table_name} (
+                            source_id, title, summary, image_urls, links,
+                            start_astro_year, end_astro_year, start_time_entry, end_time_entry,
+                            location, place_name, granularity, certainty, importance, collections, area_id
+                        ) VALUES (
+                            %(source_id)s, %(title)s, %(summary)s, %(image_urls)s, %(links)s,
+                            %(start_astro_year)s, %(end_astro_year)s, %(start_time_entry)s, %(end_time_entry)s,
+                            ST_GeogFromText(%(location_wkt)s), %(place_name)s, %(granularity)s, %(certainty)s, %(importance)s, %(collections)s, %(area_id)s
+                        )
+                        ON CONFLICT (source_id) DO UPDATE SET
+                            title = EXCLUDED.title,
+                            summary = EXCLUDED.summary,
+                            image_urls = EXCLUDED.image_urls,
+                            links = EXCLUDED.links,
+                            start_astro_year = EXCLUDED.start_astro_year,
+                            end_astro_year = EXCLUDED.end_astro_year,
+                            start_time_entry = EXCLUDED.start_time_entry,
+                            end_time_entry = EXCLUDED.end_time_entry,
+                            location = EXCLUDED.location,
+                            place_name = EXCLUDED.place_name,
+                            granularity = EXCLUDED.granularity,
+                            certainty = EXCLUDED.certainty,
+                            importance = EXCLUDED.importance,
+                            collections = EXCLUDED.collections,
+                            area_id = EXCLUDED.area_id
+                        RETURNING id;
+                    """
+                    # Note: collections might need to be cast if it's an array literal or jsonb depending on schema.
+                    # Assuming collections is text[]:
+                    # Psycopg2 adapts lists to arrays automatically.
+                    
+                    # Adjust collections to be just list if it's None
+                    if p['collections'] is None:
+                        p['collections'] = []
+
+                    cur.execute(query, p)
+                    inserted_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to insert {p['source_id']}: {e}")
+                    failed_imports += 1
+            
+            conn.commit()
+            successful_imports = inserted_count
+            logger.info(f"Successfully committed {successful_imports} events.")
+
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Transaction failed: {e}")
+        finally:
+            cur.close()
+            conn.close()
+
     else:
         logger.info("No valid events found to import.")
 
