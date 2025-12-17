@@ -35,6 +35,7 @@ export const ChronosLocationSchema = z.object({
   certainty: z.enum(['definite', 'approximate', 'unknown']).default('definite'),
   customRadius: z.number().optional(),
   regionId: z.string().optional(),
+  areaId: z.string().optional(),
 });
 
 export const EventSourceSchema = z.object({

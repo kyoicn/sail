@@ -68,6 +68,8 @@ export interface ChronosLocation {
   certainty: 'definite' | 'approximate' | 'unknown';
   customRadius?: number;
   regionId?: string;
+  // Reference to semantic area (e.g. 'modern_japan') for fetching polygon shape
+  areaId?: string;
 }
 
 // --- Source System ---
