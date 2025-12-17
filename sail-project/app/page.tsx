@@ -101,7 +101,7 @@ function ChronoMapContent() {
     return null;
   }, [selectedEvent, expandedEventIds, renderableEvents]);
 
-  const { shape: activeAreaShape } = useAreaShape(activeEventForShape?.location?.areaId);
+  const { shape: activeAreaShape } = useAreaShape(activeEventForShape?.location?.areaId, dataset);
 
   // Debug Info
   const isGlobalViewGuess = useMemo(() => {

@@ -26,8 +26,12 @@ export async function GET(request: Request) {
     return NextResponse.json([], { status: 200 }); // Empty request
   }
 
+  // [NEW] Dataset Switcher (Prod/Dev)
+  const dataset = searchParams.get('dataset') || 'prod';
+  const rpcName = dataset === 'dev' ? 'get_areas_by_ids_dev' : 'get_areas_by_ids';
+
   // Call the RPC
-  const { data, error } = await supabase.rpc('get_areas_by_ids', {
+  const { data, error } = await supabase.rpc(rpcName, {
     area_ids_input: areaIds
   });
 

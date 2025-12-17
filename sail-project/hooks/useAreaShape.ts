@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export function useAreaShape(areaId: string | undefined) {
+export function useAreaShape(areaId: string | undefined, dataset: string = 'prod') {
   const [shape, setShape] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -15,9 +15,8 @@ export function useAreaShape(areaId: string | undefined) {
     setIsLoading(true);
     setError(null);
 
-    // Simple cache key check could go here if we had a global cache
-
-    fetch(`/api/areas?ids=${encodeURIComponent(areaId)}`)
+    // [MODIFIED] Pass dataset param
+    fetch(`/api/areas?ids=${encodeURIComponent(areaId)}&dataset=${dataset}`)
       .then(res => {
         if (!res.ok) throw new Error("Failed to fetch area");
         return res.json();
@@ -25,21 +24,10 @@ export function useAreaShape(areaId: string | undefined) {
       .then(data => {
         if (!isMounted) return;
         if (data && data.length > 0) {
-          // The DB returns a geometry column in the object
-          // PostGIS returning GeoJSON directly or as WKB?
-          // "geometry" column in `areas` is `geography(MultiPolygon, 4326)`.
-          // Supabase/PostgREST usually returns GeoJSON for geometry columns if requested or configured?
-          // Actually, usually it returns WKB string or GeoJSON object depending on header.
-          // But wait, the previous `populate_areas` inserted using WKT.
-          // Let's verify what Supabase RPC returns. 
-          // Typically supabase-js handles JSON conversion. 
-          // If the column is `geography`, Supabase (PostgREST) returns it as GeoJSON by default if Accept header is application/geo+json, 
-          // OR if we cast it in SQL.
-          // The `bulk_import` used ST_GeogFromText for insert.
-          // The RPC `get_areas_by_ids` does `SELECT *`.
-          // PostgREST typically serves `geometry`/`geography` columns as GeoJSON objects.
+          console.log('[useAreaShape] Fetched Shape:', data[0].area_id, data[0].geometry);
           setShape(data[0].geometry);
         } else {
+          console.log('[useAreaShape] No shape found for:', areaId);
           setShape(null);
         }
       })
@@ -51,7 +39,7 @@ export function useAreaShape(areaId: string | undefined) {
       });
 
     return () => { isMounted = false; };
-  }, [areaId]);
+  }, [areaId, dataset]);
 
   return { shape, isLoading, error };
 }
