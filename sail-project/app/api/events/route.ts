@@ -148,6 +148,7 @@ export async function GET(request: Request) {
         granularity: sanitized(row.granularity),
         certainty: sanitized(row.certainty),
         regionId: sanitized(row.geo_shape_id),
+        areaId: sanitized(row.area_id),
       },
 
       importance: Number(row.importance) || 1.0,

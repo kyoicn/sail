@@ -23,6 +23,7 @@ interface LeafletMapProps {
   interactionMode: 'exploration' | 'investigation';
   hoveredEventId: string | null;
   setHoveredEventId: (id: string | null) => void;
+  activeAreaShape?: any | null; // GeoJSON MultiPolygon
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -39,8 +40,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   onToggleExpand,    // [NEW]
   zoomAction,
   interactionMode,
-  hoveredEventId,    // [NEW] Props
-  setHoveredEventId
+  hoveredEventId,
+  setHoveredEventId,
+  activeAreaShape
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -445,6 +447,40 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     prevVisualState.current = { zoom: mapZoom, span: viewRange.max - viewRange.min };
 
   }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max, hoveredEventId]);
+
+  // [NEW] Active Area Shape Rendering
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L) return;
+    const map = mapInstanceRef.current;
+
+    // Cleanup previous shape layer if it exists
+    const existingLayer = (map as any)._activeShapeLayer;
+    if (existingLayer) {
+      map.removeLayer(existingLayer);
+      (map as any)._activeShapeLayer = null;
+    }
+
+    if (activeAreaShape) {
+      // Create new GeoJSON Layer
+      const shapeLayer = L.geoJSON(activeAreaShape, {
+        style: {
+          color: '#3b82f6', // blue-500
+          weight: 2,
+          opacity: 0.8,
+          fillColor: '#3b82f6',
+          fillOpacity: 0.1,
+          dashArray: '5, 5' // Dashed line for context boundary
+        },
+        pane: 'shapesPane' // Ensure it's below markers
+      }).addTo(map);
+
+      // Store ref on map instance for easy cleanup
+      (map as any)._activeShapeLayer = shapeLayer;
+
+      // Optional: Fly to bounds? No, can be distracting. Let user explore.
+    }
+
+  }, [activeAreaShape]);
 
   return <div ref={mapRef} className="w-full h-full z-0 bg-slate-100" />;
 };

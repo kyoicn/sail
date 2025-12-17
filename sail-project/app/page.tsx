@@ -17,6 +17,7 @@ import { useAppConfig } from '../hooks/useAppConfig';
 import { useEventData } from '../hooks/useEventData';
 import { useLOD } from '../hooks/useLOD';
 import { useEventFilter } from '../hooks/useEventFilter';
+import { useAreaShape } from '../hooks/useAreaShape';
 
 function ChronoMapContent() {
   const GLOBAL_MIN = -3000;
@@ -87,6 +88,20 @@ function ChronoMapContent() {
     lodThreshold,
     selectedEvent?.id
   );
+
+  // [NEW] Logic to determine which event's shape to render
+  // Priority: Selected Event (Side Panel) -> Expanded Event (Card)
+  const activeEventForShape = useMemo(() => {
+    if (selectedEvent) return selectedEvent;
+    if (expandedEventIds.size > 0) {
+      // Get the last expanded event (most recent)
+      const lastId = Array.from(expandedEventIds).pop();
+      return renderableEvents.find(e => e.id === lastId);
+    }
+    return null;
+  }, [selectedEvent, expandedEventIds, renderableEvents]);
+
+  const { shape: activeAreaShape } = useAreaShape(activeEventForShape?.location?.areaId);
 
   // Debug Info
   const isGlobalViewGuess = useMemo(() => {
@@ -183,6 +198,7 @@ function ChronoMapContent() {
           interactionMode={interactionMode}
           hoveredEventId={hoveredEventId}
           setHoveredEventId={setHoveredEventId}
+          activeAreaShape={activeAreaShape}
         />
       </main>
 

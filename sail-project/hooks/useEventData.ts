@@ -83,6 +83,8 @@ export function useEventData(
           setServerEvents([]);
           return;
         }
+
+
         setServerEvents(result.data);
       })
       .catch(err => {
