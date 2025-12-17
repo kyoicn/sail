@@ -93,7 +93,11 @@ def populate_areas(data: AreasData, instance: str):
 def main():
     parser = argparse.ArgumentParser(description="Populate Areas Data")
     parser.add_argument("--instance", choices=['prod', 'dev'], help="Target instance (prod or dev)")
-    parser.add_argument("--file", help="Path to JSON file containing areas")
+    
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--file", help="Path to JSON file containing areas")
+    group.add_argument("--folder", help="Path to folder containing multiple JSON files of areas")
+    
     args = parser.parse_args()
 
     # Interactive Prompts
@@ -106,23 +110,56 @@ def main():
                 break
             print("Invalid instance. Please choose 'prod' or 'dev'.")
 
-    file_path = args.file
-    if not file_path:
-        file_path = input("Path to JSON file containing areas: ").strip()
-
-    input_path = Path(file_path)
-    if not input_path.exists():
-        print(f"Error: File not found: {input_path}")
-        sys.exit(1)
-
-    with open(input_path, 'r') as f:
-        raw_data = json.load(f)
+    # Collect input files
+    json_files = []
     
+    if args.folder:
+        folder_path = Path(args.folder)
+        if not folder_path.exists() or not folder_path.is_dir():
+             print(f"Error: Folder not found: {folder_path}")
+             sys.exit(1)
+        json_files = sorted(list(folder_path.glob("*.json")))
+        print(f"Found {len(json_files)} JSON files in folder.")
+    elif args.file:
+        input_path = Path(args.file)
+        if not input_path.exists():
+            print(f"Error: File not found: {input_path}")
+            sys.exit(1)
+        json_files = [input_path]
+    else:
+        # Fallback interactive
+        file_path = input("Path to JSON file containing areas: ").strip()
+        input_path = Path(file_path)
+        if not input_path.exists():
+             print(f"Error: File not found: {input_path}")
+             sys.exit(1)
+        json_files = [input_path]
+
+    # Load and Aggregated Data
+    all_raw_areas = []
+    
+    for jp in json_files:
+        try:
+            with open(jp, 'r') as f:
+                raw_data = json.load(f)
+            
+            # Extract 'areas' list
+            if isinstance(raw_data, dict) and "areas" in raw_data:
+                all_raw_areas.extend(raw_data["areas"])
+            else:
+                print(f"⚠️  Skipping {jp.name}: No 'areas' key found.")
+                
+        except Exception as e:
+            print(f"❌ Failed to load {jp.name}: {e}")
+
+    if not all_raw_areas:
+        print("No areas found to populate.")
+        sys.exit(0)
+
     try:
-        # Support reading either {"areas": [...]} or just the "areas" part of a larger file
-        # But Pydantic makes validation easy if we stick to a schema. 
-        # Let's assume the file HAS an 'areas' key.
-        data = AreasData(**raw_data)
+        # Validate Aggregated Data
+        print(f"Validating {len(all_raw_areas)} areas...")
+        data = AreasData(areas=all_raw_areas)
         populate_areas(data, instance)
     except Exception as e:
         print(f"Validation Error: {e}")
