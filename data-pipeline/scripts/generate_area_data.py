@@ -65,7 +65,7 @@ SOURCES = {
 }
 
 def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_name, min_area, tolerance, 
-                       output_file=None, custom_url=None, buffer_deg=0.0, round_iter=0):
+                       output_file=None, custom_url=None, buffer_deg=0.0, round_iter=0, description=None):
     
     # 1. Determine URL
     if dataset_key == "custom":
@@ -192,11 +192,14 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
             pass
     
     found = False
+    
+    final_description = description if description else f"Source: {dataset_key}. Optimized {total_verts_after} pts."
+    
     try:
         area_model = AreaModel(
             area_id=area_id,
             display_name=display_name,
-            description=f"Source: {dataset_key}. Optimized {total_verts_after} pts.",
+            description=final_description,
             geometry=final_polygons
         )
         new_entry = area_model.model_dump()
@@ -229,6 +232,7 @@ if __name__ == "__main__":
     parser.add_argument("--custom_url")
     parser.add_argument("--area_id")
     parser.add_argument("--display_name")
+    parser.add_argument("--description", help="Custom description for the area.")
     parser.add_argument("--output")
     parser.add_argument("--simplify", type=float, default=0.05)
     parser.add_argument("--filter_area", type=float, default=0.05)
@@ -256,5 +260,6 @@ if __name__ == "__main__":
         args.output,
         args.custom_url,
         args.buffer,
-        args.round
+        args.round,
+        args.description
     )
