@@ -92,11 +92,25 @@ def populate_areas(data: AreasData, instance: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Populate Areas Data")
-    parser.add_argument("--instance", choices=['prod', 'dev'], required=True, help="Target instance (prod or dev)")
-    parser.add_argument("--file", required=True, help="Path to JSON file containing areas")
+    parser.add_argument("--instance", choices=['prod', 'dev'], help="Target instance (prod or dev)")
+    parser.add_argument("--file", help="Path to JSON file containing areas")
     args = parser.parse_args()
 
-    input_path = Path(args.file)
+    # Interactive Prompts
+    instance = args.instance
+    if not instance:
+        while True:
+            val = input("Target instance (prod/dev): ").strip().lower()
+            if val in ['prod', 'dev']:
+                instance = val
+                break
+            print("Invalid instance. Please choose 'prod' or 'dev'.")
+
+    file_path = args.file
+    if not file_path:
+        file_path = input("Path to JSON file containing areas: ").strip()
+
+    input_path = Path(file_path)
     if not input_path.exists():
         print(f"Error: File not found: {input_path}")
         sys.exit(1)
@@ -109,7 +123,7 @@ def main():
         # But Pydantic makes validation easy if we stick to a schema. 
         # Let's assume the file HAS an 'areas' key.
         data = AreasData(**raw_data)
-        populate_areas(data, args.instance)
+        populate_areas(data, instance)
     except Exception as e:
         print(f"Validation Error: {e}")
         sys.exit(1)
