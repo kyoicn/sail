@@ -5,7 +5,6 @@ Description:
     (filtering small islands, simplifying geometry), and outputs a Sail-compatible JSON file.
 
 Detailed Parameter Guide:
-
     --dataset (default: 'country'):
         * 'country': Modern Sovereign States (Admin 0).
         * 'state': Provinces/States (Admin 1).
@@ -14,45 +13,30 @@ Detailed Parameter Guide:
         * 'custom': fetch from any GeoJSON I/O URL.
 
     --query_key (default: 'ISO_A3'):
-        The property in the GeoJSON Feature to match against.
-        * For 'country': 'ISO_A3' (e.g. JPN, USA), 'NAME' (e.g. Japan), 'ADM0_A3'.
-        * For 'state': 'name' (e.g. California), 'postal' (e.g. CA), 'adm1_code'.
-        * For 'marine': 'name' (e.g. Pacific Ocean).
-        * DATA DICTIONARY: https://www.naturalearthdata.com/features/
+        * For 'country': 'ISO_A3' (e.g. JPN, USA), 'NAME'.
+        * For 'state': 'name' (e.g. California).
+        * For 'marine': 'name'.
 
     --query_value:
-        The value to search for. Case-insensitive string matching.
-        * e.g. 'JPN', 'California', 'Pacific Ocean', 'Asia'.
+        The value to search for. Case-insensitive.
 
     --simplify (default: 0.05):
-        The tolerance for the Ramer-Douglas-Peucker algorithm in degrees.
-        * 0.05 deg (~5.5km): Very rough, good for global views.
-        * 0.01 deg (~1.1km): Moderate detail.
-        * 0.001 deg (~110m): High detail (larger file size).
+        RDP Tolerance in degrees. Higher = rougher.
 
     --filter_area (default: 0.05):
-        The minimum area (in square degrees) required to keep a polygon (island/enclave).
-        * 0.05 sq deg (~600 sq km): Removes small islands (e.g. Isle of Man, smaller Japanese islands).
-        * 0.001: Keeps almost everything.
-        * 1.0: Keeps only major landmasses.
+        Min area (sq degrees) to keep.
 
-    --custom_url:
-        Required if --dataset=custom.
-        * Historical Maps: Search 'historical boundaries geojson' (e.g. github.com/aequilibrae/historic_boundaries).
-        * Micro Regions: Search 'stanford campus geojson' or use http://geojson.io to draw one.
+    --buffer (float, default 0.0):
+        Expand (positive) or Shrink (negative) by degrees.
+        Uses Shapely for robust boolean union (merges overlaps).
+        * 0.5 (~55km) works gracefully by merging islands.
+
+    --round (int, default 0):
+        Resolution of rounded corners (if buffer != 0).
+        Higher = more vertices in curves.
 
 Usage Examples:
-    # 1. Country (Default)
-    python generate_area_data.py --dataset country --query_value JPN --area_id modern_japan --display_name "Modern Japan"
-
-    # 2. State (California) - Higher detail (--simplify 0.01)
-    python generate_area_data.py --dataset state --query_key name --query_value California --area_id ca_state --display_name "California" --simplify 0.01
-
-    # 3. Ocean
-    python generate_area_data.py --dataset marine --query_key name --query_value "Pacific Ocean" --area_id pacific_ocean --display_name "Pacific Ocean"
-    
-    # 4. Custom (Historical)
-    python generate_area_data.py --dataset custom --custom_url "https://raw.githubusercontent.com/..." --area_id babylon --display_name "Babylon"
+    python generate_area_data.py --query_value JPN --buffer 0.5 --filter_area 0.5
 """
 
 import json
@@ -61,10 +45,10 @@ import math
 import argparse
 import sys
 from pathlib import Path
+from shapely.geometry import shape, mapping, MultiPolygon, Polygon
+from shapely.ops import unary_union
 
 # --- Imports for Models ---
-# Add parent directory to sys.path to allow importing from shared
-# Assuming script is run from project root: python data-pipeline/scripts/generate_area_data.py
 current_file = Path(__file__).resolve()
 data_pipeline_root = current_file.parents[1]
 if str(data_pipeline_root) not in sys.path:
@@ -73,16 +57,6 @@ if str(data_pipeline_root) not in sys.path:
 from shared.models import AreaModel
 
 # Natural Earth 10m Admin 0 Countries
-URL = "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/10m/cultural/ne_10m_admin_0_countries.json"
-
-# --- Core Logic ---
-
-def fetch_and_optimize(country_code, area_id, display_name, min_area, tolerance, output_file=None):
-    # ... (existing download logic omitted for brevity in diff, assume it's same) ...
-    # Re-implementing just the necessary parts to show where AreaModel is used.
-    # Ideally I should not overwrite the whole function if possible, but for imports I need top level.
-    # Wait, replace_file_content replaces a block.
-    # I will replace the top to add imports, and the bottom to use# --- Configuration ---
 SOURCES = {
     "country": "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/10m/cultural/ne_10m_admin_0_countries.json",
     "state": "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/10m/cultural/ne_10m_admin_1_states_provinces.json",
@@ -90,9 +64,8 @@ SOURCES = {
     "region": "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/10m/physical/ne_10m_geography_regions_polys.json"
 }
 
-# --- Core Logic ---
-
-def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_name, min_area, tolerance, output_file=None, custom_url=None):
+def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_name, min_area, tolerance, 
+                       output_file=None, custom_url=None, buffer_deg=0.0, round_iter=0):
     
     # 1. Determine URL
     if dataset_key == "custom":
@@ -117,14 +90,10 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
 
     print(f"2. Searching for {query_key} = '{query_value}'...")
     target_feature = None
-    
-    # Normalize query value for string comparison
     q_val_str = str(query_value).lower().strip()
     
     for feature in source_data.get('features', []):
         props = feature.get('properties', {})
-        # Check against the query key
-        # Handle flexible matching? For now, strict or loose string match.
         prop_val = props.get(query_key)
         
         if prop_val is None:
@@ -132,72 +101,79 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
         elif str(prop_val).lower().strip() == q_val_str:
             target_feature = feature
             break
-        # Fallback: check standard codes if using default query_key
         elif query_key == "ISO_A3" and (props.get('ADM0_A3') == query_value or props.get('ISO_A3') == query_value):
              target_feature = feature
              break
 
     if not target_feature:
-        print(f"❌ Feature not found. (searched {len(source_data.get('features', []))} items)")
+        print(f"❌ Feature not found.")
         return
 
-    raw_geometry = target_feature.get('geometry')
-    raw_type = raw_geometry.get('type')
-    raw_coords = raw_geometry.get('coordinates')
-    
-    # Normalize to List of Polygons -> List[List[Ring]]
-    polygons = []
-    if raw_type == 'Polygon':
-        polygons = [raw_coords]
-    elif raw_type == 'MultiPolygon':
-        polygons = raw_coords
-    
-    print(f"   Found {len(polygons)} polygons. Starting optimization...")
-
-    # 3. Optimize
-    final_polygons = []
-    total_verts_before = 0
-    total_verts_after = 0
-    total_area = 0
-    kept_area = 0
-    
-    for poly in polygons:
-        outer_ring = poly[0]
-        area = calculate_ring_area(outer_ring)
-        total_area += area
-        total_verts_before += sum(len(r) for r in poly)
-
-        if area < min_area:
-            continue
+    # 3. Optimize with Shapely
+    try:
+        raw_geom = shape(target_feature['geometry'])
         
-        kept_area += area
-        
-        # Simplify Rings
-        simplified_poly = []
-        for ring in poly:
-            simple_ring = ramer_douglas_peucker(ring, tolerance)
+        # Valid / Cleaning
+        if not raw_geom.is_valid:
+            raw_geom = raw_geom.buffer(0)
             
-            # Ensure validity
-            if len(simple_ring) < 3: continue
-            if simple_ring[0] != simple_ring[-1]:
-                simple_ring.append(simple_ring[0])
-            
-            simplified_poly.append(simple_ring)
-            total_verts_after += len(simple_ring)
+        # Simplify (RDP)
+        optimized = raw_geom.simplify(tolerance, preserve_topology=True)
         
-        if simplified_poly:
-            final_polygons.append(simplified_poly)
+        # Buffer (Soften/Expand/Merge)
+        if buffer_deg != 0:
+            # Join style 1 (round), 2 (mitre). 
+            # Resolution determines smoothness of curves.
+            # Using simple heuristic: resolution=16 if smoothing desired.
+            resolution = 16 if round_iter > 0 else 4
+            join = 1 if round_iter > 0 else 2
+            
+            optimized = optimized.buffer(buffer_deg, resolution=resolution, join_style=join)
+            
+            # Re-simplify slightly to remove redundancy in curves if needed?
+            # optimized = optimized.simplify(tolerance/2)
 
-    percentage_area = (kept_area / total_area * 100) if total_area > 0 else 0
-    reduction = (1 - total_verts_after / total_verts_before * 100) if total_verts_before > 0 else 0
+        # Filter by Area (Remove small islands)
+        parts = []
+        if isinstance(optimized, MultiPolygon):
+            parts = list(optimized.geoms)
+        elif isinstance(optimized, Polygon):
+            parts = [optimized]
+        elif optimized.is_empty:
+             parts = []
+             
+        filtered_parts = [p for p in parts if p.area >= min_area]
+        
+        if not filtered_parts:
+            print(f"❌ Warning: Resulting geometry is empty (min_area filter too high?).")
+            return
 
-    print(f"3. Optimization Results:")
-    print(f"   - Polygons: {len(polygons)} -> {len(final_polygons)} (Filter: >{min_area} sq deg)")
-    print(f"   - Area Kept: {percentage_area:.1f}%")
-    print(f"   - Vertices: {total_verts_before} -> {total_verts_after} (Reduction: {reduction:.1f}%)")
+        final_shape = unary_union(filtered_parts) # Should already be unioned by buffer, but ensures validity
+        if isinstance(final_shape, Polygon):
+            final_shape = MultiPolygon([final_shape])
+
+        # Stats
+        total_verts_after = 0
+        if not final_shape.is_empty:
+             for p in final_shape.geoms:
+                  total_verts_after += len(p.exterior.coords)
+                  for interior in p.interiors:
+                       total_verts_after += len(interior.coords)
+        
+        # Convert to Coordinates List for AreaModel
+        # mapping() returns {'type': 'MultiPolygon', 'coordinates': (((x,y)...),)}
+        # We need the 'coordinates' list.
+        final_polygons = mapping(final_shape)['coordinates']
+        
+        print(f"3. Optimization Results:")
+        print(f"   - Polygons: {len(filtered_parts)}")
+        print(f"   - Vertices: {total_verts_after}")
+
+    except Exception as e:
+        print(f"❌ Geometry Error: {e}")
+        return
 
     # 4. Save
-    # Determine output path
     if output_file:
         output_path = Path(output_file)
     else:
@@ -205,7 +181,6 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
     
     print(f"4. Saving to {output_path}...")
 
-    # Load existing if available
     areas_data = {"areas": []}
     if output_path.exists():
         try:
@@ -216,10 +191,7 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
         except:
             pass
     
-    # Upsert Logic
     found = False
-    
-    # Validate with Pydantic Model
     try:
         area_model = AreaModel(
             area_id=area_id,
@@ -241,7 +213,6 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
     if not found:
         areas_data['areas'].append(new_entry)
 
-    # Ensure directory exists
     if output_path.parent != Path('.'):
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -250,50 +221,32 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
     
     print(f"✅ Data saved successfully.")
 
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Fetch and Optimize Area Boundary",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""Examples:
-        # 1. Country
-        python generate_area_data.py --dataset country --query_value JPN --area_id modern_japan --display_name "Modern Japan"
+    parser = argparse.ArgumentParser(description="Fetch and Optimize Area Bounds (Shapely Powered)")
+    parser.add_argument("--dataset", default="country", choices=["country", "state", "marine", "region", "custom"])
+    parser.add_argument("--query_key", default="ISO_A3")
+    parser.add_argument("--query_value")
+    parser.add_argument("--custom_url")
+    parser.add_argument("--area_id")
+    parser.add_argument("--display_name")
+    parser.add_argument("--output")
+    parser.add_argument("--simplify", type=float, default=0.05)
+    parser.add_argument("--filter_area", type=float, default=0.05)
+    parser.add_argument("--buffer", type=float, default=0.0)
+    parser.add_argument("--round", type=int, default=0)
 
-        # 2. State/Province (e.g. California)
-        python generate_area_data.py --dataset state --query_key name --query_value California --area_id ca_state --display_name "California"
-
-        # 3. Marine (e.g. Pacific Ocean)
-        python generate_area_data.py --dataset marine --query_key name --query_value "Pacific Ocean" --area_id pacific_ocean --display_name "Pacific Ocean"
-        """
-    )
-    
-    parser.add_argument("--dataset", default="country", choices=["country", "state", "marine", "region", "custom"], 
-                        help="Dataset source. See script header for details. (default: country)")
-    parser.add_argument("--query_key", default="ISO_A3", help="Property key to search (e.g. ISO_A3, name). Data specific.")
-    parser.add_argument("--query_value", help="Value to match (e.g. JPN, California).")
-    parser.add_argument("--custom_url", help="URL for custom GeoJSON (required if dataset=custom)")
-    
-    parser.add_argument("--area_id", help="Target Area ID (slug) for database.")
-    parser.add_argument("--display_name", help="Human-readable name.")
-    parser.add_argument("--output", help="Output JSON file path.")
-    parser.add_argument("--simplify", type=float, default=0.05, help="RDP Tolerance in degrees. (default: 0.05, lower=more detail)")
-    parser.add_argument("--filter_area", type=float, default=0.05, help="Min Area Threshold in sq degrees. (default: 0.05, lower=keep small islands)")
-    
     args = parser.parse_args()
 
     # Interactive Mode Fallbacks
-    d_set = args.dataset
     if not args.query_value:
          args.query_value = input(f"Enter Search Value (for {args.query_key}): ").strip()
-    
     if not args.area_id:
          args.area_id = input("Enter Target Area ID (slug): ").strip()
-    
     if not args.display_name:
          args.display_name = input("Enter Display Name: ").strip()
 
     fetch_and_optimize(
-        d_set, 
+        args.dataset, 
         args.query_key, 
         args.query_value, 
         args.area_id, 
@@ -301,5 +254,7 @@ if __name__ == "__main__":
         args.filter_area, 
         args.simplify, 
         args.output,
-        args.custom_url
+        args.custom_url,
+        args.buffer,
+        args.round
     )
