@@ -34,6 +34,7 @@ class LocationEntry(BaseModel):
     location_name: Optional[str] = None
     precision: Literal["spot", "area", "unknown"] = "unknown"
     certainty: Literal["definite", "approximate", "unknown"] = "unknown"
+    area_id: Optional[str] = None # Reference to an Area.area_id
 
 class EventSchema(BaseModel):
     ## Basic information
