@@ -1,34 +1,58 @@
 """
 Script: generate_area_data.py
 Description:
-    Downloads administrative boundaries from Natural Earth (10m resolution), minimizes detail
-    via area filtering and RDP simplification, and generates a JSON file compatible with the
-    Sail data pipeline.
+    Downloads vector boundaries from Natural Earth or custom sources, optimizes them for web display
+    (filtering small islands, simplifying geometry), and outputs a Sail-compatible JSON file.
 
-Parameters:
-    --country_code (str): ISO 3166-1 alpha-3 country code (e.g., 'JPN', 'USA', 'CHN').
-    --area_id (str): Unique identifier for the area (slug), used as the key in the database (e.g., 'modern_japan').
-    --display_name (str): Human-readable name for the area (e.g., 'Modern Japan').
-    --output (str): Optional path to output JSON file. Defaults to '[area_id].json' in the current directory.
-    --simplify (float): Tolerance for Ramer-Douglas-Peucker simplification (degrees). 
-                        Default 0.05 (~5km) is good for illustrative maps. 
-                        Lower values = more detail, higher = fewer points.
-    --filter_area (float): Minimum area threshold (approx sq degrees) to retain an island/polygon.
-                           Default 0.05 filters out small islands.
+Detailed Parameter Guide:
 
-Data Source:
-    Natural Earth 10m Admin 0 Countries:
-    https://github.com/martynafford/natural-earth-geojson
+    --dataset (default: 'country'):
+        * 'country': Modern Sovereign States (Admin 0).
+        * 'state': Provinces/States (Admin 1).
+        * 'marine': Oceans, Seas, Bays.
+        * 'region': Physical Continents/Regions.
+        * 'custom': fetch from any GeoJSON I/O URL.
+
+    --query_key (default: 'ISO_A3'):
+        The property in the GeoJSON Feature to match against.
+        * For 'country': 'ISO_A3' (e.g. JPN, USA), 'NAME' (e.g. Japan), 'ADM0_A3'.
+        * For 'state': 'name' (e.g. California), 'postal' (e.g. CA), 'adm1_code'.
+        * For 'marine': 'name' (e.g. Pacific Ocean).
+        * DATA DICTIONARY: https://www.naturalearthdata.com/features/
+
+    --query_value:
+        The value to search for. Case-insensitive string matching.
+        * e.g. 'JPN', 'California', 'Pacific Ocean', 'Asia'.
+
+    --simplify (default: 0.05):
+        The tolerance for the Ramer-Douglas-Peucker algorithm in degrees.
+        * 0.05 deg (~5.5km): Very rough, good for global views.
+        * 0.01 deg (~1.1km): Moderate detail.
+        * 0.001 deg (~110m): High detail (larger file size).
+
+    --filter_area (default: 0.05):
+        The minimum area (in square degrees) required to keep a polygon (island/enclave).
+        * 0.05 sq deg (~600 sq km): Removes small islands (e.g. Isle of Man, smaller Japanese islands).
+        * 0.001: Keeps almost everything.
+        * 1.0: Keeps only major landmasses.
+
+    --custom_url:
+        Required if --dataset=custom.
+        * Historical Maps: Search 'historical boundaries geojson' (e.g. github.com/aequilibrae/historic_boundaries).
+        * Micro Regions: Search 'stanford campus geojson' or use http://geojson.io to draw one.
 
 Usage Examples:
-    # 1. Generate Modern Japan data (default output: modern_japan.json)
-    python data-pipeline/scripts/generate_area_data.py --country_code JPN --area_id modern_japan --display_name "Modern Japan"
+    # 1. Country (Default)
+    python generate_area_data.py --dataset country --query_value JPN --area_id modern_japan --display_name "Modern Japan"
 
-    # 2. Generate China with custom output file
-    python data-pipeline/scripts/generate_area_data.py --country_code CHN --area_id china_proper --display_name "China" --output data-pipeline/china.json
+    # 2. State (California) - Higher detail (--simplify 0.01)
+    python generate_area_data.py --dataset state --query_key name --query_value California --area_id ca_state --display_name "California" --simplify 0.01
 
-    # 3. Interactive Mode (Just run without args)
-    python data-pipeline/scripts/generate_area_data.py
+    # 3. Ocean
+    python generate_area_data.py --dataset marine --query_key name --query_value "Pacific Ocean" --area_id pacific_ocean --display_name "Pacific Ocean"
+    
+    # 4. Custom (Historical)
+    python generate_area_data.py --dataset custom --custom_url "https://raw.githubusercontent.com/..." --area_id babylon --display_name "Babylon"
 """
 
 import json
@@ -58,70 +82,63 @@ def fetch_and_optimize(country_code, area_id, display_name, min_area, tolerance,
     # Re-implementing just the necessary parts to show where AreaModel is used.
     # Ideally I should not overwrite the whole function if possible, but for imports I need top level.
     # Wait, replace_file_content replaces a block.
-    # I will replace the top to add imports, and the bottom to use validation.
-    pass
-
-# ... (skipping to the end of the file for the actual replacement of the saving logic) ...
-
-
-# --- Geometry Utils ---
-
-def calculate_ring_area(coords):
-    area = 0.0
-    if len(coords) < 3: return 0.0
-    for i in range(len(coords)):
-        j = (i + 1) % len(coords)
-        area += coords[i][0] * coords[j][1]
-        area -= coords[j][0] * coords[i][1]
-    return abs(area) / 2.0
-
-def perpendicular_distance(point, start, end):
-    if start == end:
-        return math.hypot(point[0] - start[0], point[1] - start[1])
-    
-    numerator = abs((end[1] - start[1]) * point[0] - (end[0] - start[0]) * point[1] + end[0] * start[1] - end[1] * start[0])
-    denominator = math.hypot(end[1] - start[1], end[0] - start[0])
-    return numerator / denominator
-
-def ramer_douglas_peucker(points, epsilon):
-    dmax = 0.0
-    index = 0
-    end = len(points) - 1
-    for i in range(1, end):
-        d = perpendicular_distance(points[i], points[0], points[end])
-        if d > dmax:
-            index = i
-            dmax = d
-    
-    if dmax > epsilon:
-        rec_results1 = ramer_douglas_peucker(points[:index+1], epsilon)
-        rec_results2 = ramer_douglas_peucker(points[index:], epsilon)
-        return rec_results1[:-1] + rec_results2
-    else:
-        return [points[0], points[end]]
+    # I will replace the top to add imports, and the bottom to use# --- Configuration ---
+SOURCES = {
+    "country": "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/10m/cultural/ne_10m_admin_0_countries.json",
+    "state": "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/10m/cultural/ne_10m_admin_1_states_provinces.json",
+    "marine": "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/10m/physical/ne_10m_geography_marine_polys.json",
+    "region": "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/10m/physical/ne_10m_geography_regions_polys.json"
+}
 
 # --- Core Logic ---
 
-def fetch_and_optimize(country_code, area_id, display_name, min_area, tolerance, output_file=None):
-    print(f"1. Downloading Natural Earth 10m Data...")
+def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_name, min_area, tolerance, output_file=None, custom_url=None):
+    
+    # 1. Determine URL
+    if dataset_key == "custom":
+        if not custom_url:
+            print("❌ Error: --custom_url is required when dataset is 'custom'")
+            return
+        target_url = custom_url
+    else:
+        target_url = SOURCES.get(dataset_key)
+        if not target_url:
+             print(f"❌ Error: Unknown dataset '{dataset_key}'. Choices: {list(SOURCES.keys())}, custom")
+             return
+
+    print(f"1. Downloading Data from {dataset_key} ({target_url})....")
     try:
-        resp = requests.get(URL)
+        resp = requests.get(target_url)
         resp.raise_for_status()
-        world_data = resp.json()
+        source_data = resp.json()
     except Exception as e:
         print(f"❌ Failed to download: {e}")
         return
 
-    print(f"2. Searching for Country Code '{country_code}'...")
+    print(f"2. Searching for {query_key} = '{query_value}'...")
     target_feature = None
-    for feature in world_data.get('features', []):
+    
+    # Normalize query value for string comparison
+    q_val_str = str(query_value).lower().strip()
+    
+    for feature in source_data.get('features', []):
         props = feature.get('properties', {})
-        if props.get('ADM0_A3') == country_code or props.get('ISO_A3') == country_code:
+        # Check against the query key
+        # Handle flexible matching? For now, strict or loose string match.
+        prop_val = props.get(query_key)
+        
+        if prop_val is None:
+             pass 
+        elif str(prop_val).lower().strip() == q_val_str:
             target_feature = feature
             break
-    
+        # Fallback: check standard codes if using default query_key
+        elif query_key == "ISO_A3" and (props.get('ADM0_A3') == query_value or props.get('ISO_A3') == query_value):
+             target_feature = feature
+             break
+
     if not target_feature:
-        print(f"❌ Country '{country_code}' not found.")
+        print(f"❌ Feature not found. (searched {len(source_data.get('features', []))} items)")
         return
 
     raw_geometry = target_feature.get('geometry')
@@ -188,23 +205,14 @@ def fetch_and_optimize(country_code, area_id, display_name, min_area, tolerance,
     
     print(f"4. Saving to {output_path}...")
 
-    # Load existing if available to preserve other areas (only if file exists)
+    # Load existing if available
     areas_data = {"areas": []}
     if output_path.exists():
         try:
             with open(output_path, 'r') as f:
                 content = json.load(f)
-                # Check structure
                 if isinstance(content, dict) and "areas" in content:
                     areas_data = content
-                elif isinstance(content, dict) and "area_id" in content:
-                    # Single object file, wrap it if we are replacing it, or just keep format?
-                    # Strategy: Always normalize to {"areas": []} for populate_areas.py compatibility.
-                    # But if user expects single object file...
-                    # populate_areas.py expects {areas: [...]}.
-                    # If existing file is different, we might overwrite or error.
-                    # Safety: If existing file has 'areas', we append/update. Else we overwrite with new structure.
-                    pass
         except:
             pass
     
@@ -216,7 +224,7 @@ def fetch_and_optimize(country_code, area_id, display_name, min_area, tolerance,
         area_model = AreaModel(
             area_id=area_id,
             display_name=display_name,
-            description=f"Natural Earth 10m (Optimized). {total_verts_after} pts.",
+            description=f"Source: {dataset_key}. Optimized {total_verts_after} pts.",
             geometry=final_polygons
         )
         new_entry = area_model.model_dump()
@@ -247,20 +255,51 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Fetch and Optimize Area Boundary",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Example: python generate_area_data.py --country_code JPN --area_id modern_japan"
+        epilog="""Examples:
+        # 1. Country
+        python generate_area_data.py --dataset country --query_value JPN --area_id modern_japan --display_name "Modern Japan"
+
+        # 2. State/Province (e.g. California)
+        python generate_area_data.py --dataset state --query_key name --query_value California --area_id ca_state --display_name "California"
+
+        # 3. Marine (e.g. Pacific Ocean)
+        python generate_area_data.py --dataset marine --query_key name --query_value "Pacific Ocean" --area_id pacific_ocean --display_name "Pacific Ocean"
+        """
     )
-    parser.add_argument("--country_code", help="ISO A3 Country Code (e.g. JPN)")
-    parser.add_argument("--area_id", help="Target Area ID (e.g. modern_japan)")
-    parser.add_argument("--display_name", help="Display Name")
-    parser.add_argument("--output", help="Output JSON file path (default: [area_id].json)")
-    parser.add_argument("--simplify", type=float, default=0.05, help="Simplification Tolerance (default 0.05)")
-    parser.add_argument("--filter_area", type=float, default=0.05, help="Min Area Threshold (default 0.05)")
+    
+    parser.add_argument("--dataset", default="country", choices=["country", "state", "marine", "region", "custom"], 
+                        help="Dataset source. See script header for details. (default: country)")
+    parser.add_argument("--query_key", default="ISO_A3", help="Property key to search (e.g. ISO_A3, name). Data specific.")
+    parser.add_argument("--query_value", help="Value to match (e.g. JPN, California).")
+    parser.add_argument("--custom_url", help="URL for custom GeoJSON (required if dataset=custom)")
+    
+    parser.add_argument("--area_id", help="Target Area ID (slug) for database.")
+    parser.add_argument("--display_name", help="Human-readable name.")
+    parser.add_argument("--output", help="Output JSON file path.")
+    parser.add_argument("--simplify", type=float, default=0.05, help="RDP Tolerance in degrees. (default: 0.05, lower=more detail)")
+    parser.add_argument("--filter_area", type=float, default=0.05, help="Min Area Threshold in sq degrees. (default: 0.05, lower=keep small islands)")
     
     args = parser.parse_args()
 
-    # Interactive Mode
-    c_code = args.country_code or input("Enter Country Code (e.g. JPN): ").strip().upper()
-    a_id = args.area_id or input("Enter Target Area ID (e.g. modern_japan): ").strip()
-    d_name = args.display_name or input("Enter Display Name: ").strip()
+    # Interactive Mode Fallbacks
+    d_set = args.dataset
+    if not args.query_value:
+         args.query_value = input(f"Enter Search Value (for {args.query_key}): ").strip()
+    
+    if not args.area_id:
+         args.area_id = input("Enter Target Area ID (slug): ").strip()
+    
+    if not args.display_name:
+         args.display_name = input("Enter Display Name: ").strip()
 
-    fetch_and_optimize(c_code, a_id, d_name, args.filter_area, args.simplify, args.output)
+    fetch_and_optimize(
+        d_set, 
+        args.query_key, 
+        args.query_value, 
+        args.area_id, 
+        args.display_name, 
+        args.filter_area, 
+        args.simplify, 
+        args.output,
+        args.custom_url
+    )
