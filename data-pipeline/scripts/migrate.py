@@ -56,43 +56,62 @@ def run_migration_file_content(cur, sql_content):
     if sql_content.strip():
         cur.execute(sql_content)
 
-def transform_sql(sql: str, suffix: str) -> str:
+def scan_db_objects(migrations_dir):
+    """
+    Scans all SQL files in migrations_dir to discover table and function names.
+    Returns lists of tables and functions to be transformed.
+    """
+    tables = set()
+    functions = set()
+    
+    # Regex to capture identifiers
+    # Assumes standard formatting: "CREATE TABLE name" or "CREATE TABLE IF NOT EXISTS name"
+    re_table = re.compile(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)', re.IGNORECASE)
+    
+    # "CREATE [OR REPLACE] FUNCTION name"
+    re_func = re.compile(r'CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-zA-Z0-9_]+)', re.IGNORECASE)
+    
+    for sql_file in migrations_dir.glob('*.sql'):
+        try:
+            with open(sql_file, 'r') as f:
+                content = f.read()
+                
+            # Tables
+            for match in re_table.finditer(content):
+                name = match.group(1)
+                # Exclude system or migration tables if any (though unlikely to be created here)
+                tables.add(name)
+                
+            # Functions
+            for match in re_func.finditer(content):
+                functions.add(match.group(1))
+                
+        except Exception as e:
+            print(f"Warning: Failed to scan {sql_file.name}: {e}")
+            
+    return list(tables), list(functions)
+
+def transform_sql(sql: str, suffix: str, tables: list, functions: list) -> str:
     """
     Transforms SQL to target specific table versions (prod/dev).
-    
-    Logic:
-    If suffix is empty (Prod):
-        No changes needed.
-    
-    If suffix is present (e.g. '_dev'):
-        1. Append Suffix to KNOWN table names:
-           - events -> events_dev
-           - areas -> areas_dev
-           - historical_periods -> historical_periods_dev
-           - period_areas -> period_areas_dev
-        2. Append Suffix to KNOWN function names:
-           - get_events_in_view -> get_events_in_view_dev
-           - get_all_collections -> get_all_collections_dev
-           - get_active_periods -> get_active_periods_dev
+    Uses dynamically discovered tables and functions.
     """
     if not suffix:
         return sql
     
-    # List of Tables/Functions to Transform
-    # Order matters? Not heavily, but good to likely be specific
-    tables = ['events', 'areas', 'historical_periods', 'period_areas']
-    functions = ['get_events_in_view', 'get_all_collections', 'get_active_periods']
-
-    # Apply Transformations
-    
     # Transform Functions
     for func in functions:
-        # Regex: \bfunc_name\b -> func_name_suffix
+        # Avoid double-suffixing if the SQL already uses the suffixed name (e.g. in a fix script)
+        # Regex: \bfunc_name\b matches explicit word.
+        # But if we have func_name_dev, \bfunc_name\b MIGHT match the prefix?
+        # No. \b matches boundary between word and non-word. "_" is word char.
+        # So "my_func" in "my_func_dev" -> "my_func" is followed by "_", no boundary.
+        # So \bmy_func\b matches "my_func(" but NOT "my_func_dev(".
+        # SAFE.
         sql = re.sub(rf'\b{func}\b', f'{func}{suffix}', sql)
 
     # Transform Tables
     for table in tables:
-        # Regex: \btable_name\b -> table_name_suffix
         sql = re.sub(rf'\b{table}\b', f'{table}{suffix}', sql)
 
     return sql
@@ -131,6 +150,14 @@ def main():
         # Get all .sql files, sorted
         migration_files = sorted(migrations_dir.glob('*.sql'))
         
+        # [NEW] Auto-discover tables and functions from ALL migration files
+        custom_tables, custom_functions = scan_db_objects(migrations_dir)
+        # Add legacy hardcoding if needed? No, scanning should cover it if files exist.
+        # But for base tables created in initial migration, ensure they are found.
+        # Assuming 000000_create_tables.sql exists.
+        
+        print(f"Auto-discovered {len(custom_tables)} tables and {len(custom_functions)} functions to manage.")
+        
         new_migrations_count = 0
         
         for mf in migration_files:
@@ -141,7 +168,7 @@ def main():
                     with open(mf, 'r') as f:
                         raw_sql = f.read()
                     
-                    final_sql = transform_sql(raw_sql, suffix)
+                    final_sql = transform_sql(raw_sql, suffix, custom_tables, custom_functions)
                     
                     run_migration_file_content(cur, final_sql)
                     record_migration(cur, migration_table_name, version)
