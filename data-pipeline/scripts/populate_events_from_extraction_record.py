@@ -9,6 +9,34 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import ValidationError
 
+"""
+Script: bulk_import_supabase.py
+Description:
+    Reads a directory of JSON files (formatted as ExtractionRecord), validates them, 
+    and bulk inserts the events into a Supabase (PostgreSQL) database.
+    
+    It handles:
+    - Geo-spatial data conversion (Lat/Lng -> PostGIS Point)
+    - Astronomical Year calculation
+    - Deduplication (via upsert on source_id)
+    - JSONB serialization for complex fields
+
+Usage Examples:
+
+    1. Import to Development Table (events_dev)
+       python data-pipeline/scripts/bulk_import_supabase.py --input_dir data-pipeline/processed_events --table_name events_dev
+
+    2. Import to Production Table (events)
+       python data-pipeline/scripts/bulk_import_supabase.py --input_dir data-pipeline/processed_events --table_name events
+
+    3. Interactive Mode (Prompts for table name)
+       python data-pipeline/scripts/bulk_import_supabase.py --input_dir data-pipeline/processed_events
+
+Arguments:
+    --input_dir   : Path to folder containing .json files (required).
+    --table_name  : Target database table (e.g. 'events', 'events_dev'). Optional.
+"""
+
 # Adjust path to allow importing from src/shared
 current_file = Path(__file__).resolve()
 data_pipeline_root = current_file.parents[1]
