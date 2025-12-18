@@ -24,7 +24,7 @@ export const ChronosTimeSchema = z.object({
   second: z.number().optional(),
   millisecond: z.number().optional(),
   astro_year: z.number(), // Required for sorting
-  precision: z.enum(['year', 'month', 'day', 'hour', 'minute', 'second', 'millisecond', 'unknown']).default('year'),
+  precision: z.enum(['millennium', 'century', 'decade', 'year', 'month', 'day', 'hour', 'minute', 'second', 'millisecond', 'unknown']).default('year'),
 });
 
 export const ChronosLocationSchema = z.object({

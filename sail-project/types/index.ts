@@ -45,7 +45,7 @@ export interface ChronosTime {
 
   // Indicator of how granular this data is.
   // e.g. If 'day', we ignore hour/minute in UI display.
-  precision: 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond' | 'unknown';
+  precision: 'millennium' | 'century' | 'decade' | 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'millisecond' | 'unknown';
 }
 
 // --- Spatial System (Anchor + Geometry) ---
