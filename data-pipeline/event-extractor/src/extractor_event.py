@@ -68,14 +68,40 @@ Each event must adhere to the following structure (JSON Schema):
 3. If year is not mentioned, you may try to infer from context if unambiguous, otherwise omit the event or time.
 4. 'title' and 'summary' are MANDATORY.
 5. Output valid JSON only. No markdown formatting.
+6. **Time Format**: For years in BCE/BC, use NEGATIVE integers (e.g. 1700 BCE -> -1700). For AD/CE, use positive integers.
 """
 
-def extract_events(clean_text: str, model_name: str, timeout: int, collection: str = None) -> List[EventSchema]:
+def extract_events(clean_text: str, model_name: str, timeout: int, collection: str = None, chunk_size: int = 60000) -> List[EventSchema]:
     """
     Extracts events from clean text using a local LLM.
+    Supports chunking for large texts.
     Returns a list of EventSchema objects.
     """
-    logger.info(f"Extracting events from text (length: {len(clean_text)}) using model {model_name}...")
+    if not clean_text:
+        return []
+
+    # Simple chunking
+    chunks = [clean_text[i:i+chunk_size] for i in range(0, len(clean_text), chunk_size)]
+    
+    if len(chunks) > 1:
+        logger.info(f"Text too long ({len(clean_text)} chars). Split into {len(chunks)} chunks of max {chunk_size} chars.")
+    
+    all_events = []
+    
+    for i, chunk in enumerate(chunks):
+        if len(chunks) > 1:
+            logger.info(f"Processing Chunk {i+1}/{len(chunks)} ({len(chunk)} chars)...")
+            
+        events = _process_chunk(chunk, model_name, timeout, collection)
+        all_events.extend(events)
+        
+    return all_events
+
+def _process_chunk(text_chunk: str, model_name: str, timeout: int, collection: str = None) -> List[EventSchema]:
+    """
+    Internal function to process a single text chunk.
+    """
+    logger.info(f"Extracting events from text chunk (length: {len(text_chunk)}) using model {model_name}...")
     
     try:
         client = ollama.Client(host=OLLAMA_HOST, timeout=timeout)
@@ -83,7 +109,7 @@ def extract_events(clean_text: str, model_name: str, timeout: int, collection: s
             model=model_name,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Extract events from the following text:\n\n{clean_text}"}
+                {"role": "user", "content": f"Extract events from the following text:\n\n{text_chunk}"}
             ],
             format='json',
             options={'temperature': 0.1},
@@ -118,28 +144,35 @@ def extract_events(clean_text: str, model_name: str, timeout: int, collection: s
                 # If LLM didn't provide lat/lon, we inject 0.0 to satisfy schema, 
                 # knowing Enrichment will fix it.
                 # Sanitize location fields
-                if "location" in event_dict:
-                    loc = event_dict["location"]
-                    # Convert empty strings to None for Pydantic validation
-                    if loc.get("latitude") == "": loc["latitude"] = None
-                    if loc.get("longitude") == "": loc["longitude"] = None
-                    
-                    # Ensure keys exist
-                    if "latitude" not in loc: loc["latitude"] = None
-                    if "longitude" not in loc: loc["longitude"] = None
+                # [FIXED] Robust handling for 'location'
+                raw_loc = event_dict.get("location")
+                if isinstance(raw_loc, dict):
+                    # Sanitize fields
+                    if raw_loc.get("latitude") == "": raw_loc["latitude"] = None
+                    if raw_loc.get("longitude") == "": raw_loc["longitude"] = None
+                    if "latitude" not in raw_loc: raw_loc["latitude"] = None
+                    if "longitude" not in raw_loc: raw_loc["longitude"] = None
+                    event_dict["location"] = raw_loc
                 else:
-                    # Create default empty location
+                    # If missing or not a dict (e.g. string "Unknown"), replace with default
                     event_dict["location"] = {
                         "latitude": None,
                         "longitude": None,
-                        "location_name": "Unknown",
+                        "location_name": str(raw_loc) if raw_loc else "Unknown",
                         "certainty": "approximate"
                     }
-                
-                # Sanitize start_time year if it's an empty string
-                if "start_time" in event_dict and isinstance(event_dict["start_time"], dict):
-                     if event_dict["start_time"].get("year") == "":
-                         event_dict["start_time"]["year"] = None
+
+                # [FIXED] Robust handling for 'start_time'
+                raw_start = event_dict.get("start_time")
+                if isinstance(raw_start, dict):
+                    if raw_start.get("year") == "":
+                         raw_start["year"] = None
+                    event_dict["start_time"] = raw_start
+                else:
+                    # If missing or not a dict, inject default empty dict
+                    # enrichment layer will have to deal with it or validation will fail on required subfields if any
+                    event_dict["start_time"] = {"year": None, "precision": "unknown"}
+
 
                 event = EventSchema(**event_dict)
                 

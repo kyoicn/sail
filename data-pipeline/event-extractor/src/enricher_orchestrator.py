@@ -106,6 +106,9 @@ You must strictly adhere to the allowed values below. **Any value outside these 
    - ALLOWED VALUES: "millennium", "century", "decade", "year", "month", "day", "hour", "minute", "second", "millisecond", "unknown"
    - *Note: Do NOT use "definite" or "exact" here.*
 
+**2. Time Format**
+   - For years in BCE/BC, use NEGATIVE integers (e.g. 1700 BCE -> -1700). For AD/CE, use positive integers.
+
 ### INSTRUCTIONS:
 1. **Analyze:** Check `start_time` and `end_time`. Are fields like month/day/year missing?
 2. **Enrich:** Use your internal knowledge to fill gaps. Use 'search_web' if needed.
