@@ -11,7 +11,7 @@ from datetime import datetime
 load_dotenv()
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
-EXTRACT_EVENTS_TIMEOUT = 120
+EXTRACT_EVENTS_TIMEOUT = 600
 ENRICH_TIMEOUT = 60
 
 # Adjust path
