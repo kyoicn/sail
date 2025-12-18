@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 from pydantic import ValidationError
 
 """
-Script: bulk_import_supabase.py
+Script: populate_events_from_extraction_record.py
 Description:
-    Reads a directory of JSON files (formatted as ExtractionRecord), validates them, 
+    Reads a JSON file or a directory of JSON files (formatted as ExtractionRecord), validates them, 
     and bulk inserts the events into a Supabase (PostgreSQL) database.
     
     It handles:
@@ -23,18 +23,17 @@ Description:
 
 Usage Examples:
 
-    1. Import to Development Table (events_dev)
-       python data-pipeline/scripts/bulk_import_supabase.py --input_dir data-pipeline/processed_events --table_name events_dev
+    1. Import Folder to Development Table (events_dev)
+       python data-pipeline/scripts/populate_events_from_extraction_record.py --input data-pipeline/processed_events --instance dev
 
-    2. Import to Production Table (events)
-       python data-pipeline/scripts/bulk_import_supabase.py --input_dir data-pipeline/processed_events --table_name events
-
-    3. Interactive Mode (Prompts for table name)
-       python data-pipeline/scripts/bulk_import_supabase.py --input_dir data-pipeline/processed_events
+    2. Import Single File to Production Table (events)
+       python data-pipeline/scripts/populate_events_from_extraction_record.py --input data-pipeline/processed_events/my_file.json --instance prod
 
 Arguments:
-    --input_dir   : Path to folder containing .json files (required).
-    --table_name  : Target database table (e.g. 'events', 'events_dev'). Optional.
+    --input      : Path to input file or directory containing .json files (required).
+    --instance   : Target database instance. Choices: 'dev' (default), 'prod'.
+                   'dev' -> targets 'events_dev' table.
+                   'prod' -> targets 'events' table.
 """
 
 # Adjust path to allow importing from src/shared
@@ -73,25 +72,34 @@ def get_connection():
 
 def main():
     parser = argparse.ArgumentParser(description="Bulk Import Events to Database (via psycopg2)")
-    parser.add_argument("--input_dir", help="Directory containing ExtractionRecord JSON files", required=True)
-    parser.add_argument("--table_name", help="Target table name", default=None)
+    parser.add_argument("--input", help="Path to input file or directory containing ExtractionRecord JSON files", required=True)
+    parser.add_argument("--instance", choices=['dev', 'prod'], default='dev', help="Target database instance (dev -> events_dev, prod -> events)")
     args = parser.parse_args()
 
-    input_dir = Path(args.input_dir)
-    if not input_dir.exists() or not input_dir.is_dir():
-        logger.error(f"Input directory does not exist: {input_dir}")
+    input_path = Path(args.input)
+    if not input_path.exists():
+        logger.error(f"Input path does not exist: {input_path}")
         sys.exit(1)
 
     # Determine target table
-    table_name = args.table_name
-    if not table_name:
-        try:
-            table_name = input("Enter target table name: ").strip()
-        except EOFError:
-            pass 
-
-    files = list(input_dir.glob("*.json"))
-    logger.info(f"Found {len(files)} JSON files in {input_dir}")
+    table_name = "events_dev" if args.instance == "dev" else "events"
+    
+    files = []
+    if input_path.is_file():
+        if input_path.suffix == '.json':
+            files.append(input_path)
+        else:
+            logger.error(f"Input file {input_path} is not a JSON file.")
+            sys.exit(1)
+    elif input_path.is_dir():
+        files = list(input_path.glob("*.json"))
+    
+    if not files:
+        logger.error(f"No JSON files found in {input_path}")
+        sys.exit(1)
+        
+    logger.info(f"Targeting Table: {table_name}")
+    logger.info(f"Found {len(files)} JSON files to process.")
 
     all_payloads_data = [] # List of tuples/dicts ready for SQL
     total_events = 0
