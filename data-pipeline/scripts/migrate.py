@@ -66,10 +66,10 @@ def scan_db_objects(migrations_dir):
     
     # Regex to capture identifiers
     # Assumes standard formatting: "CREATE TABLE name" or "CREATE TABLE IF NOT EXISTS name"
-    re_table = re.compile(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)', re.IGNORECASE)
+    re_table = re.compile(r'^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)', re.IGNORECASE | re.MULTILINE)
     
     # "CREATE [OR REPLACE] FUNCTION name"
-    re_func = re.compile(r'CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-zA-Z0-9_]+)', re.IGNORECASE)
+    re_func = re.compile(r'^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-zA-Z0-9_]+)', re.IGNORECASE | re.MULTILINE)
     
     for sql_file in migrations_dir.glob('*.sql'):
         try:
@@ -118,12 +118,12 @@ def transform_sql(sql: str, suffix: str, tables: list, functions: list) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Run DB migrations.")
-    parser.add_argument("--instance", choices=['prod', 'dev'], help="Instance to migrate: prod or dev")
+    parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Instance to migrate: prod, dev, or staging")
     args = parser.parse_args()
     
     instance = args.instance
     if not instance:
-        instance = input("Please enter the target instance (prod or dev): ")
+        instance = input("Please enter the target instance (prod, dev, or staging): ")
     print(f"Targeting instance: {instance}")
 
     # Determine suffix
@@ -157,6 +157,7 @@ def main():
         # Assuming 000000_create_tables.sql exists.
         
         print(f"Auto-discovered {len(custom_tables)} tables and {len(custom_functions)} functions to manage.")
+
         
         new_migrations_count = 0
         
