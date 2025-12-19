@@ -15,9 +15,14 @@ export default function Home() {
             <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">Database</span>
           </div>
           <p className="text-gray-500 mb-6">Manage historical events, timelines, and importance rankings.</p>
-          <button className="w-full bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 transition-colors">
-            Manage Events
-          </button>
+          <div className="space-y-2">
+            <Link href="/areas" className="block w-full text-center bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 transition-colors">
+              Manage Areas
+            </Link>
+            <button className="w-full bg-white text-blue-600 border border-blue-600 px-4 py-2 rounded font-medium hover:bg-blue-50 transition-colors">
+              Manage Events
+            </button>
+          </div>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
