@@ -24,6 +24,21 @@ Detailed Parameter Guide:
             - region: name, region
         * For LLM datasets: The prompt description (e.g., "Qing Dynasty in 1820").
 
+    --query_file:
+        Path to a JSON file containing a list of queries for batch processing.
+        Schema: { "queries": [ { "query": "...", "area_id": "...", "display_name": "...", "description": "..." } ] }
+        Useful for bulk generating historical borders via LLMs.
+        NOTE: If provided, this takes precedence over --query, --area_id, --display_name, and --description. These arguments will be ignored.
+
+    --area_id:
+        Unique identifier for the area (e.g., 'usa', 'qing_1820').
+
+    --description:
+        A text description of the area's historical or geographical context.
+
+    --display_name:
+        The human-readable name shown in the application UI.
+
     --simplify (default: 0.05):
         RDP Tolerance in degrees. Higher = rougher.
 
@@ -46,9 +61,16 @@ Detailed Parameter Guide:
         API Key for Gemini (defaults to GOOGLE_API_KEY env var).
 
 Usage Examples:
+    # 1. Standard download from Natural Earth
     python generate_area_data.py --query "ISO_A3:JPN" --buffer 0.5 --filter_area 0.5
-    python generate_area_data.py --dataset local_ollama --query "Qing Dynasty (1820)"
-    python generate_area_data.py --dataset gemini_api --query "Roman Empire at its height"
+
+    # 2. Single LLM Generation (Interactive)
+    python generate_area_data.py --dataset gemini_api --query "Roman Empire at its height" --area_id roman_empire
+
+    # 3. Batch LLM Generation (Sophisticated)
+    #    Generates multiple historical dynasties from a file, using Gemini to hallucinate boundaries,
+    #    then heavily optimizes geometry (simplify 0.1) and merges small islands (buffer 0.5) to create clean, smooth regions.
+    python generate_area_data.py --dataset gemini_api --query_file dynasty_queries.json --simplify 0.1 --buffer 0.5 --round 2
 """
 
 import os
@@ -398,13 +420,8 @@ def fetch_and_optimize(dataset_key, query_string, area_id, display_name, min_are
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch and Optimize Area Bounds (Shapely Powered)")
     parser.add_argument("--dataset", default="country", choices=["country", "state", "marine", "region", "custom", "local_ollama", "gemini_api"])
-    
     parser.add_argument("--query", help="Query string. For standard datasets: 'KEY:VALUE' (e.g. ISO_A3:USA). For LLM: The prompt.")
-    
-    # Deprecated args support (optional, but clean replacement preferred as per request)
-    # parser.add_argument("--query_key", default="ISO_A3", help="DEPRECATED: Use --query KEY:VALUE instead")
-    # parser.add_argument("--query_value", help="DEPRECATED: Use --query KEY:VALUE instead")
-
+    parser.add_argument("--query_file", help="Path to a JSON file containing a list of queries (AreaGenerationQuery schema).")
     parser.add_argument("--custom_url")
     parser.add_argument("--area_id")
     parser.add_argument("--display_name")
@@ -420,28 +437,69 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Interactive Mode Fallbacks
-    if not args.query:
-         prompt_label = "Enter Query (or Prompt)" 
-         args.query = input(f"{prompt_label}: ").strip()
-         
-    if not args.area_id:
-         args.area_id = input("Enter Target Area ID (slug): ").strip()
-    if not args.display_name:
-         args.display_name = input("Enter Display Name: ").strip()
+    # BATCH MODE
+    if args.query_file:
+         print(f"📂 Batch Mode: Loading queries from {args.query_file}...")
+         try:
+             with open(args.query_file, 'r') as f:
+                 data = json.load(f)
+                 
+             queries = data.get('queries', [])
+             print(f"Found {len(queries)} queries.")
+             
+             for item in queries:
+                 print(f"\n--- Processing: {item.get('display_name')} ({item.get('area_id')}) ---")
+                 # Validate using Pydantic Model if possible, or just raw dict access
+                 # from shared.models import AreaGenerationQuery
+                 # q = AreaGenerationQuery(**item)
+                 
+                 fetch_and_optimize(
+                    dataset_key=args.dataset, # Use global dataset provider for all
+                    query_string=item.get('query'),
+                    area_id=item.get('area_id'),
+                    display_name=item.get('display_name'),
+                    description=item.get('description'),
+                    
+                    # Pass through CLI options for geometry tuning
+                    min_area=args.filter_area,
+                    tolerance=args.simplify,
+                    buffer_deg=args.buffer,
+                    round_iter=args.round,
+                    
+                    output_file=args.output,
+                    custom_url=args.custom_url,
+                    llm_model=args.model,
+                    api_key=args.api_key
+                 )
+                 
+         except Exception as e:
+             print(f"❌ Batch Error: {e}")
+             sys.exit(1)
+             
+    # SINGLE QUERY MODE
+    else:
+        # Interactive Mode Fallbacks
+        if not args.query:
+            prompt_label = "Enter Query (or Prompt)" 
+            args.query = input(f"{prompt_label}: ").strip()
+            
+        if not args.area_id:
+            args.area_id = input("Enter Target Area ID (slug): ").strip()
+        if not args.display_name:
+            args.display_name = input("Enter Display Name: ").strip()
 
-    fetch_and_optimize(
-        args.dataset, 
-        args.query, 
-        args.area_id, 
-        args.display_name, 
-        args.filter_area, 
-        args.simplify, 
-        args.output,
-        args.custom_url,
-        args.buffer,
-        args.round,
-        args.description,
-        llm_model=args.model,
-        api_key=args.api_key
-    )
+        fetch_and_optimize(
+            args.dataset, 
+            args.query, 
+            args.area_id, 
+            args.display_name, 
+            args.filter_area, 
+            args.simplify, 
+            args.output,
+            args.custom_url,
+            args.buffer,
+            args.round,
+            args.description,
+            llm_model=args.model,
+            api_key=args.api_key
+        )
