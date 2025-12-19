@@ -14,13 +14,15 @@ Detailed Parameter Guide:
         * 'local_ollama': Generate via local Ollama instance.
         * 'gemini_api': Generate via Google Gemini API.
 
-    --query_key (default: 'ISO_A3'):
-        * For 'country': 'ISO_A3' (e.g. JPN, USA), 'NAME'.
-        * For 'state': 'name' (e.g. California).
-        * For 'marine': 'name'.
-    
-    --query_value:
-        The value to search for, or the Prompt for LLM. Case-insensitive.
+    --query:
+        * For Non-LLM datasets: "KEY:VALUE" (e.g., "ISO_A3:USA", "name:California").
+          Default key is 'ISO_A3' if separator ':' is missing.
+          Supported Keys (Natural Earth):
+            - country: ISO_A3, NAME, ADM0_A3, SOVEREIGNT
+            - state: name, postal, adm0_a3
+            - marine: name, scalerank
+            - region: name, region
+        * For LLM datasets: The prompt description (e.g., "Qing Dynasty in 1820").
 
     --simplify (default: 0.05):
         RDP Tolerance in degrees. Higher = rougher.
@@ -44,9 +46,9 @@ Detailed Parameter Guide:
         API Key for Gemini (defaults to GOOGLE_API_KEY env var).
 
 Usage Examples:
-    python generate_area_data.py --query_value JPN --buffer 0.5 --filter_area 0.5
-    python generate_area_data.py --dataset local_ollama --query_value "Qing Dynasty (1820)"
-    python generate_area_data.py --dataset gemini_api --query_value "Roman Empire at its height"
+    python generate_area_data.py --query "ISO_A3:JPN" --buffer 0.5 --filter_area 0.5
+    python generate_area_data.py --dataset local_ollama --query "Qing Dynasty (1820)"
+    python generate_area_data.py --dataset gemini_api --query "Roman Empire at its height"
 """
 
 import os
@@ -101,7 +103,7 @@ Your task is to generate a valid GeoJSON FeatureCollection containing a single P
 ### INSTRUCTIONS:
 1. Interpret the query to determine the historical entity and time period (if implied).
 2. Generate a **simplified** Polygon representing the area.
-3. The polygon should have between 20 and 100 vertices to ensure decent resolution without hitting token limits.
+3. The polygon should have 100 or more vertices to ensure decent resolution without hitting token limits.
 4. Use WGS84 coordinates (longitude, latitude).
 5. Ensure the polygon is closed (first and last coordinate are identical).
 6. RETURN ONLY VALID JSON. Do not include markdown code blocks if possible, or ensure they are easily parsable.
@@ -191,7 +193,7 @@ def generate_with_llm(query, provider, model, api_key=None):
         # print(f"Raw Content: {content[:500]}...") 
         return None
 
-def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_name, min_area, tolerance, 
+def fetch_and_optimize(dataset_key, query_string, area_id, display_name, min_area, tolerance, 
                        output_file=None, custom_url=None, buffer_deg=0.0, round_iter=0, description=None,
                        llm_model=None, api_key=None):
     
@@ -205,7 +207,8 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
         if not llm_model:
             llm_model = 'llama3' if provider == 'ollama' else 'gemini-3-flash-preview'
             
-        source_data = generate_with_llm(query_value, provider, llm_model, api_key)
+        # Treat the entire query string as the prompt/query
+        source_data = generate_with_llm(query_string, provider, llm_model, api_key)
         
         if not source_data:
             return
@@ -249,6 +252,13 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
     # 2. Extract Feature (if not already found by LLM)
     # If LLM, we already extracted target_feature above to validate structure.
     if not use_llm:
+        # Parse Query String (KEY:VALUE)
+        if ":" in query_string:
+            query_key, query_value = query_string.split(":", 1)
+        else:
+            query_key = "ISO_A3" # Default key
+            query_value = query_string
+            
         print(f"2. Searching for {query_key} = '{query_value}'...")
         target_feature = None
         q_val_str = str(query_value).lower().strip()
@@ -388,8 +398,13 @@ def fetch_and_optimize(dataset_key, query_key, query_value, area_id, display_nam
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch and Optimize Area Bounds (Shapely Powered)")
     parser.add_argument("--dataset", default="country", choices=["country", "state", "marine", "region", "custom", "local_ollama", "gemini_api"])
-    parser.add_argument("--query_key", default="ISO_A3")
-    parser.add_argument("--query_value")
+    
+    parser.add_argument("--query", help="Query string. For standard datasets: 'KEY:VALUE' (e.g. ISO_A3:USA). For LLM: The prompt.")
+    
+    # Deprecated args support (optional, but clean replacement preferred as per request)
+    # parser.add_argument("--query_key", default="ISO_A3", help="DEPRECATED: Use --query KEY:VALUE instead")
+    # parser.add_argument("--query_value", help="DEPRECATED: Use --query KEY:VALUE instead")
+
     parser.add_argument("--custom_url")
     parser.add_argument("--area_id")
     parser.add_argument("--display_name")
@@ -406,9 +421,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Interactive Mode Fallbacks
-    if not args.query_value:
-         prompt_label = "Enter Area Name/Query" if args.dataset in ['local_ollama', 'gemini_api'] else f"Enter Search Value (for {args.query_key})"
-         args.query_value = input(f"{prompt_label}: ").strip()
+    if not args.query:
+         prompt_label = "Enter Query (or Prompt)" 
+         args.query = input(f"{prompt_label}: ").strip()
+         
     if not args.area_id:
          args.area_id = input("Enter Target Area ID (slug): ").strip()
     if not args.display_name:
@@ -416,8 +432,7 @@ if __name__ == "__main__":
 
     fetch_and_optimize(
         args.dataset, 
-        args.query_key, 
-        args.query_value, 
+        args.query, 
         args.area_id, 
         args.display_name, 
         args.filter_area, 
