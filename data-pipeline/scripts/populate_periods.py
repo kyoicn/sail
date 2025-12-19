@@ -34,7 +34,13 @@ def populate_periods(data: PeriodsData, instance: str):
     cur = conn.cursor()
 
     # Determine table names
-    suffix = f"_{instance}" if instance == 'dev' else ""
+    if instance == 'dev':
+        suffix = "_dev"
+    elif instance == 'staging':
+        suffix = "_staging"
+    else:
+        suffix = ""
+
     table_areas = f"areas{suffix}"
     table_periods = f"historical_periods{suffix}"
     table_period_areas = f"period_areas{suffix}"
@@ -92,7 +98,7 @@ def populate_periods(data: PeriodsData, instance: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Populate Historical Periods Data")
-    parser.add_argument("--instance", choices=['prod', 'dev'], help="Target instance (prod or dev)")
+    parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Target instance (prod, dev, staging)")
     parser.add_argument("--file", help="Path to JSON file containing periods")
     args = parser.parse_args()
 
@@ -100,11 +106,11 @@ def main():
     instance = args.instance
     if not instance:
         while True:
-            val = input("Target instance (prod/dev): ").strip().lower()
-            if val in ['prod', 'dev']:
+            val = input("Target instance (prod/dev/staging): ").strip().lower()
+            if val in ['prod', 'dev', 'staging']:
                 instance = val
                 break
-            print("Invalid instance. Please choose 'prod' or 'dev'.")
+            print("Invalid instance. Please choose 'prod', 'dev' or 'staging'.")
 
     file_path = args.file
     if not file_path:

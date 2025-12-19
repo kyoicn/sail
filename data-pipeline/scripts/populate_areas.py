@@ -92,7 +92,7 @@ def populate_areas(data: AreasData, instance: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Populate Areas Data")
-    parser.add_argument("--instance", choices=['prod', 'dev'], help="Target instance (prod or dev)")
+    parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Target instance (prod, dev, staging)")
     
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--file", help="Path to JSON file containing areas")
@@ -104,11 +104,11 @@ def main():
     instance = args.instance
     if not instance:
         while True:
-            val = input("Target instance (prod/dev): ").strip().lower()
-            if val in ['prod', 'dev']:
+            val = input("Target instance (prod/dev/staging): ").strip().lower()
+            if val in ['prod', 'dev', 'staging']:
                 instance = val
                 break
-            print("Invalid instance. Please choose 'prod' or 'dev'.")
+            print("Invalid instance. Please choose 'prod', 'dev' or 'staging'.")
 
     # Collect input files
     json_files = []

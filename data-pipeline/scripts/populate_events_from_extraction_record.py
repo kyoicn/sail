@@ -73,7 +73,7 @@ def get_connection():
 def main():
     parser = argparse.ArgumentParser(description="Bulk Import Events to Database (via psycopg2)")
     parser.add_argument("--input", help="Path to input file or directory containing ExtractionRecord JSON files", required=True)
-    parser.add_argument("--instance", choices=['dev', 'prod'], default='dev', help="Target database instance (dev -> events_dev, prod -> events)")
+    parser.add_argument("--instance", choices=['dev', 'staging', 'prod'], default='dev', help="Target database instance (dev -> events_dev, staging -> events_staging, prod -> events)")
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -82,7 +82,12 @@ def main():
         sys.exit(1)
 
     # Determine target table
-    table_name = "events_dev" if args.instance == "dev" else "events"
+    if args.instance == "dev":
+        table_name = "events_dev"
+    elif args.instance == "staging":
+        table_name = "events_staging"
+    else:
+        table_name = "events"
     
     files = []
     if input_path.is_file():

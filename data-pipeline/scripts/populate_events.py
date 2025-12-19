@@ -73,7 +73,7 @@ def get_connection():
 
 def main():
     parser = argparse.ArgumentParser(description="Populate Events Data")
-    parser.add_argument("--instance", choices=['prod', 'dev'], help="Target instance (prod or dev)")
+    parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Target instance (prod, dev, staging)")
     
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--file", help="Path to JSON file containing list of events")
@@ -85,14 +85,19 @@ def main():
     instance = args.instance
     if not instance:
         while True:
-            val = input("Target instance (prod/dev): ").strip().lower()
-            if val in ['prod', 'dev']:
+            val = input("Target instance (prod/dev/staging): ").strip().lower()
+            if val in ['prod', 'dev', 'staging']:
                 instance = val
                 break
-            print("Invalid instance. Please choose 'prod' or 'dev'.")
+            print("Invalid instance. Please choose 'prod', 'dev' or 'staging'.")
 
     # Determine Target Table
-    table_name = "events_dev" if instance == 'dev' else "events"
+    if instance == 'dev':
+        table_name = "events_dev"
+    elif instance == 'staging':
+        table_name = "events_staging"
+    else:
+        table_name = "events"
     
     # Collect Input Files
     json_files = []
