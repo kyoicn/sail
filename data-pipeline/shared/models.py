@@ -114,5 +114,6 @@ class HistoricalPeriodModel(BaseModel):
     start_astro_year: float
     end_astro_year: float
     # List of Area slugs this period is associated with.
-    area_ids: List[str]
+    primary_area_ids: List[str]
+    associated_area_ids: List[str] = []
     importance: float = 1.0

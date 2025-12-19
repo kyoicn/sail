@@ -73,17 +73,36 @@ def populate_periods(data: PeriodsData, instance: str):
             # Handle Junctions
             cur.execute(f"DELETE FROM {table_period_areas} WHERE period_id = %s", (period_db_id,))
             
-            for area_slug in period.area_ids:
+            # Insert Primary Areas
+            for area_slug in period.primary_area_ids:
                 cur.execute(f"SELECT id FROM {table_areas} WHERE area_id = %s", (area_slug,))
                 res = cur.fetchone()
                 if res:
                     area_db_id = res[0]
                     cur.execute(f"""
-                        INSERT INTO {table_period_areas} (period_id, area_id)
-                        VALUES (%s, %s)
+                        INSERT INTO {table_period_areas} (period_id, area_id, role)
+                        VALUES (%s, %s, 'primary')
+                        ON CONFLICT (period_id, area_id) DO UPDATE SET role = 'primary'
                     """, (period_db_id, area_db_id))
                 else:
-                    print(f"  [Error] Area slug '{area_slug}' not found for period '{period.period_id}'")
+                    print(f"  [Error] Primary Area '{area_slug}' not found for period '{period.period_id}'")
+
+            # Insert Associated Areas
+            for area_slug in period.associated_area_ids:
+                if area_slug in period.primary_area_ids:
+                    continue # specific area is already primary
+
+                cur.execute(f"SELECT id FROM {table_areas} WHERE area_id = %s", (area_slug,))
+                res = cur.fetchone()
+                if res:
+                    area_db_id = res[0]
+                    cur.execute(f"""
+                        INSERT INTO {table_period_areas} (period_id, area_id, role)
+                        VALUES (%s, %s, 'associated')
+                        ON CONFLICT (period_id, area_id) DO UPDATE SET role = 'associated'
+                    """, (period_db_id, area_db_id))
+                else:
+                    print(f"  [Error] Associated Area '{area_slug}' not found for period '{period.period_id}'")
 
         conn.commit()
         print("✅ Periods population complete.")
