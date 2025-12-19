@@ -1,0 +1,7 @@
+{
+  "name": "sail-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "name": "sail-project",
+  "name": "@sail/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
