@@ -65,27 +65,17 @@ def scan_db_objects(migrations_dir):
     functions = set()
     
     # Regex to capture identifiers
-    # Assumes standard formatting: "CREATE TABLE name" or "CREATE TABLE IF NOT EXISTS name"
     re_table = re.compile(r'^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)', re.IGNORECASE | re.MULTILINE)
-    
-    # "CREATE [OR REPLACE] FUNCTION name"
     re_func = re.compile(r'^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-zA-Z0-9_]+)', re.IGNORECASE | re.MULTILINE)
     
     for sql_file in migrations_dir.glob('*.sql'):
         try:
             with open(sql_file, 'r') as f:
                 content = f.read()
-                
-            # Tables
             for match in re_table.finditer(content):
-                name = match.group(1)
-                # Exclude system or migration tables if any (though unlikely to be created here)
-                tables.add(name)
-                
-            # Functions
+                tables.add(match.group(1))
             for match in re_func.finditer(content):
                 functions.add(match.group(1))
-                
         except Exception as e:
             print(f"Warning: Failed to scan {sql_file.name}: {e}")
             
@@ -99,29 +89,13 @@ def transform_sql(sql: str, suffix: str, tables: list, functions: list) -> str:
     if not suffix:
         return sql
     
-    
-    # regexes for other objects to rename
-    # 1. Indexes: "CREATE INDEX [IF NOT EXISTS] name ON table"
-    #    or "CREATE INDEX name ON table"
-    #    Capture 'name'
     re_index_def = re.compile(r'CREATE\s+INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)\s+ON', re.IGNORECASE)
-    
-    # 2. Constraints (Inline or Alter): "CONSTRAINT name"
     re_constraint = re.compile(r'CONSTRAINT\s+([a-zA-Z0-9_]+)', re.IGNORECASE)
-    
-    # 3. Sequences (often implicitly named, but if explicit): "CREATE SEQUENCE name"
     re_seq = re.compile(r'CREATE\s+SEQUENCE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)', re.IGNORECASE)
     
-    # Helper to apply suffixes
     def add_suffix(text, name, sfx):
-        # replace standalone word 'name' with 'name_sfx'
         return re.sub(rf'\b{name}\b', f'{name}{sfx}', text)
 
-    # A. Gather all Indexes/Constraints/Sequences declared in THIS sql
-    # Note: This is a bit "local", assuming names are unique enough or locally scoped.
-    # ideally we'd scan all files, but names like 'events_pkey' are standard convention.
-    
-    # scan for definitions to adding to replacement list
     defined_names = set()
     for m in re_index_def.finditer(sql):
         defined_names.add(m.group(1))
@@ -130,54 +104,39 @@ def transform_sql(sql: str, suffix: str, tables: list, functions: list) -> str:
     for m in re_seq.finditer(sql):
         defined_names.add(m.group(1))
         
-    # Also standard primary keys implicit naming? 
-    # Valid SQL often names them: CONSTRAINT events_pkey PRIMARY KEY
-    # We caught that with re_constraint.
-    
-    # B. Apply Transformations
-    
-    # 1. Functions (Global discovery passed in)
     for func in functions:
         sql = add_suffix(sql, func, suffix)
 
-    # 2. Tables (Global discovery passed in)
     for table in tables:
         sql = add_suffix(sql, table, suffix)
         
-        # Hardcoded fix for PKEYs if they follow convention "tablename_pkey" and weren't caught explicitly?
-        # If "events" -> "events_prod", then "events_pkey" -> "events_pkey_prod"
-        # BUT "events_pkey" contains "events".
-        # If we replaced "events" with "events_dev", we get "events_dev_pkey".
-        # This is actually FINE and unique!
-        # "events_pkey" -> "events_dev_pkey".
-        # The collision happens if we DON'T rename the pkey but Postgres tries to create "events_pkey" again for a new table?
-        # Postgres constraints are per-table, BUT index names (which back pkeys) must be unique schema-wide (usually).
-        # So "events_pkey" for "events" and "events_pkey" for "events_dev" -> COLLISION.
-        
-        # We need to target the pkey name explicitly.
-        # If the SQL says "CONSTRAINT events_pkey", we capture it above.
-        
-        # If the SQL says "PRIMARY KEY (id)" without name, Postgres gen a name.
-        # "events_pkey".
-        # If we rename table to "events_dev", Postgres gen "events_dev_pkey".
-        # So implicit keys are INVALIDATED/AUTO-FIXED by table rename? 
-        # YES.
-        
-        # The ERROR "relation events_pkey already exists" implies the SQL explicitly named it 
-        # OR we failed to rename the table reference in the constraint definition?
-        # Let's verify the failing SQL (000000).
-        # It has: CONSTRAINT events_pkey PRIMARY KEY (id),
-        # So we MUST rename 'events_pkey'.
-        
-    # 3. Rename identified local objects (Indexes, Constraints)
     for name in defined_names:
         sql = add_suffix(sql, name, suffix)
 
     return sql
 
+def reset_migration(conn, migration_table, version):
+    print(f"Resetting migration {version}...")
+    cur = conn.cursor()
+    try:
+        cur.execute(f"DELETE FROM {migration_table} WHERE version = %s", (version,))
+        row_count = cur.rowcount
+        conn.commit()
+        if row_count > 0:
+            print(f"✔ Successfully reset {version}. (Record deleted from {migration_table})")
+        else:
+            print(f"⚠ Migration {version} was not found in {migration_table}.")
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ Failed to reset {version}: {e}")
+        sys.exit(1)
+    finally:
+        cur.close()
+
 def main():
-    parser = argparse.ArgumentParser(description="Run DB migrations.")
+    parser = argparse.ArgumentParser(description="Run (or reset) DB migrations.")
     parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Instance to migrate: prod, dev, or staging")
+    parser.add_argument("--reset", help="Version (filename) of the migration to reset/un-apply.")
     args = parser.parse_args()
     
     instance = args.instance
@@ -199,6 +158,12 @@ def main():
         migration_table_name = ensure_migration_table(cur, instance)
         conn.commit()
 
+        # Handle Reset Mode
+        if args.reset:
+            reset_migration(conn, migration_table_name, args.reset)
+            conn.close()
+            return
+
         applied = get_applied_migrations(cur, migration_table_name)
         
         migrations_dir = data_pipeline_root / 'migrations'
@@ -209,15 +174,10 @@ def main():
         # Get all .sql files, sorted
         migration_files = sorted(migrations_dir.glob('*.sql'))
         
-        # [NEW] Auto-discover tables and functions from ALL migration files
         custom_tables, custom_functions = scan_db_objects(migrations_dir)
-        # Add legacy hardcoding if needed? No, scanning should cover it if files exist.
-        # But for base tables created in initial migration, ensure they are found.
-        # Assuming 000000_create_tables.sql exists.
         
         print(f"Auto-discovered {len(custom_tables)} tables and {len(custom_functions)} functions to manage.")
 
-        
         new_migrations_count = 0
         
         for mf in migration_files:
