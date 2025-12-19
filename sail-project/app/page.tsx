@@ -153,7 +153,12 @@ function ChronoMapContent() {
             )}
 
             {dataset !== 'prod' && (
-              <span className="text-[10px] font-mono text-orange-600 bg-orange-100 px-1 rounded border border-orange-200">
+              <span className={`text-[10px] font-mono px-1 rounded border uppercase tracking-wider
+                ${dataset === 'staging'
+                  ? 'text-blue-600 bg-blue-100 border-blue-200'
+                  : 'text-orange-600 bg-orange-100 border-orange-200'
+                }
+              `}>
                 DATA: {dataset.toUpperCase()}
               </span>
             )}

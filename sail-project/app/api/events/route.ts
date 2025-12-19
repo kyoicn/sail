@@ -27,21 +27,25 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   // [NEW] Dataset Switcher
-  // Defaults to 'prod' (events table).
-  // Can be overridden by ?dataset=dev or ?dataset=local
-  const dataset = searchParams.get('dataset') || 'prod';
+  // Determine Environment (dev / staging / prod)
+  // Logic: 
+  // 1. 'env' param takes precedence.
+  // 2. 'dataset' param supported for backward compatibility (legacy).
+  // 3. Default to 'prod'.
+  const envParam = searchParams.get('env') || searchParams.get('dataset');
+  const env = (envParam === 'dev' || envParam === 'staging' || envParam === 'local') ? envParam : 'prod';
 
   // Local Mode: Return mock data directly (No DB call)
-  if (dataset === 'local') {
+  if (env === 'local') {
     return NextResponse.json(MOCK_EVENTS, {
       headers: { 'Cache-Control': 'no-store' }
     });
   }
 
   // Decide which RPC to call
-  // 'prod' -> 'get_events_in_view' (The new standard RPC)
-  // 'dev'  -> 'get_events_in_view_dev' (The dev RPC)
-  const rpcName = dataset === 'dev' ? 'get_events_in_view_dev' : 'get_events_in_view';
+  let rpcName = 'get_events_in_view'; // default (prod)
+  if (env === 'dev') rpcName = 'get_events_in_view_dev';
+  if (env === 'staging') rpcName = 'get_events_in_view_staging';
 
   const minYear = parseFloat(searchParams.get('minYear') || '-5000');
   const maxYear = parseFloat(searchParams.get('maxYear') || '2050');
