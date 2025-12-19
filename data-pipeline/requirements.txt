@@ -6,3 +6,5 @@ python-dotenv
 pydantic
 psycopg2-binary
 shapely
+google.genai
+ollama
