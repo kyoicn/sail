@@ -58,6 +58,7 @@ CREATE INDEX IF NOT EXISTS events_start_astro_year_idx ON events USING BTREE (st
 CREATE INDEX IF NOT EXISTS events_importance_idx ON events USING BTREE (importance);
 
 -- 4. RPC: Get Events in View (Original Version)
+DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, float, float, float);
 CREATE OR REPLACE FUNCTION get_events_in_view(
     min_lat float,
     max_lat float,

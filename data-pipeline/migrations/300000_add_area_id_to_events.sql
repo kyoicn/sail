@@ -19,6 +19,7 @@ END $$;
 -- Re-creating the function ensures it picks up the renamed column schema.
 
 DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, float, float, float);
+DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, float, float, float, text);
 
 CREATE OR REPLACE FUNCTION get_events_in_view(
     min_lat float,

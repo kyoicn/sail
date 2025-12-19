@@ -99,20 +99,79 @@ def transform_sql(sql: str, suffix: str, tables: list, functions: list) -> str:
     if not suffix:
         return sql
     
-    # Transform Functions
-    for func in functions:
-        # Avoid double-suffixing if the SQL already uses the suffixed name (e.g. in a fix script)
-        # Regex: \bfunc_name\b matches explicit word.
-        # But if we have func_name_dev, \bfunc_name\b MIGHT match the prefix?
-        # No. \b matches boundary between word and non-word. "_" is word char.
-        # So "my_func" in "my_func_dev" -> "my_func" is followed by "_", no boundary.
-        # So \bmy_func\b matches "my_func(" but NOT "my_func_dev(".
-        # SAFE.
-        sql = re.sub(rf'\b{func}\b', f'{func}{suffix}', sql)
+    
+    # regexes for other objects to rename
+    # 1. Indexes: "CREATE INDEX [IF NOT EXISTS] name ON table"
+    #    or "CREATE INDEX name ON table"
+    #    Capture 'name'
+    re_index_def = re.compile(r'CREATE\s+INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)\s+ON', re.IGNORECASE)
+    
+    # 2. Constraints (Inline or Alter): "CONSTRAINT name"
+    re_constraint = re.compile(r'CONSTRAINT\s+([a-zA-Z0-9_]+)', re.IGNORECASE)
+    
+    # 3. Sequences (often implicitly named, but if explicit): "CREATE SEQUENCE name"
+    re_seq = re.compile(r'CREATE\s+SEQUENCE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)', re.IGNORECASE)
+    
+    # Helper to apply suffixes
+    def add_suffix(text, name, sfx):
+        # replace standalone word 'name' with 'name_sfx'
+        return re.sub(rf'\b{name}\b', f'{name}{sfx}', text)
 
-    # Transform Tables
+    # A. Gather all Indexes/Constraints/Sequences declared in THIS sql
+    # Note: This is a bit "local", assuming names are unique enough or locally scoped.
+    # ideally we'd scan all files, but names like 'events_pkey' are standard convention.
+    
+    # scan for definitions to adding to replacement list
+    defined_names = set()
+    for m in re_index_def.finditer(sql):
+        defined_names.add(m.group(1))
+    for m in re_constraint.finditer(sql):
+        defined_names.add(m.group(1))
+    for m in re_seq.finditer(sql):
+        defined_names.add(m.group(1))
+        
+    # Also standard primary keys implicit naming? 
+    # Valid SQL often names them: CONSTRAINT events_pkey PRIMARY KEY
+    # We caught that with re_constraint.
+    
+    # B. Apply Transformations
+    
+    # 1. Functions (Global discovery passed in)
+    for func in functions:
+        sql = add_suffix(sql, func, suffix)
+
+    # 2. Tables (Global discovery passed in)
     for table in tables:
-        sql = re.sub(rf'\b{table}\b', f'{table}{suffix}', sql)
+        sql = add_suffix(sql, table, suffix)
+        
+        # Hardcoded fix for PKEYs if they follow convention "tablename_pkey" and weren't caught explicitly?
+        # If "events" -> "events_prod", then "events_pkey" -> "events_pkey_prod"
+        # BUT "events_pkey" contains "events".
+        # If we replaced "events" with "events_dev", we get "events_dev_pkey".
+        # This is actually FINE and unique!
+        # "events_pkey" -> "events_dev_pkey".
+        # The collision happens if we DON'T rename the pkey but Postgres tries to create "events_pkey" again for a new table?
+        # Postgres constraints are per-table, BUT index names (which back pkeys) must be unique schema-wide (usually).
+        # So "events_pkey" for "events" and "events_pkey" for "events_dev" -> COLLISION.
+        
+        # We need to target the pkey name explicitly.
+        # If the SQL says "CONSTRAINT events_pkey", we capture it above.
+        
+        # If the SQL says "PRIMARY KEY (id)" without name, Postgres gen a name.
+        # "events_pkey".
+        # If we rename table to "events_dev", Postgres gen "events_dev_pkey".
+        # So implicit keys are INVALIDATED/AUTO-FIXED by table rename? 
+        # YES.
+        
+        # The ERROR "relation events_pkey already exists" implies the SQL explicitly named it 
+        # OR we failed to rename the table reference in the constraint definition?
+        # Let's verify the failing SQL (000000).
+        # It has: CONSTRAINT events_pkey PRIMARY KEY (id),
+        # So we MUST rename 'events_pkey'.
+        
+    # 3. Rename identified local objects (Indexes, Constraints)
+    for name in defined_names:
+        sql = add_suffix(sql, name, suffix)
 
     return sql
 

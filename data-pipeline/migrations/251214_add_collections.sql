@@ -13,6 +13,7 @@ CREATE INDEX IF NOT EXISTS events_collections_idx ON events USING GIN (collectio
 DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, float, float, float);
 
 -- Create new signature accepting collection_filter
+DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, float, float, float, text);
 CREATE OR REPLACE FUNCTION get_events_in_view(
     min_lat float,
     max_lat float,
@@ -64,6 +65,7 @@ END;
 $$;
 
 -- 4. New RPC: Get All Collections
+DROP FUNCTION IF EXISTS get_all_collections();
 CREATE OR REPLACE FUNCTION get_all_collections()
 RETURNS TABLE (collection text)
 LANGUAGE sql
