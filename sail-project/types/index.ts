@@ -78,7 +78,7 @@ export interface EventSource {
   label: string;
   url: string;
   // Tracks data provenance for the pipeline
-  provider?: 'wikidata' | 'gdelt' | 'manual' | 'ai';
+  provider?: 'wikidata' | 'gdelt' | 'manual' | 'ai'; 
   providerId?: string;
 }
 
@@ -109,6 +109,10 @@ export interface EventData {
   collections?: string[];
 
   sources?: EventSource[];
+
+  // Recursive Tree Relationship
+  // List of child source_ids (e.g. ["gemini:battle_of_waterloo_phase_1"])
+  children?: string[];
 
   // Pipeline Metadata (Internal Use)
   pipeline?: {

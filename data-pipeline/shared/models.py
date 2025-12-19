@@ -61,6 +61,10 @@ class EventSchema(BaseModel):
     sources: Optional[List[Link]] = None
     images: Optional[List[Link]] = None
     
+    # Relationships
+    # List of child event source_ids.
+    children: Optional[List[str]] = None
+    
     # Collections/Tags
     collections: Optional[List[str]] = []
 

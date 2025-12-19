@@ -161,6 +161,8 @@ export async function GET(request: Request) {
 
       sources: row.links || [],
 
+      children: row.child_source_ids || [],
+
       pipeline: row.pipeline
     };
   });
