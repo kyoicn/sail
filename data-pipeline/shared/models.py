@@ -117,3 +117,9 @@ class HistoricalPeriodModel(BaseModel):
     primary_area_ids: List[str]
     associated_area_ids: List[str] = []
     importance: float = 1.0
+
+class AreaGenerationQuery(BaseModel):
+    query: str
+    area_id: str
+    display_name: str
+    description: Optional[str] = None
