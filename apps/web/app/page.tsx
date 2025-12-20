@@ -224,6 +224,7 @@ function ChronoMapContent() {
         setHoveredEventId={setHoveredEventId}
         onToggleExpand={handleToggleExpand}
         expandedEventIds={expandedEventIds}
+        mapBounds={mapBounds}
       />
 
       <EventDetailPanel

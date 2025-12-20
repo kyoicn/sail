@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Maximize2, ZoomIn, ZoomOut, ArrowLeft, ArrowRight } from 'lucide-react';
-import { EventData } from '../../types';
+import { EventData, MapBounds } from '../../types';
 import { OverviewTimeline } from './OverviewTimeline';
 import { TimelineCanvas } from './TimelineCanvas';
 import {
@@ -13,6 +13,8 @@ import {
   ZOOM_SCALES,
   getClosestScale
 } from '../../lib/time-engine';
+import { useActivePeriod } from '../../hooks/useActivePeriod';
+import { useAppConfig } from '../../hooks/useAppConfig';
 
 interface TimeControlProps {
   currentDate: number;
@@ -31,6 +33,7 @@ interface TimeControlProps {
   setHoveredEventId: (id: string | null) => void;
   onToggleExpand: (id: string) => void;
   expandedEventIds: Set<string>;
+  mapBounds: MapBounds | null;
 }
 
 export const TimeControl: React.FC<TimeControlProps> = ({
@@ -49,8 +52,35 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   hoveredEventId,
   setHoveredEventId,
   onToggleExpand,
-  expandedEventIds
+  expandedEventIds,
+  mapBounds
 }) => {
+  // [NEW] Active Period Hook
+  const { dataset } = useAppConfig();
+
+  // Calculate query range based on mode
+  const queryMinYear = interactionMode === 'exploration' ? viewRange.min : currentDate;
+  const queryMaxYear = interactionMode === 'exploration' ? viewRange.max : currentDate;
+
+  // [NEW] Calculate focused bounds (center 50% of the viewport) to reduce noise
+  const focusedBounds = useMemo(() => {
+    if (!mapBounds) return null;
+    const latSpan = mapBounds.north - mapBounds.south;
+    const lngSpan = mapBounds.east - mapBounds.west;
+    const factor = 0.5;
+
+    const centerLat = (mapBounds.north + mapBounds.south) / 2;
+    const centerLng = (mapBounds.east + mapBounds.west) / 2;
+
+    return {
+      north: centerLat + (latSpan * factor) / 2,
+      south: centerLat - (latSpan * factor) / 2,
+      east: centerLng + (lngSpan * factor) / 2,
+      west: centerLng - (lngSpan * factor) / 2
+    };
+  }, [mapBounds]);
+
+  const { activePeriods } = useActivePeriod(focusedBounds, queryMinYear, queryMaxYear, dataset);
 
   const animationRef = useRef<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -179,7 +209,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   const getHeaderContent = () => {
     // Shared subtitle container class for height stability
     // h-6 ensures enough space for the button without jumping
-    const subtitleClass = "h-6 flex items-center justify-center gap-2 mt-1";
+    const subtitleClass = "h-6 flex items-center justify-center gap-2 mt-1 px-4 max-w-lg mx-auto overflow-hidden";
 
     if (interactionMode === 'exploration') {
 
@@ -196,6 +226,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
             <span className="text-3xl font-bold font-mono tracking-tight text-slate-800 leading-9">
               {formatNaturalDate(viewRange.min, viewRange.max - viewRange.min)} - {formatNaturalDate(viewRange.max, viewRange.max - viewRange.min)}
             </span>
+
             {/* Absolute positioned button to the right of text */}
             <div className="absolute left-full ml-6 top-1/2 -translate-y-1/2">
               <button
@@ -209,7 +240,16 @@ export const TimeControl: React.FC<TimeControlProps> = ({
             </div>
           </div>
           <div className={subtitleClass}>
-            {/* Height placeholder to prevent layout shift when switching modes */}
+            {/* [NEW] Active Periods Display for Exploration Mode */}
+            {activePeriods.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                {activePeriods.map((period, i) => (
+                  <span key={i} className="text-xs font-semibold text-slate-500 uppercase tracking-widest bg-slate-100/50 px-2 py-0.5 rounded-full border border-slate-200/50 whitespace-nowrap">
+                    {period.period_name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       );
@@ -245,6 +285,19 @@ export const TimeControl: React.FC<TimeControlProps> = ({
           <span className="text-xs text-blue-500 font-medium tracking-wide">
             {rangeSubtitle()}
           </span>
+          {/* [NEW] Active Periods Display for Investigation Mode */}
+          {activePeriods.length > 0 && (
+            <>
+              <span className="mx-2 text-slate-300">|</span>
+              <div className="flex items-center gap-1.5">
+                {activePeriods.map((period, i) => (
+                  <span key={i} className="text-xs font-semibold text-slate-500 uppercase tracking-widest bg-slate-100/50 px-2 py-0.5 rounded-full border border-slate-200/50 whitespace-nowrap">
+                    {period.period_name}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
