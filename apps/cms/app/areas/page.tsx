@@ -20,6 +20,13 @@ interface AreaSummary {
 interface AreaDetail extends AreaSummary {
   geometry: any; // GeoJSON
   description?: string;
+  periods?: {
+    period_id: string;
+    display_name: string;
+    role: 'primary' | 'associated';
+    start_year: number;
+    end_year: number;
+  }[];
 }
 
 export default function AreasPage() {
@@ -191,6 +198,31 @@ export default function AreasPage() {
                 </div>
               ) : (
                 <div className="p-4 text-xs text-gray-400 italic">No description available</div>
+              )}
+
+              {/* Periods List */}
+              {selectedArea.periods && selectedArea.periods.length > 0 && (
+                <div className="p-4 border-t border-gray-100 bg-white">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Associated Periods</h3>
+                  <div className="space-y-2">
+                    {selectedArea.periods.map((p) => (
+                      <div key={p.period_id} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium text-gray-800">{p.display_name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full capitalize ${p.role === 'primary'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-gray-100 text-gray-600'
+                            }`}>
+                            {p.role}
+                          </span>
+                        </div>
+                        <span className="text-gray-400 text-xs font-mono">
+                          {p.start_year} - {p.end_year}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

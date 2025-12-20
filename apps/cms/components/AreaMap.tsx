@@ -49,10 +49,14 @@ export default function AreaMap({ geoJson }: { geoJson: any }) {
         zoom={2}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
+        maxBounds={[[-90, -180], [90, 180]]}
+        maxBoundsViscosity={1.0}
       >
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
+          noWrap={true}
+          bounds={[[-90, -180], [90, 180]]}
         />
         {geoJson && <GeoJSONUpdater data={geoJson} />}
       </MapContainer>
