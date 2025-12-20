@@ -96,6 +96,15 @@ def populate_periods(data: PeriodsData, instance: str, existing_policy: str = 's
     try:
         print(f"Processing {len(data.periods)} Periods...")
         total_periods = len(data.periods)
+        stats = {
+            "total": total_periods,
+            "inserted": 0,
+            "updated": 0,
+            "skipped": 0,
+            "warnings": 0,
+            "errors": 0
+        }
+
         for index, period in enumerate(data.periods, 1):
             print(f"[{index}/{total_periods}] Processing period: {period.period_id}")
              # Check existence for warning
@@ -104,8 +113,12 @@ def populate_periods(data: PeriodsData, instance: str, existing_policy: str = 's
             if exists:
                 if existing_policy == 'skip':
                     print(f"  [INFO] Skipping existing period: {period.period_id}")
+                    stats["skipped"] += 1
                     continue
                 print(f"  [WARN] Overwriting existing period: {period.period_id}")
+                stats["updated"] += 1
+            else:
+                 stats["inserted"] += 1
 
             cur.execute(f"""
                 INSERT INTO {table_periods} (period_id, display_name, description, start_astro_year, end_astro_year, importance)
@@ -136,7 +149,8 @@ def populate_periods(data: PeriodsData, instance: str, existing_policy: str = 's
                         ON CONFLICT (period_id, area_id) DO UPDATE SET role = 'primary'
                     """, (period_db_id, area_db_id))
                 else:
-                    print(f"  [Error] Primary Area '{area_slug}' not found for period '{period.period_id}'")
+                    print(f"  [WARN] Primary Area '{area_slug}' not found for period '{period.period_id}'")
+                    stats["warnings"] += 1
 
             # Insert Associated Areas
             for area_slug in period.associated_area_ids:
@@ -153,9 +167,21 @@ def populate_periods(data: PeriodsData, instance: str, existing_policy: str = 's
                         ON CONFLICT (period_id, area_id) DO UPDATE SET role = 'associated'
                     """, (period_db_id, area_db_id))
                 else:
-                    print(f"  [Error] Associated Area '{area_slug}' not found for period '{period.period_id}'")
+                    print(f"  [WARN] Associated Area '{area_slug}' not found for period '{period.period_id}'")
+                    stats["warnings"] += 1
 
         conn.commit()
+        
+        print("\n" + "="*40)
+        print("PROCESSING SUMMARY")
+        print("="*40)
+        print(f"Total Periods Processed: {stats['total']}")
+        print(f"✅ inserted:              {stats['inserted']}")
+        print(f"⚠️  Updated (Overwritten): {stats['updated']}")
+        print(f"⏭️  Skipped:               {stats['skipped']}")
+        print(f"🔸 Warnings:              {stats['warnings']}")
+        print(f"❌ Errors:                {stats['errors']}")
+        print("="*40 + "\n")
         print("✅ Periods population complete.")
 
     except Exception as e:
