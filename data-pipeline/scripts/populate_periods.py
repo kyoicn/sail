@@ -122,7 +122,7 @@ def populate_periods(data: PeriodsData, instance: str, existing_policy: str = 's
                 stats["skipped"] += 1
                 continue
 
-             # Check existence for warning
+            # Check existence for warning
             cur.execute(f"SELECT id FROM {table_periods} WHERE period_id = %s", (period.period_id,))
             exists = cur.fetchone()
             if exists:
@@ -131,9 +131,6 @@ def populate_periods(data: PeriodsData, instance: str, existing_policy: str = 's
                     stats["skipped"] += 1
                     continue
                 print(f"  [WARN] Overwriting existing period: {period.period_id}")
-                stats["updated"] += 1
-            else:
-                 stats["inserted"] += 1
 
             cur.execute(f"""
                 INSERT INTO {table_periods} (period_id, display_name, description, start_astro_year, end_astro_year, importance)
@@ -148,6 +145,11 @@ def populate_periods(data: PeriodsData, instance: str, existing_policy: str = 's
             """, (period.period_id, period.display_name, period.description, period.start_astro_year, period.end_astro_year, period.importance))
             
             period_db_id = cur.fetchone()[0]
+
+            if exists:
+                stats["updated"] += 1
+            else:
+                stats["inserted"] += 1
 
             # Handle Junctions
             cur.execute(f"DELETE FROM {table_period_areas} WHERE period_id = %s", (period_db_id,))
