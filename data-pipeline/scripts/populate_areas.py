@@ -68,120 +68,79 @@ def fix_dateline_geometry(geometry_data: List[List[List[List[float]]]]) -> str:
     Fixes geometry that crosses the dateline (-180/180) by splitting it.
     Returns WKT string.
     """
-    # 1. Convert input (GeoJSON-like List structure) to Shapely Geometry
-    # AreaModel.geometry is List[Polygon], where Polygon is List[Ring], Ring is List[Point]
-    polys = []
-    for poly_coords in geometry_data:
-        # poly_coords[0] is exterior, [1:] are interiors
-        shell = poly_coords[0]
-        holes = poly_coords[1:] if len(poly_coords) > 1 else []
-        polys.append(Polygon(shell, holes))
-    
-    mp = MultiPolygon(polys)
-    
-    # [NEW] Ensure geometry is valid before processing
-    if not mp.is_valid:
-        mp = make_valid(mp)
-
-    # 1.5 Jump Detection (Optimized)
-    # If no edge in any ring spans more than 180 degrees in longitude,
-    # the polygon is contiguous and does NOT need the modular wrapping fix.
-    needs_fix = False
-    for poly in mp.geoms:
-        # Check Exterior
-        coords = list(poly.exterior.coords)
-        for i in range(len(coords) - 1):
-            if abs(coords[i][0] - coords[i+1][0]) > 180:
-                needs_fix = True
-                break
-        if needs_fix: break
-        # Check Interiors
-        for ring in poly.interiors:
-            coords = list(ring.coords)
-            for i in range(len(coords) - 1):
-                if abs(coords[i][0] - coords[i+1][0]) > 180:
-                    needs_fix = True
-                    break
-            if needs_fix: break
-        if needs_fix: break
-
-    # If no wrap-jump detected, just return WKT (it's already validated)
-    if not needs_fix:
-        return mp.wkt
-
-    # 2. Check bounds. If strictly within -180/180 and not wrapping, returned as is?
-    # Strategy: Shift to 0-360, then split at 180.
-    
-    def shift_coords(x, y, z=None):
-        # Shift longitudes to 0-360 range
-        x = x % 360
-        return (x, y)
-
-    # Transform geometry to 0-360 space
-    from shapely.ops import transform
-    shifted_mp = transform(shift_coords, mp)
-    
-    # [NEW] Ensure valid after shift
-    if not shifted_mp.is_valid:
-        shifted_mp = make_valid(shifted_mp)
-
-    # 3. Create Splitter Boxes
-    box_a = box(0, -90, 180, 90)
-    box_b = box(180, -90, 360, 90)
-
-    # 4. Intersect
-    # Intersections can also fail or return weird types if geometry is complex
-    part_a = shifted_mp.intersection(box_a)
-    part_b = shifted_mp.intersection(box_b)
-
-    # 5. Shift Part B back to -180..0 (subtract 360)
-    def shift_back(x, y, z=None):
-        return (x - 360, y)
-    
+    # Helper for extracting polygons from any geometry
     def extract_polygons(geom):
-        if geom.is_empty:
-            return []
-        if geom.geom_type == 'Polygon':
-            return [geom]
-        if geom.geom_type == 'MultiPolygon':
-            return list(geom.geoms)
+        if geom.is_empty: return []
+        if geom.geom_type == 'Polygon': return [geom]
+        if geom.geom_type == 'MultiPolygon': return list(geom.geoms)
         if geom.geom_type == 'GeometryCollection':
             pieces = []
-            for g in geom.geoms:
-                pieces.extend(extract_polygons(g))
+            for g in geom.geoms: pieces.extend(extract_polygons(g))
             return pieces
         return []
 
-    parts = []
-    parts.extend(extract_polygons(part_a))
-    
-    if not part_b.is_empty:
-        part_b_shifted = transform(shift_back, part_b)
-        parts.extend(extract_polygons(part_b_shifted))
-
-    # 6. Union and Return WKT
-    if not parts:
-        return "MULTIPOLYGON EMPTY"
-    
-    # Filter out invalid parts if any
-    valid_parts = []
-    for p in parts:
-        if not p.is_valid:
-            p = make_valid(p)
-            valid_parts.extend(extract_polygons(p))
+    # 1. Flatten Polygons (Ensure spatial continuity)
+    flattened_polys = []
+    for poly_coords in geometry_data:
+        # Process shell and holes
+        processed_rings = []
+        for ring_coords in poly_coords:
+            if not ring_coords: continue
+            new_ring = [ring_coords[0]]
+            for i in range(1, len(ring_coords)):
+                prev_x = new_ring[-1][0]
+                curr_x, curr_y = ring_coords[i]
+                # Shift curr_x by ±360 to be closest to prev_x
+                diff = curr_x - prev_x
+                if diff > 180: curr_x -= 360
+                elif diff < -180: curr_x += 360
+                new_ring.append((curr_x, curr_y))
+            processed_rings.append(new_ring)
+        
+        poly = Polygon(processed_rings[0], processed_rings[1:])
+        if not poly.is_valid:
+            poly = make_valid(poly)
+            flattened_polys.extend(extract_polygons(poly))
         else:
-            valid_parts.append(p)
-
-    final_geom = unary_union(valid_parts)
+            flattened_polys.append(poly)
     
-    # Ensure MultiPolygon
+    # 2. Split at Dateline Boundaries (-180 and 180)
+    # We use three boxes to stay robust
+    box_left = box(-540, -90, -180, 90)
+    box_world = box(-180, -90, 180, 90)
+    box_right = box(180, -90, 540, 90)
+
+    final_pieces = []
+    from shapely.ops import transform
+
+    for poly in flattened_polys:
+        # Intersection with World
+        p_world = poly.intersection(box_world)
+        final_pieces.extend(extract_polygons(p_world))
+
+        # Intersection with Left (Shift +360)
+        p_left = poly.intersection(box_left)
+        if not p_left.is_empty:
+            p_left_shifted = transform(lambda x, y, z=None: (x + 360, y), p_left)
+            final_pieces.extend(extract_polygons(p_left_shifted))
+
+        # Intersection with Right (Shift -360)
+        p_right = poly.intersection(box_right)
+        if not p_right.is_empty:
+            p_right_shifted = transform(lambda x, y, z=None: (x - 360, y), p_right)
+            final_pieces.extend(extract_polygons(p_right_shifted))
+
+    # 3. Final Union and cleanup
+    if not final_pieces:
+        return "MULTIPOLYGON EMPTY"
+        
+    final_geom = unary_union(final_pieces)
     if not final_geom.is_valid:
         final_geom = make_valid(final_geom)
         
     if final_geom.geom_type == 'Polygon':
         final_geom = MultiPolygon([final_geom])
     elif final_geom.geom_type == 'GeometryCollection':
-        # Final cleanup for GeometryCollection
         final_polys = extract_polygons(final_geom)
         final_geom = MultiPolygon(final_polys)
 
