@@ -27,15 +27,17 @@ Parameters:
         - If a file: Populates areas from that specific file.
         - If a directory: Populates from all *.json files in that directory.
 
+    --existing {skip,overwrite}:
+        Action to take when an area_id already exists in the database.
+        - 'skip' (default): Ignores the new data and keeps the existing record.
+        - 'overwrite': Updates the existing record with the new data.
+
 Usage Examples:
-    # 1. Populate 'dev' environment from a single file
+    # 1. Populate 'dev', skipping existing records (default)
     python data-pipeline/scripts/populate_areas.py --instance dev --input data-pipeline/data/generated/qing_1820.json
 
-    # 2. Populate 'prod' environment from a folder of files
-    python data-pipeline/scripts/populate_areas.py --instance prod --input data-pipeline/data/batch_output/
-
-    # 3. Interactive mode (prompts for instance and input)
-    python data-pipeline/scripts/populate_areas.py
+    # 2. Populate 'prod', forcing overwrite of existing records
+    python data-pipeline/scripts/populate_areas.py --instance prod --input data-pipeline/data/batch_output/ --existing overwrite
 """
 # Setup Environment
 current_file = Path(__file__).resolve()
@@ -57,8 +59,8 @@ def get_connection():
 class AreasData(BaseModel):
     areas: List[AreaModel]
 
-def populate_areas(data: AreasData, instance: str):
-    print(f"Connecting to DB (Instance: {instance})...")
+def populate_areas(data: AreasData, instance: str, existing_policy: str = 'skip'):
+    print(f"Connecting to DB (Instance: {instance}, Existing Policy: {existing_policy})...")
     conn = get_connection()
     cur = conn.cursor()
 
@@ -70,12 +72,25 @@ def populate_areas(data: AreasData, instance: str):
 
     try:
         print(f"Processing {len(data.areas)} Areas...")
+        skipped_count = 0
+        updated_count = 0
+        inserted_count = 0
+        
         for area in data.areas:
-            # Check existence for warning
+            # Check existence
             cur.execute(f"SELECT id FROM {table_areas} WHERE area_id = %s", (area.area_id,))
             exists = cur.fetchone()
+            
             if exists:
-                print(f"  [WARN] Overwriting existing area: {area.area_id}")
+                if existing_policy == 'skip':
+                    print(f"  [SKIP] Area exists: {area.area_id}")
+                    skipped_count += 1
+                    continue
+                else:
+                    print(f"  [OVERWRITE] Updating area: {area.area_id}")
+                    updated_count += 1
+            else:
+                 inserted_count += 1
 
             # Construct MultiPolygon WKT
             # coordinates is List[List[List[List[float]]]] -> Polygons -> Rings -> Points -> [x, y]
@@ -103,7 +118,7 @@ def populate_areas(data: AreasData, instance: str):
             """, (area.area_id, area.display_name, area.description, wkt))
 
         conn.commit()
-        print("✅ Areas population complete.")
+        print(f"✅ Areas population complete. (Inserted: {inserted_count}, Updated: {updated_count}, Skipped: {skipped_count})")
 
     except Exception as e:
         conn.rollback()
@@ -117,6 +132,7 @@ def main():
     parser = argparse.ArgumentParser(description="Populate Areas Data")
     parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Target instance (prod, dev, staging)")
     parser.add_argument("--input", help="Path to JSON file or folder containing JSON files")
+    parser.add_argument("--existing", choices=['skip', 'overwrite'], default='skip', help="Policy for existing records (default: skip)")
     
     args = parser.parse_args()
 
@@ -177,7 +193,7 @@ def main():
         # Validate Aggregated Data
         print(f"Validating {len(all_raw_areas)} areas...")
         data = AreasData(areas=all_raw_areas)
-        populate_areas(data, instance)
+        populate_areas(data, instance, existing_policy=args.existing)
     except Exception as e:
         print(f"Validation Error: {e}")
         sys.exit(1)
