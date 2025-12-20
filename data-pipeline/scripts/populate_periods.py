@@ -107,6 +107,21 @@ def populate_periods(data: PeriodsData, instance: str, existing_policy: str = 's
 
         for index, period in enumerate(data.periods, 1):
             print(f"[{index}/{total_periods}] Processing period: {period.period_id}")
+
+            # 1. Validate Primary Areas Existence BEFORE any db modification
+            valid_primary = True
+            missing_ids = []
+            for pa_id in period.primary_area_ids:
+                 cur.execute(f"SELECT 1 FROM {table_areas} WHERE area_id = %s", (pa_id,))
+                 if not cur.fetchone():
+                     valid_primary = False
+                     missing_ids.append(pa_id)
+            
+            if not valid_primary:
+                print(f"  [SKIP-INVALID] Missing primary area(s) {missing_ids}. Cannot insert period.")
+                stats["skipped"] += 1
+                continue
+
              # Check existence for warning
             cur.execute(f"SELECT id FROM {table_periods} WHERE period_id = %s", (period.period_id,))
             exists = cur.fetchone()
