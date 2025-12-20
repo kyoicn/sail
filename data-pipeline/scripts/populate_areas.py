@@ -83,8 +83,33 @@ def fix_dateline_geometry(geometry_data: List[List[List[List[float]]]]) -> str:
     if not mp.is_valid:
         mp = make_valid(mp)
 
+    # 1.5 Jump Detection (Optimized)
+    # If no edge in any ring spans more than 180 degrees in longitude,
+    # the polygon is contiguous and does NOT need the modular wrapping fix.
+    needs_fix = False
+    for poly in mp.geoms:
+        # Check Exterior
+        coords = list(poly.exterior.coords)
+        for i in range(len(coords) - 1):
+            if abs(coords[i][0] - coords[i+1][0]) > 180:
+                needs_fix = True
+                break
+        if needs_fix: break
+        # Check Interiors
+        for ring in poly.interiors:
+            coords = list(ring.coords)
+            for i in range(len(coords) - 1):
+                if abs(coords[i][0] - coords[i+1][0]) > 180:
+                    needs_fix = True
+                    break
+            if needs_fix: break
+        if needs_fix: break
+
+    # If no wrap-jump detected, just return WKT (it's already validated)
+    if not needs_fix:
+        return mp.wkt
+
     # 2. Check bounds. If strictly within -180/180 and not wrapping, returned as is?
-    # But checking for wrapping is hard on raw coords. 
     # Strategy: Shift to 0-360, then split at 180.
     
     def shift_coords(x, y, z=None):
