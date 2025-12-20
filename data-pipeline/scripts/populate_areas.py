@@ -7,6 +7,9 @@ from dotenv import load_dotenv
 import json
 from typing import List
 from pydantic import BaseModel
+from shapely.geometry import shape, MultiPolygon, Polygon, box
+from shapely.ops import unary_union
+from shapely import wkt
 
 """
 Script: populate_areas.py
@@ -45,7 +48,7 @@ data_pipeline_root = current_file.parents[1]
 sys.path.append(str(data_pipeline_root))
 load_dotenv(data_pipeline_root / '.env')
 
-from shared.models import AreaModel, MultiPolygon
+from shared.models import AreaModel
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -58,6 +61,75 @@ def get_connection():
 
 class AreasData(BaseModel):
     areas: List[AreaModel]
+
+def fix_dateline_geometry(geometry_data: List[List[List[List[float]]]]) -> str:
+    """
+    Fixes geometry that crosses the dateline (-180/180) by splitting it.
+    Returns WKT string.
+    """
+    # 1. Convert input (GeoJSON-like List structure) to Shapely Geometry
+    # AreaModel.geometry is List[Polygon], where Polygon is List[Ring], Ring is List[Point]
+    polys = []
+    for poly_coords in geometry_data:
+        # poly_coords[0] is exterior, [1:] are interiors
+        shell = poly_coords[0]
+        holes = poly_coords[1:] if len(poly_coords) > 1 else []
+        polys.append(Polygon(shell, holes))
+    
+    mp = MultiPolygon(polys)
+
+    # 2. Check bounds. If strictly within -180/180 and not wrapping, returned as is?
+    # But checking for wrapping is hard on raw coords. 
+    # Strategy: Shift to 0-360, then split at 180.
+    
+    def shift_coords(x, y, z=None):
+        # Shift longitudes to 0-360 range
+        x = x % 360
+        return (x, y)
+
+    # Transform geometry to 0-360 space
+    # We use buffer(0) to fix potential self-intersections after transform if needed, 
+    # but strictly transform is safer first.
+    from shapely.ops import transform
+    shifted_mp = transform(shift_coords, mp)
+
+    # 3. Create Splitter Boxes
+    # Box A: 0 to 180 (Eastern Hemisphere + Prime Meridian)
+    # Box B: 180 to 360 (Western Hemisphere, shifted)
+    box_a = box(0, -90, 180, 90)
+    box_b = box(180, -90, 360, 90)
+
+    # 4. Intersect
+    part_a = shifted_mp.intersection(box_a)
+    part_b = shifted_mp.intersection(box_b)
+
+    # 5. Shift Part B back to -180..0 (subtract 360)
+    def shift_back(x, y, z=None):
+        return (x - 360, y)
+    
+    parts = []
+    if not part_a.is_empty:
+        parts.append(part_a)
+    
+    if not part_b.is_empty:
+        part_b_shifted = transform(shift_back, part_b)
+        parts.append(part_b_shifted)
+
+    # 6. Union and Return WKT
+    if not parts:
+        return "MULTIPOLYGON EMPTY"
+    
+    final_geom = unary_union(parts)
+    
+    # Ensure MultiPolygon
+    if final_geom.geom_type == 'Polygon':
+        final_geom = MultiPolygon([final_geom])
+    elif final_geom.geom_type != 'MultiPolygon':
+        # Fallback for GeometryCollection etc?
+        # Usually unary_union of polygons returns Polygon or MultiPolygon.
+        pass
+
+    return final_geom.wkt
 
 def populate_areas(data: AreasData, instance: str, existing_policy: str = 'skip'):
     print(f"Connecting to DB (Instance: {instance}, Existing Policy: {existing_policy})...")
@@ -81,6 +153,7 @@ def populate_areas(data: AreasData, instance: str, existing_policy: str = 'skip'
             cur.execute(f"SELECT id FROM {table_areas} WHERE area_id = %s", (area.area_id,))
             exists = cur.fetchone()
             
+            should_update = False
             if exists:
                 if existing_policy == 'skip':
                     print(f"  [SKIP] Area exists: {area.area_id}")
@@ -88,24 +161,17 @@ def populate_areas(data: AreasData, instance: str, existing_policy: str = 'skip'
                     continue
                 else:
                     print(f"  [OVERWRITE] Updating area: {area.area_id}")
+                    should_update = True
                     updated_count += 1
             else:
                  inserted_count += 1
 
-            # Construct MultiPolygon WKT
-            # coordinates is List[List[List[List[float]]]] -> Polygons -> Rings -> Points -> [x, y]
-            
-            polygons_wkt = []
-            for polygon in area.geometry:
-                rings_wkt = []
-                for ring in polygon:
-                    points_str = ", ".join([f"{p[0]} {p[1]}" for p in ring])
-                    rings_wkt.append(f"({points_str})")
-                
-                # A polygon is defined by (outer, inner, ...)
-                polygons_wkt.append(f"({', '.join(rings_wkt)})")
-            
-            wkt = f"MULTIPOLYGON({', '.join(polygons_wkt)})"
+            # Fix Geometry (Dateline splitting)
+            try:
+                wkt_str = fix_dateline_geometry(area.geometry)
+            except Exception as e:
+                print(f"  [ERROR] Failed to process geometry for {area.area_id}: {e}")
+                continue
             
             cur.execute(f"""
                 INSERT INTO {table_areas} (area_id, display_name, description, geometry)
@@ -115,7 +181,7 @@ def populate_areas(data: AreasData, instance: str, existing_policy: str = 'skip'
                     description = EXCLUDED.description,
                     geometry = EXCLUDED.geometry
                 RETURNING id;
-            """, (area.area_id, area.display_name, area.description, wkt))
+            """, (area.area_id, area.display_name, area.description, wkt_str))
 
         conn.commit()
         print(f"✅ Areas population complete. (Inserted: {inserted_count}, Updated: {updated_count}, Skipped: {skipped_count})")
