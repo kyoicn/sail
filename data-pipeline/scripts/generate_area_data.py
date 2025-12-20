@@ -156,47 +156,144 @@ Your task is to generate a valid GeoJSON FeatureCollection containing a single P
 ```
 """
 
-def generate_with_llm(query, provider, model, api_key=None):
+import time
+import traceback
+
+class RateLimiter:
+    def __init__(self, rpm=0, tpm=0):
+        self.rpm = float(rpm)
+        self.tpm = float(tpm)
+        self.history = [] # List of (timestamp, tokens)
+
+    def wait_if_needed(self, estimated_tokens=0):
+        if not self.rpm and not self.tpm:
+            return
+
+        now = time.time()
+        # Prune history older than 60s
+        self.history = [(ts, tok) for ts, tok in self.history if now - ts < 60]
+
+        # Check RPM
+        if self.rpm > 0:
+            if len(self.history) >= self.rpm:
+                # Wait until the oldest request expires
+                oldest_ts = self.history[0][0]
+                wait_time = 60 - (now - oldest_ts) + 0.1
+                if wait_time > 0:
+                    print(f"⏳ Rate Limit (RPM): Waiting {wait_time:.1f}s...")
+                    time.sleep(wait_time)
+                    # Re-prune after sleep
+                    self.wait_if_needed(estimated_tokens)
+                    return
+
+        # Check TPM
+        if self.tpm > 0:
+            current_tokens = sum(tok for _, tok in self.history)
+            if current_tokens + estimated_tokens > self.tpm:
+                 # Should theoretically wait, but TPM is trickier as tokens vary.
+                 # Strategy: Wait for oldest to expire to free up space.
+                 # If we are stuck (single request > TPM), we might deadlock, but assuming limits are reasonable.
+                 if self.history:
+                     oldest_ts = self.history[0][0]
+                     wait_time = 60 - (now - oldest_ts) + 0.1
+                     if wait_time > 0:
+                        print(f"⏳ Rate Limit (TPM): Waiting {wait_time:.1f}s...")
+                        time.sleep(wait_time)
+                        self.wait_if_needed(estimated_tokens)
+                        return
+
+    def record_usage(self, tokens):
+        self.history.append((time.time(), tokens))
+
+# Global Rate Limiter Instance
+gemini_rate_limiter = RateLimiter(
+    rpm=os.environ.get("GEMINI_API_RPM", 0),
+    tpm=os.environ.get("GEMINI_API_TPM", 0)
+)
+
+def generate_with_llm(query, provider, model, api_key=None, timeout=None):
     print(f"🤖 Generating area for '{query}' using {provider} ({model})...")
     
+    # Rate Limiting for Gemini
+    if provider == 'gemini':
+        # Estimate: Input prompt is roughly ~300 tokens? 
+        gemini_rate_limiter.wait_if_needed(estimated_tokens=300)
+
     prompt = SYSTEM_PROMPT_AREA.format(query=query)
     content = ""
     
-    if provider == 'ollama':
-        if not ollama:
-            print("❌ Error: 'ollama' library not installed.")
-            return None
+    max_retries = 3
+    current_try = 0
+    
+    while current_try < max_retries:
         try:
-            client = ollama.Client(host=OLLAMA_HOST)
-            response = client.chat(
-                model=model,
-                messages=[{'role': 'user', 'content': prompt}]
-            )
-            content = response['message']['content']
+            if provider == 'ollama':
+                if not ollama:
+                    print("❌ Error: 'ollama' library not installed.")
+                    return None
+                
+                # Ollama client doesn't support timeout in constructor easily without custom transport, 
+                # but usually local instance is fast or stable.
+                # We can set environment variable OLLAMA_TIMEOUT if needed outside script.
+                client = ollama.Client(host=OLLAMA_HOST)
+                response = client.chat(
+                    model=model,
+                    messages=[{'role': 'user', 'content': prompt}]
+                )
+                content = response['message']['content']
+                break # Success
+                
+            elif provider == 'gemini':
+                if not genai:
+                    print("❌ Error: 'google-genai' library not installed.")
+                    return None
+                
+                final_api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+                if not final_api_key:
+                     print("❌ Error: GOOGLE_API_KEY not found.")
+                     return None
+                     
+                # Configure Client with Timeout
+                # Note: exact syntax depends on SDK version, assuming new google-genai
+                client_kwargs = {'api_key': final_api_key}
+                if timeout:
+                    # Try setting http_options for timeout
+                    client_kwargs['http_options'] = {'timeout': timeout}
+
+                client = genai.Client(**client_kwargs)
+                
+                response = client.models.generate_content(
+                    model=model, 
+                    contents=prompt
+                )
+                content = response.text
+                
+                # Try to get token usage if available (Client-dependent)
+                # Google GenAI usually returns usage_metadata
+                used_tokens = 0
+                if hasattr(response, 'usage_metadata'):
+                     used_tokens = response.usage_metadata.total_token_count
+                else:
+                     # Fallback estimate: 1 token ~ 4 chars
+                     used_tokens = len(content) // 4
+                
+                gemini_rate_limiter.record_usage(used_tokens)
+                
+                break # Success
+
         except Exception as e:
-            print(f"❌ Ollama Generation Failed: {e}")
-            return None
+            print(f"\n⚠️  Generation Attempt {current_try + 1}/{max_retries} Failed.")
+            print(f"    Error Type: {type(e).__name__}")
+            print(f"    Message: {e}")
+            print("    Traceback:")
+            traceback.print_exc()
             
-    elif provider == 'gemini':
-        if not genai:
-            print("❌ Error: 'google-genai' library not installed.")
-            return None
-        
-        final_api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        if not final_api_key:
-             print("❌ Error: GOOGLE_API_KEY not found.")
-             return None
-             
-        try:
-            client = genai.Client(api_key=final_api_key)
-            response = client.models.generate_content(
-                model=model, 
-                contents=prompt
-            )
-            content = response.text
-        except Exception as e:
-            print(f"❌ Gemini Generation Failed: {e}")
-            return None
+            current_try += 1
+            if current_try >= max_retries:
+                print(f"❌ All attempts failed.")
+                return None
+            import time
+            time.sleep(2) # Brief wait before retry
     
     # Extract JSON
     json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
@@ -217,7 +314,7 @@ def generate_with_llm(query, provider, model, api_key=None):
 
 def fetch_and_optimize(dataset_key, query_string, area_id, display_name, min_area, tolerance, 
                        output_file=None, custom_url=None, buffer_deg=0.0, round_iter=0, description=None,
-                       llm_model=None, api_key=None):
+                       llm_model=None, api_key=None, timeout=None):
     
     # 1. Determine Source & Generate/Download
     source_data = None
@@ -230,7 +327,7 @@ def fetch_and_optimize(dataset_key, query_string, area_id, display_name, min_are
             llm_model = 'llama3' if provider == 'ollama' else 'gemini-3-flash-preview'
             
         # Treat the entire query string as the prompt/query
-        source_data = generate_with_llm(query_string, provider, llm_model, api_key)
+        source_data = generate_with_llm(query_string, provider, llm_model, api_key, timeout)
         
         if not source_data:
             return
@@ -434,6 +531,7 @@ if __name__ == "__main__":
     
     parser.add_argument("--model", help="LLM model (e.g. llama3, gemini-3-flash-preview)")
     parser.add_argument("--api_key", help="API Key for Gemini (optional if env var set)")
+    parser.add_argument("--timeout", type=int, default=600, help="Timeout in seconds for LLM calls (default: 600)")
 
     args = parser.parse_args()
 
@@ -445,10 +543,11 @@ if __name__ == "__main__":
                  data = json.load(f)
                  
              queries = data.get('queries', [])
-             print(f"Found {len(queries)} queries.")
+             total_queries = len(queries)
+             print(f"Found {total_queries} queries.")
              
-             for item in queries:
-                 print(f"\n--- Processing: {item.get('display_name')} ({item.get('area_id')}) ---")
+             for i, item in enumerate(queries):
+                 print(f"\n--- [{i+1}/{total_queries}] Processing: {item.get('display_name')} ({item.get('area_id')}) ---")
                  # Validate using Pydantic Model if possible, or just raw dict access
                  # from shared.models import AreaGenerationQuery
                  # q = AreaGenerationQuery(**item)
@@ -469,7 +568,8 @@ if __name__ == "__main__":
                     output_file=args.output,
                     custom_url=args.custom_url,
                     llm_model=args.model,
-                    api_key=args.api_key
+                    api_key=args.api_key,
+                    timeout=args.timeout
                  )
                  
          except Exception as e:
@@ -501,5 +601,6 @@ if __name__ == "__main__":
             args.round,
             args.description,
             llm_model=args.model,
-            api_key=args.api_key
+            api_key=args.api_key,
+            timeout=args.timeout
         )
