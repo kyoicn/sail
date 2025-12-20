@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from shapely.geometry import shape, MultiPolygon, Polygon, box
 from shapely.ops import unary_union
 from shapely import wkt
+from shapely.validation import make_valid
 
 """
 Script: populate_areas.py
@@ -77,6 +78,10 @@ def fix_dateline_geometry(geometry_data: List[List[List[List[float]]]]) -> str:
         polys.append(Polygon(shell, holes))
     
     mp = MultiPolygon(polys)
+    
+    # [NEW] Ensure geometry is valid before processing
+    if not mp.is_valid:
+        mp = make_valid(mp)
 
     # 2. Check bounds. If strictly within -180/180 and not wrapping, returned as is?
     # But checking for wrapping is hard on raw coords. 
@@ -88,18 +93,19 @@ def fix_dateline_geometry(geometry_data: List[List[List[List[float]]]]) -> str:
         return (x, y)
 
     # Transform geometry to 0-360 space
-    # We use buffer(0) to fix potential self-intersections after transform if needed, 
-    # but strictly transform is safer first.
     from shapely.ops import transform
     shifted_mp = transform(shift_coords, mp)
+    
+    # [NEW] Ensure valid after shift
+    if not shifted_mp.is_valid:
+        shifted_mp = make_valid(shifted_mp)
 
     # 3. Create Splitter Boxes
-    # Box A: 0 to 180 (Eastern Hemisphere + Prime Meridian)
-    # Box B: 180 to 360 (Western Hemisphere, shifted)
     box_a = box(0, -90, 180, 90)
     box_b = box(180, -90, 360, 90)
 
     # 4. Intersect
+    # Intersections can also fail or return weird types if geometry is complex
     part_a = shifted_mp.intersection(box_a)
     part_b = shifted_mp.intersection(box_b)
 
@@ -107,27 +113,52 @@ def fix_dateline_geometry(geometry_data: List[List[List[List[float]]]]) -> str:
     def shift_back(x, y, z=None):
         return (x - 360, y)
     
+    def extract_polygons(geom):
+        if geom.is_empty:
+            return []
+        if geom.geom_type == 'Polygon':
+            return [geom]
+        if geom.geom_type == 'MultiPolygon':
+            return list(geom.geoms)
+        if geom.geom_type == 'GeometryCollection':
+            pieces = []
+            for g in geom.geoms:
+                pieces.extend(extract_polygons(g))
+            return pieces
+        return []
+
     parts = []
-    if not part_a.is_empty:
-        parts.append(part_a)
+    parts.extend(extract_polygons(part_a))
     
     if not part_b.is_empty:
         part_b_shifted = transform(shift_back, part_b)
-        parts.append(part_b_shifted)
+        parts.extend(extract_polygons(part_b_shifted))
 
     # 6. Union and Return WKT
     if not parts:
         return "MULTIPOLYGON EMPTY"
     
-    final_geom = unary_union(parts)
+    # Filter out invalid parts if any
+    valid_parts = []
+    for p in parts:
+        if not p.is_valid:
+            p = make_valid(p)
+            valid_parts.extend(extract_polygons(p))
+        else:
+            valid_parts.append(p)
+
+    final_geom = unary_union(valid_parts)
     
     # Ensure MultiPolygon
+    if not final_geom.is_valid:
+        final_geom = make_valid(final_geom)
+        
     if final_geom.geom_type == 'Polygon':
         final_geom = MultiPolygon([final_geom])
-    elif final_geom.geom_type != 'MultiPolygon':
-        # Fallback for GeometryCollection etc?
-        # Usually unary_union of polygons returns Polygon or MultiPolygon.
-        pass
+    elif final_geom.geom_type == 'GeometryCollection':
+        # Final cleanup for GeometryCollection
+        final_polys = extract_polygons(final_geom)
+        final_geom = MultiPolygon(final_polys)
 
     return final_geom.wkt
 
@@ -137,7 +168,7 @@ def populate_areas(data: AreasData, instance: str, existing_policy: str = 'skip'
     cur = conn.cursor()
 
     # Determine table names
-    suffix = f"_{instance}" if instance == 'dev' else ""
+    suffix = "" if instance == 'prod' else f"_{instance}"
     table_areas = f"areas{suffix}"
 
     print(f"Targeting table: {table_areas}")
@@ -162,10 +193,7 @@ def populate_areas(data: AreasData, instance: str, existing_policy: str = 'skip'
                 else:
                     print(f"  [OVERWRITE] Updating area: {area.area_id}")
                     should_update = True
-                    updated_count += 1
-            else:
-                 inserted_count += 1
-
+            
             # Fix Geometry (Dateline splitting)
             try:
                 wkt_str = fix_dateline_geometry(area.geometry)
@@ -173,15 +201,24 @@ def populate_areas(data: AreasData, instance: str, existing_policy: str = 'skip'
                 print(f"  [ERROR] Failed to process geometry for {area.area_id}: {e}")
                 continue
             
-            cur.execute(f"""
-                INSERT INTO {table_areas} (area_id, display_name, description, geometry)
-                VALUES (%s, %s, %s, ST_GeogFromText(%s))
-                ON CONFLICT (area_id) DO UPDATE SET
-                    display_name = EXCLUDED.display_name,
-                    description = EXCLUDED.description,
-                    geometry = EXCLUDED.geometry
-                RETURNING id;
-            """, (area.area_id, area.display_name, area.description, wkt_str))
+            try:
+                cur.execute(f"""
+                    INSERT INTO {table_areas} (area_id, display_name, description, geometry)
+                    VALUES (%s, %s, %s, ST_GeogFromText(%s))
+                    ON CONFLICT (area_id) DO UPDATE SET
+                        display_name = EXCLUDED.display_name,
+                        description = EXCLUDED.description,
+                        geometry = EXCLUDED.geometry
+                    RETURNING id;
+                """, (area.area_id, area.display_name, area.description, wkt_str))
+                
+                if should_update:
+                    updated_count += 1
+                else:
+                    inserted_count += 1
+            except Exception as e:
+                print(f"  [DB ERROR] Failed to insert/update {area.area_id}: {e}")
+                continue
 
         conn.commit()
         print(f"✅ Areas population complete. (Inserted: {inserted_count}, Updated: {updated_count}, Skipped: {skipped_count})")
