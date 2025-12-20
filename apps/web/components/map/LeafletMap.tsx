@@ -20,7 +20,7 @@ interface LeafletMapProps {
   expandedEventIds: Set<string>;
   onToggleExpand: (eventId: string) => void;
   zoomAction?: { type: 'in' | 'out', id: number } | null;
-  interactionMode: 'exploration' | 'investigation';
+  interactionMode: 'exploration' | 'investigation' | 'playback';
   hoveredEventId: string | null;
   setHoveredEventId: (id: string | null) => void;
   activeAreaShape?: any | null; // GeoJSON MultiPolygon
@@ -229,15 +229,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           // Point contained in View
           isActive = startVal >= viewRange.min && startVal <= viewRange.max;
         }
+      } else if (interactionMode === 'investigation') {
+        // Investigation Mode: Transient Dots (Only visible when thumb is near)
+        const threshold = (viewRange.max - viewRange.min) * 0.01; // 1% tolerance
+        isActive = Math.abs(currentDate - startVal) <= threshold;
       } else {
-        // Investigation Mode: Strict Time Checking
-        if (jumpTargetId) {
-          isActive = (jumpTargetId === "___ANIMATING___") ? false : event.id === jumpTargetId;
-        } else {
-          isActive = endVal !== null
-            ? (currentDate >= startVal && currentDate <= endVal)
-            : (Math.abs(currentDate - startVal) <= dynamicThreshold);
-        }
+        // Playback Mode: Persistent Dots (Curtain Effect)
+        isActive = startVal <= currentDate;
       }
       return isActive;
     });

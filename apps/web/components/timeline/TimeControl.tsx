@@ -1,6 +1,5 @@
-
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Maximize2, ZoomIn, ZoomOut, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Maximize2, ZoomIn, ZoomOut, ArrowLeft, ArrowRight, Play, Pause } from 'lucide-react';
 import { EventData, MapBounds } from '../../types';
 import { OverviewTimeline } from './OverviewTimeline';
 import { TimelineCanvas } from './TimelineCanvas';
@@ -27,13 +26,16 @@ interface TimeControlProps {
   densityEvents: EventData[]; // For Heatmap (Spatially filtered only)
   allEvents?: EventData[];     // All (for animation stability)
   setJumpTargetId?: (id: string | null) => void;
-  interactionMode: 'exploration' | 'investigation';
-  setInteractionMode: (mode: 'exploration' | 'investigation') => void; // [NEW] Shared Hover State
+  interactionMode: 'exploration' | 'investigation' | 'playback';
+  setInteractionMode: (mode: 'exploration' | 'investigation' | 'playback') => void; // [NEW] Shared Hover State
   hoveredEventId: string | null;
   setHoveredEventId: (id: string | null) => void;
   onToggleExpand: (id: string) => void;
   expandedEventIds: Set<string>;
   mapBounds: MapBounds | null;
+  isPlaying: boolean;
+  setIsPlaying: (playing: boolean) => void;
+  onManualStep: () => void; // [NEW]
 }
 
 export const TimeControl: React.FC<TimeControlProps> = ({
@@ -53,7 +55,10 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   setHoveredEventId,
   onToggleExpand,
   expandedEventIds,
-  mapBounds
+  mapBounds,
+  isPlaying,
+  setIsPlaying,
+  onManualStep
 }) => {
   // [NEW] Active Period Hook
   const { dataset } = useAppConfig();
@@ -227,6 +232,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
               {formatNaturalDate(viewRange.min, viewRange.max - viewRange.min)} - {formatNaturalDate(viewRange.max, viewRange.max - viewRange.min)}
             </span>
 
+
             {/* Absolute positioned button to the right of text */}
             <div className="absolute left-full ml-6 top-1/2 -translate-y-1/2">
               <button
@@ -310,6 +316,46 @@ export const TimeControl: React.FC<TimeControlProps> = ({
         {/* Controls Header */}
         <div className="relative flex justify-end items-start mb-6">
 
+          {/* [NEW] Top-Left Playback Controls */}
+          <div className="absolute left-0 top-0 flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (!isPlaying) {
+                  // Enter Play Mode
+                  // If switching from another mode, reset to start. If already in playback, just resume.
+                  if (interactionMode !== 'playback') {
+                    setCurrentDate(viewRange.min);
+                    setInteractionMode('playback');
+                  }
+                  setIsPlaying(true);
+                } else {
+                  // Pause Playback
+                  setIsPlaying(false);
+                }
+              }}
+              className={`p-2 rounded-full shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 
+                ${isPlaying ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              title={isPlaying ? "Pause Playback" : "Start Playback"}
+            >
+              {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
+            </button>
+
+            {/* Next Step Button (Only in Playback Mode) */}
+            {interactionMode === 'playback' && (
+              <button
+                onClick={onManualStep}
+                disabled={isPlaying}
+                className={`p-2 rounded-full shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 animate-in fade-in slide-in-from-left-4
+                  ${isPlaying
+                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                title="Next Step"
+              >
+                <ArrowRight size={20} />
+              </button>
+            )}
+          </div>
+
           {/* Centered Title */}
           <div className="absolute left-1/2 top-0 -translate-x-1/2">
             {getHeaderContent()}
@@ -317,7 +363,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
           {/* Right Controls Group (Hover Trigger for Zoom Menu) */}
           <div className="flex gap-2 relative z-10 group">
-
+            {/* ... Zoom Controls ... */}
             {/* Vertical Scale Menu (Drop-up) - Centered above zoom buttons */}
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 flex flex-col items-center opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 ease-out">
               <div className="bg-white/95 backdrop-blur-md rounded-lg shadow-xl border border-white/40 p-1 flex flex-col gap-0.5">
@@ -399,15 +445,24 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
             {/* Track Background */}
             <div className="absolute top-1/2 -translate-y-1/2 w-full h-2 bg-slate-100 rounded-full overflow-hidden z-0 pointer-events-none">
-              <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50"></div>
+              <div className="w-full h-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 opacity-50" />
             </div>
+
+            {/* [NEW] Playback Progress Bar */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 h-2 bg-blue-400/30 rounded-full z-0 pointer-events-none transition-all duration-75"
+              style={{
+                width: `${Math.max(0, Math.min(100, thumbPercent))}%`,
+                left: 0
+              }}
+            />
 
             {/* Slider Thumb - Hidden in Exploration Mode */}
             <div
               className={`absolute top-1/2 w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
                         ${isThumbDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'} 
                         transition-transform duration-75 
-                        ${interactionMode === 'investigation' && isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                        ${(interactionMode === 'investigation' || isPlaying) && isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
               style={{ left: `${Math.max(0, Math.min(100, thumbPercent))}%` }}
               onMouseDown={handleThumbMouseDown}
             />
