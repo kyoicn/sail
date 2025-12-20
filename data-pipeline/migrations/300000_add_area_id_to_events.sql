@@ -28,7 +28,8 @@ CREATE OR REPLACE FUNCTION get_events_in_view(
     max_lng float,
     min_year float,
     max_year float,
-    min_importance float
+    min_importance float,
+    collection_filter text DEFAULT NULL
 )
 RETURNS SETOF events
 LANGUAGE plpgsql
@@ -42,6 +43,7 @@ BEGIN
             start_astro_year >= min_year 
             AND start_astro_year <= max_year
             AND importance >= min_importance
+            AND (collection_filter IS NULL OR collections @> ARRAY[collection_filter])
             AND (
                 min_lat IS NULL 
                 OR (
@@ -56,6 +58,7 @@ BEGIN
             start_astro_year >= min_year 
             AND start_astro_year <= max_year
             AND importance >= min_importance
+            AND (collection_filter IS NULL OR collections @> ARRAY[collection_filter])
             AND (
                 location && ST_MakeEnvelope(min_lng, min_lat, 180, max_lat, 4326)
                 OR
