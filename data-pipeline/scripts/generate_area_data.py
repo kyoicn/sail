@@ -258,7 +258,8 @@ def generate_with_llm(query, provider, model, api_key=None, timeout=None):
                 client_kwargs = {'api_key': final_api_key}
                 if timeout:
                     # Try setting http_options for timeout
-                    client_kwargs['http_options'] = {'timeout': timeout}
+                    # NOTE: google-genai expects timeout in MILLISECONDS
+                    client_kwargs['http_options'] = {'timeout': timeout * 1000}
 
                 client = genai.Client(**client_kwargs)
                 
@@ -266,7 +267,18 @@ def generate_with_llm(query, provider, model, api_key=None, timeout=None):
                     model=model, 
                     contents=prompt
                 )
-                content = response.text
+                
+                # Handle multi-part responses (e.g. from models with "thought" capabilities)
+                # This avoids the "warning: non-text parts" message
+                content = ""
+                if response.candidates and response.candidates[0].content.parts:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            content += part.text
+                
+                # Fallback to .text if parts extraction yielded nothing (unlikely)
+                if not content: 
+                     content = response.text
                 
                 # Try to get token usage if available (Client-dependent)
                 # Google GenAI usually returns usage_metadata
