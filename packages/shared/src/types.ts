@@ -78,7 +78,7 @@ export interface EventSource {
   label: string;
   url: string;
   // Tracks data provenance for the pipeline
-  provider?: 'wikidata' | 'gdelt' | 'manual' | 'ai'; 
+  provider?: 'wikidata' | 'gdelt' | 'manual' | 'ai';
   providerId?: string;
 }
 
@@ -134,4 +134,34 @@ export interface MapBounds {
 export interface LayoutResult {
   offsetX: number;
   offsetY: number;
+}
+
+// --- CMS / Administrative Layer ---
+
+export interface AreaSummary {
+  id: string; // Internal UUID
+  area_id: string; // Slug (e.g. 'china_proper')
+  display_name: string;
+}
+
+export interface AreaDetail extends AreaSummary {
+  geometry: any; // GeoJSON
+  description?: string;
+  periods?: {
+    period_id: string;
+    display_name: string;
+    role: 'primary' | 'associated';
+    start_year: number;
+    end_year: number;
+  }[];
+}
+
+export interface HistoricalPeriod {
+  id: string;
+  period_id: string;
+  display_name: string;
+  description?: string;
+  start_astro_year: number;
+  end_astro_year: number;
+  importance: number;
 }

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { EventData, MapBounds } from '../types';
+import { EventData, MapBounds } from '@sail/shared';
 import { isEventInBounds } from '../lib/geo-engine'; // [NEW] Import logic
 
 export function useEventFilter(

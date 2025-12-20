@@ -4,7 +4,7 @@ import { Analytics } from "@vercel/analytics/next"
 import React, { useState, useMemo, useEffect, Suspense, useRef } from 'react';
 import { Map as MapIcon, Layers, Loader2, Plus, Minus } from 'lucide-react';
 
-import { EventData, MapBounds } from '../types';
+import { EventData, MapBounds } from '@sail/shared';
 import { LeafletMap } from '../components/map/LeafletMap';
 import { TimeControl } from '../components/timeline/TimeControl';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';

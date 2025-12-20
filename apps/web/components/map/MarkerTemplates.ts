@@ -1,5 +1,5 @@
 
-import { EventData } from '../../types';
+import { EventData } from '@sail/shared';
 import { formatEventDateRange } from '../../lib/time-engine';
 import { getLocationString } from '../../lib/utils';
 

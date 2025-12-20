@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
-import { EventData } from '../../types';
+import { EventData } from '@sail/shared';
 import { toSliderValue, formatSliderTick } from '../../lib/time-engine';
 
 interface OverviewProps {

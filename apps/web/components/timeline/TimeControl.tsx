@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Maximize2, ZoomIn, ZoomOut, ArrowLeft, ArrowRight, Play, Pause } from 'lucide-react';
-import { EventData, MapBounds } from '../../types';
+import { EventData, MapBounds } from '@sail/shared';
 import { OverviewTimeline } from './OverviewTimeline';
 import { TimelineCanvas } from './TimelineCanvas';
 import {

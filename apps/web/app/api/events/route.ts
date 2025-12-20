@@ -15,7 +15,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { MOCK_EVENTS } from '../../../lib/constants';
-import { EventData } from '../../../types';
+import { EventData } from '@sail/shared';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,

@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { EventData } from '../../types';
+import { EventData } from '@sail/shared';
 import { toSliderValue, getAstroYear, formatSliderTick, getMonthName } from '../../lib/time-engine';
 
 interface TimelineCanvasProps {

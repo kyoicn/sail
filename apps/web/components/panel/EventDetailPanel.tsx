@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, ExternalLink, Calendar, MapPin, BookOpen } from 'lucide-react';
-import { EventData } from '../../types';
+import { EventData } from '@sail/shared';
 import { formatChronosTime } from '../../lib/time-engine';
 import { getLocationString } from '../../lib/utils';
 

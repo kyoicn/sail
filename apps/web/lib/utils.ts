@@ -1,4 +1,4 @@
-import { EventData } from '../types';
+import { EventData } from '@sail/shared';
 
 /**
  * lib/utils.ts

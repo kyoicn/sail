@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { EventData, MapBounds } from '../../types';
+import { EventData, MapBounds } from '@sail/shared';
 import { PREDEFINED_REGIONS } from '../../lib/constants';
 import { calculateSmartLayout } from '../../lib/layout-engine';
 import { toSliderValue, getAstroYear } from '../../lib/time-engine';

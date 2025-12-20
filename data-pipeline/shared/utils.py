@@ -1,4 +1,8 @@
 from .models import TimeEntry
+from shapely.geometry import MultiPolygon, Polygon, box
+from shapely.ops import unary_union, transform
+from shapely.validation import make_valid
+from typing import List
 
 def calculate_astro_year(entry: TimeEntry) -> float:
     """
@@ -33,3 +37,85 @@ def calculate_astro_year(entry: TimeEntry) -> float:
     fraction = (day_of_year - 1) / days_in_year
     
     return astro_base + fraction
+
+def fix_dateline_geometry(geometry_data: List[List[List[List[float]]]]) -> str:
+    """
+    Fixes geometry that crosses the dateline (-180/180) by splitting it.
+    Returns WKT string.
+    """
+    # Helper for extracting polygons from any geometry
+    def extract_polygons(geom):
+        if geom.is_empty: return []
+        if geom.geom_type == 'Polygon': return [geom]
+        if geom.geom_type == 'MultiPolygon': return list(geom.geoms)
+        if geom.geom_type == 'GeometryCollection':
+            pieces = []
+            for g in geom.geoms: pieces.extend(extract_polygons(g))
+            return pieces
+        return []
+
+    # 1. Flatten Polygons (Ensure spatial continuity)
+    flattened_polys = []
+    for poly_coords in geometry_data:
+        # Process shell and holes
+        processed_rings = []
+        for ring_coords in poly_coords:
+            if not ring_coords: continue
+            new_ring = [ring_coords[0]]
+            for i in range(1, len(ring_coords)):
+                prev_x = new_ring[-1][0]
+                curr_x, curr_y = ring_coords[i]
+                # Shift curr_x by ±360 to be closest to prev_x
+                diff = curr_x - prev_x
+                if diff > 180: curr_x -= 360
+                elif diff < -180: curr_x += 360
+                new_ring.append((curr_x, curr_y))
+            processed_rings.append(new_ring)
+        
+        poly = Polygon(processed_rings[0], processed_rings[1:])
+        if not poly.is_valid:
+            poly = make_valid(poly)
+            flattened_polys.extend(extract_polygons(poly))
+        else:
+            flattened_polys.append(poly)
+    
+    # 2. Split at Dateline Boundaries (-180 and 180)
+    # We use three boxes to stay robust
+    box_left = box(-540, -90, -180, 90)
+    box_world = box(-180, -90, 180, 90)
+    box_right = box(180, -90, 540, 90)
+
+    final_pieces = []
+
+    for poly in flattened_polys:
+        # Intersection with World
+        p_world = poly.intersection(box_world)
+        final_pieces.extend(extract_polygons(p_world))
+
+        # Intersection with Left (Shift +360)
+        p_left = poly.intersection(box_left)
+        if not p_left.is_empty:
+            p_left_shifted = transform(lambda x, y, z=None: (x + 360, y), p_left)
+            final_pieces.extend(extract_polygons(p_left_shifted))
+
+        # Intersection with Right (Shift -360)
+        p_right = poly.intersection(box_right)
+        if not p_right.is_empty:
+            p_right_shifted = transform(lambda x, y, z=None: (x - 360, y), p_right)
+            final_pieces.extend(extract_polygons(p_right_shifted))
+
+    # 3. Final Union and cleanup
+    if not final_pieces:
+        return "MULTIPOLYGON EMPTY"
+        
+    final_geom = unary_union(final_pieces)
+    if not final_geom.is_valid:
+        final_geom = make_valid(final_geom)
+        
+    if final_geom.geom_type == 'Polygon':
+        final_geom = MultiPolygon([final_geom])
+    elif final_geom.geom_type == 'GeometryCollection':
+        final_polys = extract_polygons(final_geom)
+        final_geom = MultiPolygon(final_polys)
+
+    return final_geom.wkt

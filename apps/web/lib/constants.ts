@@ -1,4 +1,4 @@
-import { EventData } from '../types';
+import { EventData } from '@sail/shared';
 
 // --- Region Definitions ---
 export const PREDEFINED_REGIONS: Record<string, [number, number][]> = {

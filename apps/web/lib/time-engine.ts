@@ -1,4 +1,4 @@
-import { ChronosTime, EventData } from '../types';
+import { ChronosTime, EventData } from '@sail/shared';
 
 /**
  * lib/time-engine.ts

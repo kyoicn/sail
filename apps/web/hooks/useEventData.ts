@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { EventData, MapBounds } from '../types';
+import { EventData, MapBounds } from '@sail/shared';
 import { EventListSchema } from '../lib/schemas';
 
 const fetcher = async (url: string) => {

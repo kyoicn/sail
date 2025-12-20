@@ -11,23 +11,7 @@ const AreaMap = dynamic(() => import('@/components/AreaMap'), {
   loading: () => <div className="h-full flex items-center justify-center bg-gray-100">Loading Map...</div>
 });
 
-interface AreaSummary {
-  id: string; // Internal UUID
-  area_id: string; // Slug (e.g. 'china_proper')
-  display_name: string;
-}
-
-interface AreaDetail extends AreaSummary {
-  geometry: any; // GeoJSON
-  description?: string;
-  periods?: {
-    period_id: string;
-    display_name: string;
-    role: 'primary' | 'associated';
-    start_year: number;
-    end_year: number;
-  }[];
-}
+import { AreaSummary, AreaDetail } from '@sail/shared';
 
 export default function AreasPage() {
   const [areas, setAreas] = useState<AreaSummary[]>([]);
@@ -210,8 +194,8 @@ export default function AreasPage() {
                         <div className="flex items-center space-x-2">
                           <span className="font-medium text-gray-800">{p.display_name}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full capitalize ${p.role === 'primary'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-gray-100 text-gray-600'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-600'
                             }`}>
                             {p.role}
                           </span>

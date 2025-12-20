@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import { EventData, LayoutResult } from '../types';
+import { EventData, LayoutResult } from '@sail/shared';
 
 /**
  * lib/layout-engine.ts

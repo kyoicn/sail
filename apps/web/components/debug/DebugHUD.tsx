@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, ChevronDown, ChevronUp, Database, Eye, Map as MapIcon, Globe, Layers } from 'lucide-react';
-import { EventData, MapBounds } from '../../types';
+import { EventData, MapBounds } from '@sail/shared';
 
 interface DebugHUDProps {
   zoom: number;

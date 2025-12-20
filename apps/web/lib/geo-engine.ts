@@ -1,4 +1,4 @@
-import { MapBounds } from '../types';
+import { MapBounds } from '@sail/shared';
 
 /**
  * Geo Engine: Core spatial calculations

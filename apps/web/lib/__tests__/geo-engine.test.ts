@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 // [FIXED] Import from the correct local file
 import { isEventInBounds } from '../geo-engine'; 
-import { MapBounds } from '../../types';
+import { MapBounds } from '@sail/shared';
 
 describe('Spatial Filtering Logic (Geo Engine)', () => {
   

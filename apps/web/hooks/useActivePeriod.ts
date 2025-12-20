@@ -1,7 +1,7 @@
 
 import useSWR from 'swr';
 import { useMemo } from 'react';
-import { MapBounds } from '../types';
+import { MapBounds } from '@sail/shared';
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
