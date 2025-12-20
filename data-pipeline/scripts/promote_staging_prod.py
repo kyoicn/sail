@@ -19,6 +19,68 @@ if not DATABASE_URL:
 def get_connection():
     return psycopg2.connect(DATABASE_URL)
 
+def normalize_table_assets(cur, table_name, target_suffix):
+    """
+    Deterministically renames all indexes and constraints for a table
+    to {pure_table}_{base_name}{target_suffix}.
+    """
+    import re
+    def get_base(name, t_name):
+        # Strip _staging, _backup, and any trailing PG version numbers
+        b = name.replace("_staging", "").replace("_backup", "")
+        b = re.sub(r'\d+$', '', b)
+        # Ensure it starts with the pure table name
+        pure_t = t_name.replace("_staging", "").replace("_backup", "")
+        if not b.startswith(pure_t):
+            b = f"{pure_t}_{b}"
+        return b
+
+    # 1. Normalize Indexes
+    cur.execute(f"""
+        SELECT DISTINCT i.relname
+        FROM pg_index x
+        JOIN pg_class c ON c.oid = x.indrelid
+        JOIN pg_class i ON i.oid = x.indexrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = '{table_name}'
+          AND n.nspname = 'public';
+    """)
+    indexes = [row[0] for row in cur.fetchall()]
+    for idx in indexes:
+        base = get_base(idx, table_name)
+        canonical = f"{base}{target_suffix}"
+        if idx != canonical:
+            print(f"    - Index: {idx} -> {canonical}")
+            try:
+                cur.execute(f'ALTER INDEX "{idx}" RENAME TO "{canonical}";')
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedObject, psycopg2.errors.DuplicateTable, psycopg2.errors.DuplicateObject):
+                # This happens if a constraint rename already renamed the index or target exists
+                print(f"      (Index {idx} already renamed, missing, or target exists; skipping)")
+                cur.connection.rollback()
+                cur = cur.connection.cursor()
+
+    # 2. Normalize Constraints
+    cur.execute(f"""
+        SELECT DISTINCT conname
+        FROM pg_constraint con
+        JOIN pg_class c ON con.conrelid = c.oid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = '{table_name}'
+          AND n.nspname = 'public';
+    """)
+    constraints = [row[0] for row in cur.fetchall()]
+    for con in constraints:
+        base = get_base(con, table_name)
+        canonical = f"{base}{target_suffix}"
+        if con != canonical:
+            print(f"    - Constraint: {con} -> {canonical}")
+            try:
+                cur.execute(f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{con}" TO "{canonical}";')
+            except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedObject, psycopg2.errors.DuplicateTable, psycopg2.errors.DuplicateObject):
+                print(f"      (Constraint {con} already renamed, missing, or target exists; skipping)")
+                cur.connection.rollback()
+                cur = cur.connection.cursor()
+
 def promote_staging():
     print("🚀 Starting Promotion: Staging -> Prod")
     conn = get_connection()
@@ -38,24 +100,37 @@ def promote_staging():
         print("Performing Atomic Swap...")
         cur.execute("BEGIN;")
 
-        # Order matters for FKs: period_areas depends on areas & historical_periods
-        # We rename everything to _backup, then _staging to prod.
-        
         # A. Backup Current Prod
         print("  - Backing up current Prod tables...")
         for t in tables:
             cur.execute(f"DROP TABLE IF EXISTS {t}_backup CASCADE;")
+            # Canonicalize prod constraints to _backup before renaming the table
+            normalize_table_assets(cur, t, "_backup")
             cur.execute(f"ALTER TABLE {t} RENAME TO {t}_backup;")
 
         # B. Promote Staging
         print("  - Promoting Staging tables...")
         for t in tables:
             cur.execute(f"ALTER TABLE {t}_staging RENAME TO {t};")
+            # Canonicalize staging constraints back to clean prod names
+            normalize_table_assets(cur, t, "")
         
         # COMMIT the Atomic Swap now.
         # This releases locks so that migrate.py can run without blocking/timeout.
         conn.commit()
         print("✅ Atomic Swap Committed.")
+
+        # B2. Run Production Migrations
+        # After the swap, the new tables have production names. 
+        # We must run migrations to create/update RPCs that bind to these new OIDs.
+        print("  - Running Production migrations to update RPCs...")
+        try:
+            import subprocess
+            migrate_script = data_pipeline_root / 'scripts' / 'migrate.py'
+            cmd = [sys.executable, str(migrate_script), '--instance', 'prod']
+            subprocess.check_call(cmd)
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Failed to run production migrations: {e}")
 
         # C. Re-create Staging (Fresh Schema via Migrate)
         print("  - Re-creating fresh Staging tables via migrate.py...")
@@ -78,27 +153,44 @@ def promote_staging():
         
         for t in sync_order:
             print(f"    - Syncing {t}...")
+            source_table = t
+            dest_table = f"{t}_staging"
             
-            # Get insertable columns (exclude generated)
+            # Get columns for source
             cur.execute(f"""
                 SELECT column_name 
                 FROM information_schema.columns 
-                WHERE table_name = '{t}' 
+                WHERE table_name = '{source_table}' 
+                  AND table_schema = 'public'
                   AND is_generated = 'NEVER';
             """)
-            columns = [row[0] for row in cur.fetchall()]
+            source_cols = set(row[0] for row in cur.fetchall())
             
-            if not columns:
-                print(f"      Warning: No insertable columns for {t}, skipping copy.")
+            # Get columns for destination
+            cur.execute(f"""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = '{dest_table}' 
+                  AND table_schema = 'public'
+                  AND is_generated = 'NEVER';
+            """)
+            dest_cols = set(row[0] for row in cur.fetchall())
+            
+            # Common columns only
+            common_cols = sorted(list(source_cols.intersection(dest_cols)))
+            
+            if not common_cols:
+                print(f"      Warning: No common insertable columns for {t}, skipping copy.")
                 continue
                 
-            cols_str = ", ".join([f'"{c}"' for c in columns])
+            cols_str = ", ".join([f'"{c}"' for c in common_cols])
             
-            # Copy from PROD (which is now the table 't') to STAGING ('t_staging')
-            query = f'INSERT INTO {t}_staging ({cols_str}) SELECT {cols_str} FROM {t};'
+            # Copy from PROD to STAGING
+            cur.execute(f"TRUNCATE {dest_table} CASCADE;")
+            query = f'INSERT INTO {dest_table} ({cols_str}) SELECT {cols_str} FROM {source_table};'
             cur.execute(query)
             
-            cur.execute(f"SELECT count(*) FROM {t}_staging;")
+            cur.execute(f"SELECT count(*) FROM {dest_table};")
             cnt = cur.fetchone()[0]
             print(f"      ✔ Copied {cnt} rows.")
 
