@@ -9,10 +9,33 @@ from typing import List
 from pydantic import BaseModel
 
 """
-Script to populate Area data into the database.
+Script: populate_areas.py
+Description:
+    Parses one or more JSON files containing area data (compatible with AreaModel schema)
+    and populates them into the specified database environment's 'areas' table.
+    It supports upsert operations (insert or update on conflict).
 
-Example Usage:
-    python data-pipeline/scripts/populate_areas.py --instance dev --file data-pipeline/areas.json
+Parameters:
+    --instance {prod,dev,staging}:
+        The target database instance.
+        - 'prod': Targets the 'areas' table.
+        - 'dev': Targets the 'areas_dev' table.
+        - 'staging': Targets the 'areas_staging' table (if configured).
+
+    --input PATH:
+        Path to a single JSON file OR a directory containing multiple JSON files.
+        - If a file: Populates areas from that specific file.
+        - If a directory: Populates from all *.json files in that directory.
+
+Usage Examples:
+    # 1. Populate 'dev' environment from a single file
+    python data-pipeline/scripts/populate_areas.py --instance dev --input data-pipeline/data/generated/qing_1820.json
+
+    # 2. Populate 'prod' environment from a folder of files
+    python data-pipeline/scripts/populate_areas.py --instance prod --input data-pipeline/data/batch_output/
+
+    # 3. Interactive mode (prompts for instance and input)
+    python data-pipeline/scripts/populate_areas.py
 """
 # Setup Environment
 current_file = Path(__file__).resolve()
@@ -93,10 +116,7 @@ def populate_areas(data: AreasData, instance: str):
 def main():
     parser = argparse.ArgumentParser(description="Populate Areas Data")
     parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Target instance (prod, dev, staging)")
-    
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--file", help="Path to JSON file containing areas")
-    group.add_argument("--folder", help="Path to folder containing multiple JSON files of areas")
+    parser.add_argument("--input", help="Path to JSON file or folder containing JSON files")
     
     args = parser.parse_args()
 
@@ -113,27 +133,24 @@ def main():
     # Collect input files
     json_files = []
     
-    if args.folder:
-        folder_path = Path(args.folder)
-        if not folder_path.exists() or not folder_path.is_dir():
-             print(f"Error: Folder not found: {folder_path}")
-             sys.exit(1)
-        json_files = sorted(list(folder_path.glob("*.json")))
-        print(f"Found {len(json_files)} JSON files in folder.")
-    elif args.file:
-        input_path = Path(args.file)
-        if not input_path.exists():
-            print(f"Error: File not found: {input_path}")
-            sys.exit(1)
-        json_files = [input_path]
+    input_path_str = args.input
+    if not input_path_str:
+        input_path_str = input("Path to JSON file or folder: ").strip()
+
+    input_path = Path(input_path_str)
+    
+    if not input_path.exists():
+        print(f"Error: Path not found: {input_path}")
+        sys.exit(1)
+
+    if input_path.is_dir():
+        json_files = sorted(list(input_path.glob("*.json")))
+        print(f"Found {len(json_files)} JSON files in folder: {input_path}")
+    elif input_path.is_file():
+         json_files = [input_path]
     else:
-        # Fallback interactive
-        file_path = input("Path to JSON file containing areas: ").strip()
-        input_path = Path(file_path)
-        if not input_path.exists():
-             print(f"Error: File not found: {input_path}")
-             sys.exit(1)
-        json_files = [input_path]
+         print(f"Error: Path is neither file nor directory: {input_path}")
+         sys.exit(1)
 
     # Load and Aggregated Data
     all_raw_areas = []
