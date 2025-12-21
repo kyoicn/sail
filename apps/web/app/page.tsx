@@ -6,7 +6,7 @@ import { Map as MapIcon, Layers, Loader2, Plus, Minus, Sun, Moon } from 'lucide-
 
 import { EventData, MapBounds } from '@sail/shared';
 import { LeafletMap } from '../components/map/LeafletMap';
-import { TimeControl } from '../components/timeline/TimeControl';
+import { Timeline } from '../components/timeline/Timeline';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';
 import { DebugHUD } from '../components/debug/DebugHUD';
 import { CollectionsSidebar } from '../components/collections/CollectionsSidebar';
@@ -361,7 +361,8 @@ function ChronoMapContent() {
         />
       </main>
 
-      <TimeControl
+      {/* Timeline Control Layer */}
+      <Timeline
         currentDate={currentDate}
         setCurrentDate={setCurrentDate}
         viewRange={viewRange}

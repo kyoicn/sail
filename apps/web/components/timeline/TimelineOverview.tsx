@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { formatSliderTick } from '../../lib/time-engine';
 
-interface OverviewProps {
+interface TimelineOverviewProps {
     viewRange: { min: number, max: number };
     setViewRange: (range: { min: number, max: number }) => void;
     globalMin: number;
@@ -15,7 +15,7 @@ interface OverviewProps {
  * 2. Dragging: Standard React Effect pattern for reliable event binding.
  * 3. Visuals: Weighted Canvas Heatmap with Fluid Animation.
  */
-export const OverviewTimeline: React.FC<OverviewProps> = ({
+export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
     viewRange,
     setViewRange,
     globalMin,

@@ -14,7 +14,7 @@ interface TimelineCanvasProps {
   densityEvents: EventData[]; // [NEW] Full dataset for density waveform
 }
 
-export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
+export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
   currentDate,
   viewRange,
   events,
