@@ -12,6 +12,7 @@ export const getDotHtml = (dotColor: string, size: number): string => {
             border-radius: 50%; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             cursor: pointer;
+            opacity: 0.6;
         " class="map-dot"></div>
     `;
 };

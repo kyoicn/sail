@@ -121,7 +121,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
       const ticks = generateTicks(currentViewRange.min, currentViewRange.max, width);
       const centerY = height / 2;
 
-      ctx.fillStyle = '#94a3b8'; // slate-400
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.6)'; // slate-800/60
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
@@ -132,7 +132,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
         // Tick Line
         ctx.beginPath();
-        ctx.strokeStyle = '#cbd5e1'; // slate-300
+        ctx.strokeStyle = 'rgba(15, 23, 42, 0.15)'; // slate-800/15
         ctx.lineWidth = 1;
         ctx.moveTo(x, centerY + 12); // Start below the track
         ctx.lineTo(x, centerY + 20); // Extend downwards
@@ -195,7 +195,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
         // Draw Logic
         // Highlight expanded ones same as hovered ones? User said "with the marker itself also highlighted"
-        ctx.fillStyle = isHighlighted ? '#2563eb' : 'rgba(51, 65, 85, 0.8)'; // blue-600 vs slate-700
+        ctx.fillStyle = isHighlighted ? '#2563eb' : 'rgba(51, 65, 85, 0.7)'; // blue-600 vs slate-700
 
         if (isHighlighted) {
           // Highlight scale

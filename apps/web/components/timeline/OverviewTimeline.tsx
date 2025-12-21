@@ -427,14 +427,14 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
 
     return (
         <div className="relative w-full mt-6 h-[76px]">
-            {/* Visual Frame: Border & Background (Fixed to Content Height) */}
-            <div className="absolute top-0 left-0 w-full h-14 bg-slate-50 rounded-lg border border-slate-200 pointer-events-none z-0" />
+            {/* Visual Frame: Glass Background */}
+            <div className="absolute top-0 left-0 w-full h-14 glass-panel rounded-lg pointer-events-none z-0" />
 
             {/* Canvas Chart (Viewport Sized, Underlay) */}
             <div className="absolute top-0 left-0 w-full h-14 overflow-hidden pointer-events-none z-0 rounded-lg">
                 <canvas
                     ref={canvasRef}
-                    className="w-full h-full mix-blend-multiply opacity-90"
+                    className="w-full h-full mix-blend-multiply opacity-80"
                 />
             </div>
 
@@ -454,7 +454,7 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
                     <div
                         ref={indicatorRef}
                         onMouseDown={(e) => startDrag(e, 'pan')}
-                        className="absolute top-0 h-full bg-blue-500/5 border-y-2 border-blue-500 rounded-md cursor-grab active:cursor-grabbing hover:bg-blue-500/10 transition-colors z-10 box-border flex items-center justify-between shadow-sm"
+                        className="absolute top-0 h-full bg-blue-500/10 border-y-2 border-blue-400 rounded-md cursor-grab active:cursor-grabbing hover:bg-blue-500/20 transition-colors z-10 box-border flex items-center justify-between shadow-xl"
                         style={{
                             minWidth: '80px',
                             // display controlled via effect
@@ -479,8 +479,8 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
 
                     {/* Labels */}
                     <div className="sticky left-0 bottom-0 pointer-events-none w-full h-full">
-                        <div className="absolute -bottom-5 left-0 text-[10px] text-slate-400 font-mono bg-slate-50/80 pr-1">{formatSliderTick(globalMin)}</div>
-                        <div className="absolute -bottom-5 right-0 text-[10px] text-slate-400 font-mono bg-slate-50/80 pl-1">{formatSliderTick(globalMax)}</div>
+                        <div className="absolute -bottom-5 left-0 text-[10px] text-slate-500 font-mono pr-1">{formatSliderTick(globalMin)}</div>
+                        <div className="absolute -bottom-5 right-0 text-[10px] text-slate-500 font-mono pl-1">{formatSliderTick(globalMax)}</div>
                     </div>
                 </div>
             </div>
