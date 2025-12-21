@@ -167,6 +167,27 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
 
     // --- 4. Drag Logic ---
 
+    // [Virtualization] Force re-render on scroll to update visible ticks
+    const [, forceUpdate] = useState({});
+    useEffect(() => {
+        const sc = scrollContainerRef.current;
+        if (!sc) return;
+
+        let ticking = false;
+        const onScroll = () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    forceUpdate({});
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        };
+
+        sc.addEventListener('scroll', onScroll, { passive: true });
+        return () => sc.removeEventListener('scroll', onScroll);
+    }, []);
+
     const handleWindowMouseMove = useCallback((e: MouseEvent) => {
         e.preventDefault();
 
@@ -263,7 +284,7 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
     };
 
     return (
-        <div className="relative w-full mt-4 flex flex-col gap-1">
+        <div className="relative w-full mt-0 flex flex-col gap-1">
             {/* Virtual Track / Content Wrapper (Fixed Height) */}
             {/* Scroll Container - Explicitly separate from visual content if possible, 
                 or just ensure height is sufficient so scrollbar doesn't eat content.
@@ -303,7 +324,7 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
                         className="relative h-full min-w-full"
                         style={{ width: virtualWidth ? `${virtualWidth}px` : '100%' }}
                     >
-                        {/* Global Ruler (Dynamic Ticks & Labels) */}
+                        {/* Global Ruler (Dynamic Ticks & Labels) with Virtual Windowing */}
                         <div className="absolute inset-0 flex items-center pointer-events-none select-none">
                             {/* Horizontal Center Line */}
                             <div className="absolute w-full h-px bg-slate-200" />
@@ -313,6 +334,14 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
                                 if (span <= 0) return null;
 
                                 const vWidth = virtualWidth || containerWidth || 1000;
+                                const currentScrollLeft = scrollContainerRef.current?.scrollLeft || 0;
+                                const viewportWidth = containerWidth || 1000;
+
+                                // Buffer for smooth scrolling (render extra screens)
+                                const BUFFER = viewportWidth * 1.5;
+                                const visibleStartPx = Math.max(0, currentScrollLeft - BUFFER);
+                                const visibleEndPx = currentScrollLeft + viewportWidth + BUFFER;
+
                                 // Target ~80px per tick for better density
                                 const targetTickCount = Math.max(2, Math.floor(vWidth / 80));
                                 const rawStep = span / targetTickCount;
@@ -328,30 +357,42 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
                                 else step = magnitude;
 
                                 const ticks = [];
-                                const start = Math.ceil(globalMin / step) * step;
-                                for (let t = start; t <= globalMax; t += step) {
+                                const pxPerYear = vWidth / span;
+
+                                // Optimization: Find start/end tick index based on visible pixels
+                                // tickVal = globalMin + (px / vWidth) * span
+                                const startYear = globalMin + (visibleStartPx / vWidth) * span;
+                                const endYear = globalMin + (visibleEndPx / vWidth) * span;
+
+                                // Snap start to grid
+                                const startTick = Math.ceil(startYear / step) * step;
+
+                                // Safety loop cap (just in case)
+                                let loopCount = 0;
+                                for (let t = startTick; t <= endYear && t <= globalMax; t += step) {
                                     ticks.push(t);
+                                    loopCount++;
+                                    if (loopCount > 1000) break; // Hard cap per frame
                                 }
 
                                 return ticks.map(t => {
                                     const percent = (t - globalMin) / span;
-                                    const left = `${percent * 100}%`;
+                                    const leftPx = percent * vWidth;
+                                    // Use absolute pixels for better precision than % at large scales
+
                                     const label = formatSliderTick(t, span);
 
                                     return (
                                         <div
                                             key={t}
                                             className="absolute flex flex-col items-center justify-center transform -translate-x-1/2 h-full z-0"
-                                            style={{ left }}
+                                            style={{ left: `${leftPx}px` }}
                                         >
-                                            {/* Tick Mark - Centered vertical line, full height but faint? Or short? 
-                                                User wants "text positioned at vertical center". 
-                                                Let's do a faint full-height line for the grid, and text centered. 
-                                            */}
+                                            {/* Tick Mark */}
                                             <div className="absolute w-px h-full bg-slate-300/30" />
 
-                                            {/* Label - Vertically Centered */}
-                                            <span className="relative text-[9px] font-semibold text-slate-500/80 px-1 select-none">
+                                            {/* Label */}
+                                            <span className="relative text-[9px] font-semibold text-slate-500/80 px-1 select-none whitespace-nowrap">
                                                 {label}
                                             </span>
                                         </div>

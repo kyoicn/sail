@@ -123,10 +123,10 @@ export const Timeline: React.FC<TimeControlProps> = ({
 
   return (
     <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-6xl px-4 z-10">
-      <div className="glass-panel rounded-2xl p-4 shadow-2xl flex items-stretch gap-6">
+      <div className="glass-panel rounded-2xl p-3 shadow-2xl flex items-stretch gap-4">
 
         {/* --- LEFT COLUMN: Controls & Info --- */}
-        <div className="flex flex-col gap-3 shrink-0 justify-center items-start min-w-[200px]">
+        <div className="flex flex-col gap-0 shrink-0 justify-start items-start w-[340px]">
           {/* Header Info */}
           <TimelineHeader
             interactionMode={interactionMode}
@@ -136,71 +136,89 @@ export const Timeline: React.FC<TimeControlProps> = ({
             setCurrentDate={setCurrentDate}
             mapBounds={mapBounds}
           />
-
-          {/* Playback Controls (Moved below header) */}
-          <TimelinePlaybackControls
-            isPlaying={isPlaying}
-            setIsPlaying={setIsPlaying}
-            interactionMode={interactionMode}
-            setInteractionMode={setInteractionMode}
-            setCurrentDate={setCurrentDate}
-            viewRange={viewRange}
-            onManualStep={onManualStep}
-          />
         </div>
 
         {/* --- MIDDLE COLUMN: Timeline Tracks (Flexible) --- */}
-        <div className="flex-1 flex flex-col justify-center gap-0 min-w-0 relative">
+        <div className="flex-1 flex flex-col justify-start gap-0 min-w-0 relative">
 
-          {/* Main Track */}
-          <div
-            ref={trackRef}
-            className="relative h-20 group cursor-pointer select-none w-full"
-            onMouseDown={handleTrackMouseDown}
-          >
-            <TimelineTrack
-              currentDate={currentDate}
+          {/* Main Track Row (Playback + Track) */}
+          <div className="flex items-center gap-3 w-full relative z-10">
+            {/* Playback Controls (Left of Main Track) */}
+            <TimelinePlaybackControls
+              isPlaying={isPlaying}
+              setIsPlaying={setIsPlaying}
+              interactionMode={interactionMode}
+              setInteractionMode={setInteractionMode}
+              setCurrentDate={setCurrentDate}
               viewRange={viewRange}
-              events={events}
-              allEvents={allEvents}
-              onEventClick={onToggleExpand}
-              onHoverChange={setHoveredEventId}
-              expandedEventIds={expandedEventIds}
-              densityEvents={densityEvents}
+              onManualStep={onManualStep}
             />
 
-            {/* Playback Progress Bar */}
-            {(interactionMode === 'playback' || isPlaying) && (
-              <div
-                className="absolute top-0 h-[60%] bg-blue-400/10 z-0 pointer-events-none transition-all duration-75 border-r border-blue-400/30 rounded-l-lg"
-                style={{
-                  width: `${Math.max(0, Math.min(100, thumbPercent))}%`,
-                  left: 0
-                }}
-              />
-            )}
-
-            {/* Slider Thumb */}
+            {/* Main Track Container */}
             <div
-              className={`absolute top-[40%] w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
+              ref={trackRef}
+              className="relative h-20 flex-1 group cursor-pointer select-none"
+              onMouseDown={handleTrackMouseDown}
+            >
+              <TimelineTrack
+                currentDate={currentDate}
+                viewRange={viewRange}
+                events={events}
+                allEvents={allEvents}
+                onEventClick={onToggleExpand}
+                onHoverChange={setHoveredEventId}
+                expandedEventIds={expandedEventIds}
+                densityEvents={densityEvents}
+              />
+
+              {/* Playback Progress Bar */}
+              {(interactionMode === 'playback' || isPlaying) && (
+                <div
+                  className="absolute top-0 h-[60%] bg-blue-400/10 z-0 pointer-events-none transition-all duration-75 border-r border-blue-400/30 rounded-l-lg"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, thumbPercent))}%`,
+                    left: 0
+                  }}
+                />
+              )}
+
+              {/* Slider Thumb */}
+              <div
+                className={`absolute top-[40%] w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
                         ${isThumbDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'} 
                         transition-transform duration-75 
                         ${(interactionMode === 'investigation' || isPlaying) && isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-              style={{ left: `${Math.max(0, Math.min(100, thumbPercent))}%` }}
-              onMouseDown={handleThumbMouseDown}
-            />
+                style={{ left: `${Math.max(0, Math.min(100, thumbPercent))}%` }}
+                onMouseDown={handleThumbMouseDown}
+              />
 
-            {/* Tooltip Overlay */}
-            <TimelineTooltip
-              hoveredEventId={hoveredEventId}
-              interactionMode={interactionMode}
-              events={events}
-              viewRange={viewRange}
-            />
+              <TimelineTooltip
+                hoveredEventId={hoveredEventId}
+                interactionMode={interactionMode}
+                events={events}
+                viewRange={viewRange}
+              />
+            </div>
           </div>
 
           {/* Overview Track */}
-          <div className="w-full -mt-3">
+          <div className="w-full -mt-3 pl-11">
+            {/* Note: Added pl-11 to align overview with the main track (skipping the 32px button + gap) visually? 
+                 Actually, usually overview spans the whole width. But if logic relates to main track x-position...
+                 TimelineOverview maps globalMin/Max to width. 
+                 TimelineTrack maps viewRange to width. 
+                 If Play button pushes MainTrack right, Overview needs to match?
+                 Wait, Overview is usually "global context". 
+                 If I push MainTrack right by 40px (button), but Overview stays full width, 
+                 they won't align vertically if Overview is meant to represent the same screen space x-axis 
+                 (which it isn't, it's a different scale). 
+                 However, aesthetically, users usually want the left edges to align if they represent "Time start".
+                 But Overview is Global Range. Main Track is View Range. They are different scales.
+                 So align-left is purely aesthetic. 
+                 If I don't pad Overview, it will start at the left edge of the column, UNDER the play button.
+                 That's probably fine or even better.
+                 But let's stick to standard flow first.
+              */}
             <TimelineOverview
               viewRange={viewRange}
               setViewRange={setViewRange}

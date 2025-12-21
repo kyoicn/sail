@@ -30,19 +30,37 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
   // Track mouse position for hit testing
   const mouseRef = useRef<{ x: number, y: number } | null>(null);
 
+  // --- Pre-Calculation: Optimize Density Data ---
+  // Convert complex date objects to simple linear floats once
+  const processedDensityPoints = useMemo(() => {
+    if (!densityEvents || densityEvents.length === 0) return [];
+
+    // Map to simple structure { val: sliderValue, importance: number }
+    const points = densityEvents.map(e => {
+      const startFraction = getAstroYear(e.start) - e.start.year;
+      const val = toSliderValue(e.start.year) + startFraction;
+      return { val, importance: e.importance || 1 };
+    });
+
+    // Ensure sorted for efficient range query
+    points.sort((a, b) => a.val - b.val);
+    return points;
+  }, [densityEvents]);
+
   // [OPTIMIZATION] Use Refs for props/state to decouple render loop from React effect re-runs
   const stateRef = useRef({
     viewRange,
     events,
     hoveredEventId,
     expandedEventIds,
-    densityEvents // [NEW]
+    densityEvents,
+    processedDensityPoints
   });
 
-  // Sync Refs
+  // Sync Refs including pre-calculated points
   useEffect(() => {
-    stateRef.current = { viewRange, events, hoveredEventId, expandedEventIds, densityEvents };
-  }, [viewRange, events, hoveredEventId, expandedEventIds, densityEvents]);
+    stateRef.current = { viewRange, events, hoveredEventId, expandedEventIds, densityEvents, processedDensityPoints };
+  }, [viewRange, events, hoveredEventId, expandedEventIds, densityEvents, processedDensityPoints]);
 
 
   // --- Helper: Generate Ticks (Pure Logic) ---
@@ -79,7 +97,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       }
       current += step;
       // Safety
-      if (ticks.length > 100) break;
+      if (ticks.length > 200) break; // Increased safety cap slightly
     }
     return ticks;
   };
@@ -125,7 +143,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
         events: currentEvents,
         hoveredEventId: currentHoveredId,
         expandedEventIds: currentExpanded,
-        densityEvents: currentDensityEvents // [NEW] Read density events
+        processedDensityPoints: currentPoints // [NEW] Use pre-calc points
       } = stateRef.current;
 
       const width = rect.width;
@@ -138,7 +156,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       const span = currentViewRange.max - currentViewRange.min;
       if (span <= 0) return;
 
-      const RULER_H = 20;
+      const RULER_H = 35; // Increased to 35 to avoid collision with overlapping Overview (which uses -mt-3)
       const WAVE_H = height - RULER_H;
       const MARKER_Y = WAVE_H / 2;
 
@@ -165,30 +183,43 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // --- 1. Draw Density Waveform ---
-      if (currentDensityEvents && currentDensityEvents.length > 0) {
+      // --- 1. Draw Density Waveform (Optimized) ---
+      if (currentPoints && currentPoints.length > 0) {
         const BIN_COUNT = Math.ceil(width / 2); // 1 bin per 2px approx
         const bins = new Array(BIN_COUNT).fill(0);
 
-        // A. Binning (Filter to View Range)
+        // A. Binning (Optimized Loop)
         let maxBin = 0;
-        currentDensityEvents.forEach(e => {
-          const startFraction = getAstroYear(e.start) - e.start.year;
-          const val = toSliderValue(e.start.year) + startFraction;
 
-          // Only include if inside or very slightly outside current view (for edge smoothing)
-          // Actually, we should probably include a margin to avoid popping at edges, 
-          // but user asked for "limited to current viewRange". 
-          // Let's interpret that as "data contributing to the visual curve in this view".
-          if (val >= currentViewRange.min && val <= currentViewRange.max) {
-            const percent = (val - currentViewRange.min) / span;
-            const idx = Math.floor(percent * (BIN_COUNT - 1));
-            if (idx >= 0 && idx < BIN_COUNT) {
-              bins[idx] += (e.importance || 1);
-              if (bins[idx] > maxBin) maxBin = bins[idx];
-            }
+        // Binary Search Start (Optional but good) or simple bounds check
+        // Simple linear scan is heavily optimized by JIT since objects are simple numbers now
+        // But for 10k items, let's just iterate. 
+        // Optimization: Since sorted, find start index and break after end?
+        // Let's do a simple optimization: Skip if val < min
+
+        // Actually, for smoothness we want a bit of buffer
+        const viewMin = currentViewRange.min - (span * 0.1);
+        const viewMax = currentViewRange.max + (span * 0.1);
+
+        // Finding start index via binary search would be O(log N). 
+        // Linear scan is O(N). 
+        // Let's stick to linear for code simplicity unless verified slow, 
+        // BUT we break early.
+
+        for (let i = 0; i < currentPoints.length; i++) {
+          const p = currentPoints[i];
+          if (p.val > viewMax) break; // Sorted, so we can stop
+          if (p.val < viewMin) continue;
+
+          // Inside view
+          const percent = (p.val - currentViewRange.min) / span;
+          const idx = Math.floor(percent * (BIN_COUNT - 1));
+          // Check bounds (since we added buffer)
+          if (idx >= 0 && idx < BIN_COUNT) {
+            bins[idx] += p.importance;
+            if (bins[idx] > maxBin) maxBin = bins[idx];
           }
-        });
+        }
 
         if (maxBin > 0) {
           // B. Convolution (Smooth)
@@ -196,14 +227,11 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
           let localMax = 0;
           for (let i = 0; i < BIN_COUNT; i++) {
             let sum = 0;
-            let weightSum = 0;
             for (let k = -ksize; k <= ksize; k++) {
               const idx = i + k;
               if (idx >= 0 && idx < BIN_COUNT) {
                 sum += bins[idx] * kernel[k + ksize];
               }
-              // Normalized kernel weight handling effectively happens if we considered edges, 
-              // but simplified here is fine for visual shape.
             }
             smoothed[i] = sum;
             if (sum > localMax) localMax = sum;

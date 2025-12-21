@@ -30,7 +30,9 @@ export const TimelineZoomControls: React.FC<TimelineZoomControlsProps> = ({
       return;
     }
 
-    const newMin = Math.max(globalMin, currentDate - newSpan / 2);
+    // [FIX] Zoom into the center of the current view, not the currentDate (playhead)
+    const viewCenter = (viewRange.min + viewRange.max) / 2;
+    const newMin = Math.max(globalMin, viewCenter - newSpan / 2);
     const newMax = Math.min(globalMax, newMin + newSpan);
 
     // Clamp to bounds
@@ -69,9 +71,11 @@ export const TimelineZoomControls: React.FC<TimelineZoomControlsProps> = ({
                     resetZoom();
                   } else {
                     const newSpan = scale.span;
-                    const newMin = Math.max(globalMin, currentDate - newSpan / 2);
+                    // [FIX] Center on current view
+                    const viewCenter = (viewRange.min + viewRange.max) / 2;
+                    const newMin = Math.max(globalMin, viewCenter - newSpan / 2);
                     const newMax = Math.min(globalMax, newMin + newSpan);
-                    // Clamp bounds if needed, but centering on currentDate is priority
+                    // Clamp bounds if needed, but centering on viewCenter is priority
                     if (newMin <= globalMin) setViewRange({ min: globalMin, max: globalMin + newSpan });
                     else if (newMax >= globalMax) setViewRange({ min: globalMax - newSpan, max: globalMax });
                     else setViewRange({ min: newMin, max: newMax });

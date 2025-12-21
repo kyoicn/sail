@@ -21,27 +21,26 @@ export const TimelinePlaybackControls: React.FC<TimelinePlaybackControlsProps> =
   onManualStep
 }) => {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       <button
         onClick={() => {
           if (!isPlaying) {
-            // Enter Play Mode
-            // If switching from another mode, reset to start. If already in playback, just resume.
             if (interactionMode !== 'playback') {
               setCurrentDate(viewRange.min);
               setInteractionMode('playback');
             }
             setIsPlaying(true);
           } else {
-            // Pause Playback
             setIsPlaying(false);
           }
         }}
-        className={`p-2 rounded-full shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 
-                ${isPlaying ? 'bg-black/5 text-slate-600 hover:bg-black/10' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+        className={`group flex items-center justify-center w-8 h-8 rounded-lg border transition-all shadow-sm
+                ${isPlaying
+            ? 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'
+            : 'bg-white border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 hover:bg-slate-50'}`}
         title={isPlaying ? "Pause Playback" : "Start Playback"}
       >
-        {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
+        {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
       </button>
 
       {/* Next Step Button (Only in Playback Mode) */}
@@ -49,13 +48,13 @@ export const TimelinePlaybackControls: React.FC<TimelinePlaybackControlsProps> =
         <button
           onClick={onManualStep}
           disabled={isPlaying}
-          className={`p-2 rounded-full shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 animate-in fade-in slide-in-from-left-4
+          className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-all shadow-sm animate-in fade-in slide-in-from-left-2
                   ${isPlaying
-              ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
+              : 'bg-white border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 hover:bg-slate-50'}`}
           title="Next Step"
         >
-          <ArrowRight size={20} />
+          <ArrowRight size={14} />
         </button>
       )}
     </div>
