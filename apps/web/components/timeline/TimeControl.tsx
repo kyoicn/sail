@@ -214,7 +214,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   const getHeaderContent = () => {
     // Shared subtitle container class for height stability
     // h-6 ensures enough space for the button without jumping
-    const subtitleClass = "h-6 flex items-center justify-center gap-2 mt-1 px-4 max-w-lg mx-auto overflow-hidden text-slate-500/80";
+    const subtitleClass = "h-6 flex items-center justify-center gap-2 mt-1 px-4 max-w-lg mx-auto overflow-hidden";
 
     if (interactionMode === 'exploration') {
 
@@ -228,7 +228,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
       return (
         <div className="flex flex-col items-center">
           <div className="relative flex items-center justify-center hidden-scrollbar">
-            <span className="text-3xl font-bold font-mono tracking-tight text-slate-800 leading-9">
+            <span className="text-3xl font-bold font-mono tracking-tight leading-9" style={{ color: 'var(--glass-text-primary)' }}>
               {formatNaturalDate(viewRange.min, viewRange.max - viewRange.min)} - {formatNaturalDate(viewRange.max, viewRange.max - viewRange.min)}
             </span>
 
@@ -282,13 +282,13 @@ export const TimeControl: React.FC<TimeControlProps> = ({
             </button>
           </div>
 
-          <span className="text-3xl font-bold font-mono tracking-tight text-slate-800 leading-9">
+          <span className="text-3xl font-bold font-mono tracking-tight leading-9" style={{ color: 'var(--glass-text-primary)' }}>
             {formatNaturalDate(currentDate, viewRange.max - viewRange.min)}
           </span>
         </div>
 
-        <div className={subtitleClass}>
-          <span className="text-xs text-blue-600 font-medium tracking-wide">
+        <div className={subtitleClass} style={{ color: 'var(--glass-text-secondary)' }}>
+          <span className="text-xs font-medium tracking-wide text-blue-500">
             {rangeSubtitle()}
           </span>
           {/* [NEW] Active Periods Display for Investigation Mode */}

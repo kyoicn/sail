@@ -2,7 +2,7 @@
 
 import { Analytics } from "@vercel/analytics/next"
 import React, { useState, useMemo, useEffect, Suspense, useRef } from 'react';
-import { Map as MapIcon, Layers, Loader2, Plus, Minus } from 'lucide-react';
+import { Map as MapIcon, Layers, Loader2, Plus, Minus, Sun, Moon } from 'lucide-react';
 
 import { EventData, MapBounds } from '@sail/shared';
 import { LeafletMap } from '../components/map/LeafletMap';
@@ -23,6 +23,12 @@ import { ZOOM_SCALES } from '../lib/time-engine';
 function ChronoMapContent() {
   const GLOBAL_MIN = -3000;
   const GLOBAL_MAX = 2024;
+
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   // --- 1. Infrastructure & Config ---
   const { dataset } = useAppConfig();
@@ -252,7 +258,7 @@ function ChronoMapContent() {
 
   // --- 4. View Layer ---
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100">
+    <div className={`flex flex-col h-screen w-full bg-slate-50 font-sans text-slate-900 overflow-hidden relative selection:bg-blue-100 ${theme === 'dark' ? 'dark' : ''}`}>
 
       {dataset !== 'prod' && (
         <DebugHUD
@@ -304,6 +310,13 @@ function ChronoMapContent() {
             )}
           </div>
           <div className="pointer-events-auto flex flex-col gap-2">
+            <button
+              onClick={toggleTheme}
+              className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50"
+              title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+            >
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            </button>
             <button className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50">
               <Layers size={20} />
             </button>
@@ -344,6 +357,7 @@ function ChronoMapContent() {
           hoveredEventId={hoveredEventId}
           setHoveredEventId={setHoveredEventId}
           activeAreaShape={activeAreaShape}
+          theme={theme}
         />
       </main>
 

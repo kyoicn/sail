@@ -24,6 +24,7 @@ interface LeafletMapProps {
   hoveredEventId: string | null;
   setHoveredEventId: (id: string | null) => void;
   activeAreaShape?: any | null; // GeoJSON MultiPolygon
+  theme: 'light' | 'dark'; // [NEW] Theme Prop
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -42,7 +43,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   interactionMode,
   hoveredEventId,
   setHoveredEventId,
-  activeAreaShape
+  activeAreaShape,
+  theme // [NEW]
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -130,13 +132,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           maxBoundsViscosity: 1.0
         }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        const tileLayer = L.tileLayer(theme === 'dark'
+          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+          : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
           attribution: '&copy; CARTO',
           subdomains: 'abcd',
           maxZoom: 19,
           noWrap: true,
           bounds: [[-90, -180], [90, 180]]
         }).addTo(map);
+
+        (map as any)._tileLayer = tileLayer; // Keep ref for updates
 
         map.createPane('shapesPane').style.zIndex = '450';
         map.createPane('linesPane').style.zIndex = '550';
@@ -197,6 +203,20 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     if (zoomAction.type === 'in') map.zoomIn();
     if (zoomAction.type === 'out') map.zoomOut();
   }, [zoomAction]);
+
+  // [NEW] Handle Theme Change
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L) return;
+    const map = mapInstanceRef.current;
+    const tileLayer = (map as any)._tileLayer;
+
+    if (tileLayer) {
+      tileLayer.setUrl(theme === 'dark'
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+      );
+    }
+  }, [theme]);
 
 
   useEffect(() => {
