@@ -1,14 +1,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
-import { EventData } from '@sail/shared';
-import { toSliderValue, formatSliderTick } from '../../lib/time-engine';
+import { formatSliderTick } from '../../lib/time-engine';
 
 interface OverviewProps {
     viewRange: { min: number, max: number };
     setViewRange: (range: { min: number, max: number }) => void;
     globalMin: number;
     globalMax: number;
-    events: EventData[];
 }
 
 /**
@@ -22,13 +19,11 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
     viewRange,
     setViewRange,
     globalMin,
-    globalMax,
-    events
+    globalMax
 }) => {
     // DOM Refs
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
     const indicatorRef = useRef<HTMLDivElement>(null);
 
     // UI State
@@ -56,202 +51,31 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
     });
     const rafLock = useRef<number | null>(null);
 
-    // Heatmap Animation Refs
-    const targetBinsRef = useRef<number[]>([]);
-    const currentBinsRef = useRef<number[]>([]);
-    const animationFrameId = useRef<number | null>(null);
 
-    // Constants
-    const totalSpan = globalMax - globalMin;
-    const BIN_COUNT = 300;
-    const GAUSSIAN_RADIUS = 12;
-    const GAUSSIAN_SIGMA = 5;
-
-    // --- 1. Heatmap Data Calculation ---
-    useEffect(() => {
-        const targetBins = new Array(BIN_COUNT).fill(0);
-
-        if (events && events.length > 0) {
-            // A. Raw Binning
-            const rawBins = new Array(BIN_COUNT).fill(0);
-            events.forEach(event => {
-                const val = toSliderValue(event.start.year);
-                const index = Math.floor(((val - globalMin) / totalSpan) * BIN_COUNT);
-                if (index >= 0 && index < BIN_COUNT) {
-                    rawBins[index] += (event.importance || 1);
-                }
-            });
-
-            // B. Gaussian Kernel Prep
-            const kernel = [];
-            for (let i = -GAUSSIAN_RADIUS; i <= GAUSSIAN_RADIUS; i++) {
-                kernel.push(Math.exp(-(i * i) / (2 * GAUSSIAN_SIGMA * GAUSSIAN_SIGMA)));
-            }
-
-            // C. Convolution
-            let maxVal = 0;
-            const smoothedBins = new Array(BIN_COUNT).fill(0);
-
-            for (let i = 0; i < BIN_COUNT; i++) {
-                let sum = 0;
-                for (let k = -GAUSSIAN_RADIUS; k <= GAUSSIAN_RADIUS; k++) {
-                    const neighborIdx = i + k;
-                    if (neighborIdx >= 0 && neighborIdx < BIN_COUNT) {
-                        sum += rawBins[neighborIdx] * kernel[k + GAUSSIAN_RADIUS];
-                    }
-                }
-                smoothedBins[i] = sum;
-                if (sum > maxVal) maxVal = sum;
-            }
-
-            // D. Normalization (Log Scale)
-            const safeMax = maxVal > 0 ? maxVal : 1;
-            // Use Log scale to boost visibility of lower-importance events
-            // Formula: intensity = log(value + 1) / log(max + 1)
-            const logMax = Math.log(safeMax + 1);
-
-            for (let i = 0; i < BIN_COUNT; i++) {
-                if (smoothedBins[i] > 0 && logMax > 0) {
-                    targetBins[i] = Math.log(smoothedBins[i] + 1) / logMax;
-                } else {
-                    targetBins[i] = 0;
-                }
-            }
-        }
-
-        targetBinsRef.current = targetBins;
-
-        if (currentBinsRef.current.length !== BIN_COUNT) {
-            currentBinsRef.current = new Array(BIN_COUNT).fill(0);
-        }
-    }, [events, globalMin, globalMax, totalSpan]);
-
-
-    // --- 2. Canvas Rendering Loop ---
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const render = () => {
-            const canvas = canvasRef.current;
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return;
-
-            // 1. Resize Check (Every Frame)
-            const dpr = window.devicePixelRatio || 1;
-            const rect = canvas.getBoundingClientRect();
-            if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
-                canvas.width = rect.width * dpr;
-                canvas.height = rect.height * dpr;
-                ctx.scale(dpr, dpr);
-            }
-
-            // Get Scroll Position
-            const scrollLeft = scrollContainerRef.current ? scrollContainerRef.current.scrollLeft : 0;
-            const containerWidth = scrollContainerRef.current ? scrollContainerRef.current.clientWidth : 0;
-            // Guard against 0 width
-            const vWidth = Math.max(virtualWidth || containerWidth || 1, 1);
-
-            let needsUpdate = false;
-            const lerpFactor = 0.15;
-            const tolerance = 0.001;
-
-            // Interpolate
-            for (let i = 0; i < BIN_COUNT; i++) {
-                const current = currentBinsRef.current[i];
-                const target = targetBinsRef.current[i];
-                const diff = target - current;
-
-                if (Math.abs(diff) > tolerance) {
-                    currentBinsRef.current[i] = current + diff * lerpFactor;
-                    needsUpdate = true;
-                } else {
-                    currentBinsRef.current[i] = target;
-                }
-            }
-
-            // Draw
-            ctx.clearRect(0, 0, rect.width, rect.height);
-
-            ctx.beginPath();
-            ctx.strokeStyle = '#93c5fd'; // blue-300 (lighter than blue-500)
-            ctx.lineWidth = 2;
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-
-            const width = rect.width;
-            const height = rect.height;
-            const padding = 4;
-
-            // Draw (View-Mapped)
-            // Instead of drawing the whole 300 visible points scaled to virtual width (which might be huge),
-            // We map the virtual range back to the canvas [0..width]
-
-            // Optimization: Iterate all bins (300 is low cost) to avoid cutoff artifacts
-            // Canvas clipping handles off-screen drawing efficiently.
-            const startIdx = 0;
-            const endIdx = BIN_COUNT - 1;
-
-            let hasStarted = false;
-
-            for (let i = startIdx; i <= endIdx; i++) {
-                const intensity = currentBinsRef.current[i]; // Normalized 0-1
-                const globalFraction = i / (BIN_COUNT - 1);
-
-                // Map to Screen Coordinates
-                // Virtual X
-                const vx = globalFraction * vWidth;
-                // Screen X
-                const x = vx - scrollLeft;
-
-                // Scale intensity to height, keep it rooted at bottom
-                const plotHeight = height - (padding * 2);
-                const y = height - padding - (intensity * plotHeight);
-
-                if (!hasStarted) {
-                    ctx.moveTo(x, y);
-                    hasStarted = true;
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-
-            ctx.stroke();
-
-            if (needsUpdate || animationFrameId.current === null) {
-                animationFrameId.current = requestAnimationFrame(render);
-            } else {
-                animationFrameId.current = null;
-            }
-        };
-
-        if (!animationFrameId.current) {
-            animationFrameId.current = requestAnimationFrame(render);
-        }
-
-        // Attach Scroll Listener to update Canvas
-        const sc = scrollContainerRef.current;
-        const onScroll = () => {
-            if (!animationFrameId.current) {
-                animationFrameId.current = requestAnimationFrame(render);
-            }
-        };
-
-        if (sc) sc.addEventListener('scroll', onScroll);
-
-        return () => {
-            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-            animationFrameId.current = null;
-            if (sc) sc.removeEventListener('scroll', onScroll);
-        };
-    }, [events, virtualWidth]); // Add virtualWidth dependency
 
 
     // --- 3. Viewport State Sync & Virtual Width ---
+    const [containerWidth, setContainerWidth] = useState(0);
+
+    // Resize Observer to keep containerWidth state fresh
+    useEffect(() => {
+        if (!scrollContainerRef.current) return;
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setContainerWidth(entry.contentRect.width);
+            }
+        });
+        resizeObserver.observe(scrollContainerRef.current);
+        return () => resizeObserver.disconnect();
+    }, []);
+
     useEffect(() => {
         if (!scrollContainerRef.current) return;
 
-        const containerW = scrollContainerRef.current.clientWidth;
+        // Use state or ref fallback
+        const containerW = containerWidth || scrollContainerRef.current.clientWidth;
+        if (containerW === 0) return;
+
         const currentSpan = viewRange.max - viewRange.min;
         const totalSpan = globalMax - globalMin;
         const ratio = currentSpan / totalSpan;
@@ -262,28 +86,38 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
         const MAX_VIRTUAL_WIDTH = 5000000; // 5M pixels (Browser Safe Limit)
 
         let newVirtualWidth = containerW;
+        let isExpanded = false;
 
         // Tier 2: If indicator would be too small, scale up virtual width
-        if (standardIndicatorW < MIN_INDICATOR_W) {
+        if (standardIndicatorW < MIN_INDICATOR_W && ratio > 0) {
             const scale = MIN_INDICATOR_W / standardIndicatorW;
-            newVirtualWidth = Math.min(containerW * scale, MAX_VIRTUAL_WIDTH);
+            const expandedW = containerW * scale;
+
+            // Only actually expand if substantially larger to avoid jitter
+            if (expandedW > containerW + 1) {
+                newVirtualWidth = Math.min(expandedW, MAX_VIRTUAL_WIDTH);
+                isExpanded = true;
+            }
         }
 
-        // [FIX] Race Condition: Force width update immediately so scrolLeft calculation works
-        if (contentRef.current) {
-            contentRef.current.style.width = `${newVirtualWidth}px`;
-        }
-        // Keep state sync for React render cycle
-        setVirtualWidth(newVirtualWidth);
+        // [FIX] Scrollbar issue: relies on JSX style={{ width: virtualWidth ? ... : '100%' }}
+        // We set virtualWidth state to 0 when not expanded so it falls back to 100%
+        setVirtualWidth(isExpanded ? newVirtualWidth : 0);
 
         // Update Position
         const viewStartPercent = ((viewRange.min - globalMin) / totalSpan); // 0-1 fraction
-        // Virtual Position
-        let virtualIndicatorW = Math.max(standardIndicatorW * (newVirtualWidth / containerW), MIN_INDICATOR_W);
-        // Correct logic: If we clamped width, standard*scale might be < MIN? 
-        // standard * (MAX/container) might be tiny.
-        // So we strictly force MIN_INDICATOR_W if width was clamped to keep visibility.
-        if (standardIndicatorW * (newVirtualWidth / containerW) < MIN_INDICATOR_W) {
+
+        let virtualIndicatorW = standardIndicatorW;
+        if (isExpanded) {
+            // In virtual mode, indicator is ~80px (preserved by scaling)
+            virtualIndicatorW = Math.max(standardIndicatorW * (newVirtualWidth / containerW), MIN_INDICATOR_W);
+        } else {
+            // In standard mode, just use the ratio width
+            virtualIndicatorW = Math.max(standardIndicatorW, 0);
+        }
+
+        // Clip/Clamp Logic
+        if (isExpanded && virtualIndicatorW < MIN_INDICATOR_W) {
             virtualIndicatorW = MIN_INDICATOR_W;
         }
 
@@ -314,18 +148,21 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
             // 2. If in "Standard Mode" (Tier 1 - Fit to Screen), only scroll if somehow off-screen (rare/failsafe).
 
             const isOffScreen = virtualLeft < sc.scrollLeft || (virtualLeft + virtualIndicatorW) > (sc.scrollLeft + viewportW);
-            const isVirtual = newVirtualWidth > containerW + 1;
+            // isExpanded corresponds to virtual mode essentially
 
-            if (isVirtual) {
+            if (isExpanded) {
                 // Continuous Centering (Stable)
                 sc.scrollLeft = centerVirtual - (viewportW / 2);
             } else if (isOffScreen) {
                 // Failsafe for standard mode
                 sc.scrollLeft = centerVirtual - (viewportW / 2);
+            } else {
+                // Ensure we are at 0 if fitting
+                if (sc.scrollLeft !== 0) sc.scrollLeft = 0;
             }
         }
 
-    }, [viewRange, globalMin, globalMax, isDragging]);
+    }, [viewRange, globalMin, globalMax, isDragging, containerWidth]);
 
 
     // --- 4. Drag Logic ---
@@ -426,61 +263,121 @@ export const OverviewTimeline: React.FC<OverviewProps> = ({
     };
 
     return (
-        <div className="relative w-full mt-6 h-[76px]">
-            {/* Visual Frame: Glass Background */}
-            <div className="absolute top-0 left-0 w-full h-14 glass-panel rounded-lg pointer-events-none z-0" />
+        <div className="relative w-full mt-4 flex flex-col gap-1">
+            {/* Virtual Track / Content Wrapper (Fixed Height) */}
+            {/* Scroll Container - Explicitly separate from visual content if possible, 
+                or just ensure height is sufficient so scrollbar doesn't eat content.
+                User said "under it". Standard overflow-x puts scrollbar at bottom of box.
+                If box is 24px and scrollbar is 10px, conflict.
+                Let's make wrapper larger to hold scrollbar, but visual track 24px fixed.
+             */}
 
-            {/* Canvas Chart (Viewport Sized, Underlay) */}
-            <div className="absolute top-0 left-0 w-full h-14 overflow-hidden pointer-events-none z-0 rounded-lg">
-                <canvas
-                    ref={canvasRef}
-                    className="w-full h-full mix-blend-multiply opacity-80"
-                />
-            </div>
+            {/* Thin Scrollbar CSS */}
+            <style>{`
+                .overview-scrollbar::-webkit-scrollbar {
+                    height: 6px;
+                    width: 6px;
+                    background: transparent;
+                }
+                .overview-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .overview-scrollbar::-webkit-scrollbar-thumb {
+                    background-color: rgba(148, 163, 184, 0.8);
+                    border-radius: 10px;
+                    border: 0;
+                }
+                .overview-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background-color: rgba(100, 116, 139, 1);
+                }
+            `}</style>
 
-            {/* Scroll Container */}
-            <div
-                ref={scrollContainerRef}
-                className="relative w-full h-full select-none group overflow-x-auto overflow-y-hidden custom-scrollbar z-10"
-                style={{ paddingBottom: '0px' }}
-            >
-                {/* Virtual Track / Content Wrapper (Fixed Height) */}
+            {/* Fixed Border Wrapper - Relaxed Height to accommodate scrollbar */}
+            <div className="relative w-full h-6 border border-slate-300 rounded bg-slate-100 overflow-hidden">
                 <div
-                    ref={contentRef}
-                    className="relative h-14 min-w-full"
-                    style={{ width: virtualWidth ? `${virtualWidth}px` : '100%' }}
+                    ref={scrollContainerRef}
+                    className={`w-full h-full overflow-y-hidden select-none overview-scrollbar ${virtualWidth > 0 ? 'overflow-x-auto' : 'overflow-x-hidden'}`}
                 >
-                    {/* Viewport Window / Indicator */}
                     <div
-                        ref={indicatorRef}
-                        onMouseDown={(e) => startDrag(e, 'pan')}
-                        className="absolute top-0 h-full bg-blue-500/10 border-y-2 border-blue-400 rounded-md cursor-grab active:cursor-grabbing hover:bg-blue-500/20 transition-colors z-10 box-border flex items-center justify-between shadow-xl"
-                        style={{
-                            minWidth: '80px',
-                            // display controlled via effect
-                        }}
+                        ref={contentRef}
+                        className="relative h-full min-w-full"
+                        style={{ width: virtualWidth ? `${virtualWidth}px` : '100%' }}
                     >
-                        {/* Left Resize Handle */}
-                        <div
-                            className="h-full w-4 flex items-center justify-center cursor-w-resize hover:bg-blue-500/20 active:bg-blue-500/40 rounded-l-md border-l-2 border-blue-500 transition-colors"
-                            onMouseDown={(e) => startDrag(e, 'resize-left')}
-                        >
-                            <ChevronLeft size={14} strokeWidth={2.5} className="text-blue-600" />
+                        {/* Global Ruler (Dynamic Ticks & Labels) */}
+                        <div className="absolute inset-0 flex items-center pointer-events-none select-none">
+                            {/* Horizontal Center Line */}
+                            <div className="absolute w-full h-px bg-slate-200" />
+
+                            {(() => {
+                                const span = globalMax - globalMin;
+                                if (span <= 0) return null;
+
+                                const vWidth = virtualWidth || containerWidth || 1000;
+                                // Target ~80px per tick for better density
+                                const targetTickCount = Math.max(2, Math.floor(vWidth / 80));
+                                const rawStep = span / targetTickCount;
+
+                                // Round to nice interval
+                                const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+                                const base = rawStep / magnitude;
+
+                                let step = magnitude;
+                                if (base > 5) step = 10 * magnitude;
+                                else if (base > 2) step = 5 * magnitude;
+                                else if (base > 1) step = 2 * magnitude;
+                                else step = magnitude;
+
+                                const ticks = [];
+                                const start = Math.ceil(globalMin / step) * step;
+                                for (let t = start; t <= globalMax; t += step) {
+                                    ticks.push(t);
+                                }
+
+                                return ticks.map(t => {
+                                    const percent = (t - globalMin) / span;
+                                    const left = `${percent * 100}%`;
+                                    const label = formatSliderTick(t, span);
+
+                                    return (
+                                        <div
+                                            key={t}
+                                            className="absolute flex flex-col items-center justify-center transform -translate-x-1/2 h-full z-0"
+                                            style={{ left }}
+                                        >
+                                            {/* Tick Mark - Centered vertical line, full height but faint? Or short? 
+                                                User wants "text positioned at vertical center". 
+                                                Let's do a faint full-height line for the grid, and text centered. 
+                                            */}
+                                            <div className="absolute w-px h-full bg-slate-300/30" />
+
+                                            {/* Label - Vertically Centered */}
+                                            <span className="relative text-[9px] font-semibold text-slate-500/80 px-1 select-none">
+                                                {label}
+                                            </span>
+                                        </div>
+                                    );
+                                });
+                            })()}
                         </div>
 
-                        {/* Right Resize Handle */}
+                        {/* Viewport Window / Indicator */}
                         <div
-                            className="h-full w-4 flex items-center justify-center cursor-e-resize hover:bg-blue-500/20 active:bg-blue-500/40 rounded-r-md border-r-2 border-blue-500 transition-colors"
-                            onMouseDown={(e) => startDrag(e, 'resize-right')}
+                            ref={indicatorRef}
+                            onMouseDown={(e) => startDrag(e, 'pan')}
+                            className="absolute top-0 h-full bg-blue-500/20 border-x-2 border-blue-400 cursor-grab active:cursor-grabbing hover:bg-blue-500/30 transition-colors z-10 box-border flex items-center justify-between shadow-sm"
+                            style={{
+                                minWidth: '40px',
+                            }}
                         >
-                            <ChevronRight size={14} strokeWidth={2.5} className="text-blue-600" />
+                            <div
+                                className="h-full w-2 cursor-w-resize"
+                                onMouseDown={(e) => startDrag(e, 'resize-left')}
+                            />
+                            <div
+                                className="h-full w-2 cursor-e-resize"
+                                onMouseDown={(e) => startDrag(e, 'resize-right')}
+                            />
                         </div>
-                    </div>
-
-                    {/* Labels */}
-                    <div className="sticky left-0 bottom-0 pointer-events-none w-full h-full">
-                        <div className="absolute -bottom-5 left-0 text-[10px] text-slate-500 font-mono pr-1">{formatSliderTick(globalMin)}</div>
-                        <div className="absolute -bottom-5 right-0 text-[10px] text-slate-500 font-mono pl-1">{formatSliderTick(globalMax)}</div>
                     </div>
                 </div>
             </div>

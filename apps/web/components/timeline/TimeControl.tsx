@@ -441,25 +441,23 @@ export const TimeControl: React.FC<TimeControlProps> = ({
               onEventClick={onToggleExpand} // [CHANGE] Use toggle instead of smoothJump
               onHoverChange={setHoveredEventId}
               expandedEventIds={expandedEventIds} // [NEW]
+              densityEvents={densityEvents} // [NEW] Full visual density
             />
 
-            {/* Track Background */}
-            <div className="absolute top-1/2 -translate-y-1/2 w-full h-2 bg-black/5 rounded-full overflow-hidden z-0 pointer-events-none">
-              <div className="w-full h-full bg-gradient-to-r from-transparent via-blue-200/50 to-transparent opacity-50" />
-            </div>
-
-            {/* [NEW] Playback Progress Bar */}
-            <div
-              className="absolute top-1/2 -translate-y-1/2 h-2 bg-blue-400/30 rounded-full z-0 pointer-events-none transition-all duration-75"
-              style={{
-                width: `${Math.max(0, Math.min(100, thumbPercent))}%`,
-                left: 0
-              }}
-            />
+            {/* [NEW] Playback Progress Bar - Conditional Render */}
+            {(interactionMode === 'playback' || isPlaying) && (
+              <div
+                className="absolute top-0 h-[60%] bg-blue-400/10 z-0 pointer-events-none transition-all duration-75 border-r border-blue-400/30 rounded-l-lg"
+                style={{
+                  width: `${Math.max(0, Math.min(100, thumbPercent))}%`,
+                  left: 0
+                }}
+              />
+            )}
 
             {/* Slider Thumb - Hidden in Exploration Mode */}
             <div
-              className={`absolute top-1/2 w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
+              className={`absolute top-[40%] w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
                         ${isThumbDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'} 
                         transition-transform duration-75 
                         ${(interactionMode === 'investigation' || isPlaying) && isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
@@ -496,14 +494,15 @@ export const TimeControl: React.FC<TimeControlProps> = ({
           </div>
         </div>
 
-        {/* Heatmap Overview */}
-        <OverviewTimeline
-          viewRange={viewRange}
-          setViewRange={setViewRange}
-          globalMin={globalMin}
-          globalMax={globalMax}
-          events={densityEvents} // Pass Spatially Filtered events (High density)
-        />
+        {/* Heatmap Overview - Wrapped in px-4 to match Main Timeline width */}
+        <div className="px-4">
+          <OverviewTimeline
+            viewRange={viewRange}
+            setViewRange={setViewRange}
+            globalMin={globalMin}
+            globalMax={globalMax}
+          />
+        </div>
       </div>
     </div>
   );

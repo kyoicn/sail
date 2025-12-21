@@ -10,7 +10,8 @@ interface TimelineCanvasProps {
   allEvents: EventData[]; // All events for potential density rendering? (actually we just need the visible ones for markers)
   onEventClick: (id: string) => void; // [CHANGE] Only ID needed now
   onHoverChange: (id: string | null) => void;
-  expandedEventIds: Set<string>; // [NEW]
+  expandedEventIds: Set<string>;
+  densityEvents: EventData[]; // [NEW] Full dataset for density waveform
 }
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
@@ -19,7 +20,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
   events,
   onEventClick,
   onHoverChange,
-  expandedEventIds
+  expandedEventIds,
+  densityEvents
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,13 +35,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     viewRange,
     events,
     hoveredEventId,
-    expandedEventIds // [NEW]
+    expandedEventIds,
+    densityEvents // [NEW]
   });
 
   // Sync Refs
   useEffect(() => {
-    stateRef.current = { viewRange, events, hoveredEventId, expandedEventIds };
-  }, [viewRange, events, hoveredEventId, expandedEventIds]);
+    stateRef.current = { viewRange, events, hoveredEventId, expandedEventIds, densityEvents };
+  }, [viewRange, events, hoveredEventId, expandedEventIds, densityEvents]);
 
 
   // --- Helper: Generate Ticks (Pure Logic) ---
@@ -81,6 +84,17 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     return ticks;
   };
 
+  // --- Helper: Gaussian Smooth ---
+  const ksize = 12;
+  const sigma = 4;
+  const kernel = useMemo(() => {
+    const k = [];
+    for (let i = -ksize; i <= ksize; i++) {
+      k.push(Math.exp(-(i * i) / (2 * sigma * sigma)));
+    }
+    return k;
+  }, []);
+
   // --- Render Loop ---
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -106,7 +120,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
       if (!ctx) return;
 
       // Read latest state from Ref
-      const { viewRange: currentViewRange, events: currentEvents, hoveredEventId: currentHoveredId, expandedEventIds: currentExpanded } = stateRef.current;
+      const {
+        viewRange: currentViewRange,
+        events: currentEvents,
+        hoveredEventId: currentHoveredId,
+        expandedEventIds: currentExpanded,
+        densityEvents: currentDensityEvents // [NEW] Read density events
+      } = stateRef.current;
+
       const width = rect.width;
       const height = rect.height;
 
@@ -117,11 +138,126 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
       const span = currentViewRange.max - currentViewRange.min;
       if (span <= 0) return;
 
+      const RULER_H = 20;
+      const WAVE_H = height - RULER_H;
+      const MARKER_Y = WAVE_H / 2;
+
+      // --- 0. Draw Background & Border ---
+      const r = 8;
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(width - r, 0);
+      ctx.quadraticCurveTo(width, 0, width, r);
+      ctx.lineTo(width, WAVE_H - r);
+      ctx.quadraticCurveTo(width, WAVE_H, width - r, WAVE_H);
+      ctx.lineTo(r, WAVE_H);
+      ctx.quadraticCurveTo(0, WAVE_H, 0, WAVE_H - r);
+      ctx.lineTo(0, r);
+      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.closePath();
+
+      // Background Fill (More opaque for contrast)
+      ctx.fillStyle = 'rgba(241, 245, 249, 0.9)'; // slate-100 @ 90%
+      ctx.fill();
+
+      // Border Stroke
+      ctx.strokeStyle = '#cbd5e1'; // slate-300
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // --- 1. Draw Density Waveform ---
+      if (currentDensityEvents && currentDensityEvents.length > 0) {
+        const BIN_COUNT = Math.ceil(width / 2); // 1 bin per 2px approx
+        const bins = new Array(BIN_COUNT).fill(0);
+
+        // A. Binning (Filter to View Range)
+        let maxBin = 0;
+        currentDensityEvents.forEach(e => {
+          const startFraction = getAstroYear(e.start) - e.start.year;
+          const val = toSliderValue(e.start.year) + startFraction;
+
+          // Only include if inside or very slightly outside current view (for edge smoothing)
+          // Actually, we should probably include a margin to avoid popping at edges, 
+          // but user asked for "limited to current viewRange". 
+          // Let's interpret that as "data contributing to the visual curve in this view".
+          if (val >= currentViewRange.min && val <= currentViewRange.max) {
+            const percent = (val - currentViewRange.min) / span;
+            const idx = Math.floor(percent * (BIN_COUNT - 1));
+            if (idx >= 0 && idx < BIN_COUNT) {
+              bins[idx] += (e.importance || 1);
+              if (bins[idx] > maxBin) maxBin = bins[idx];
+            }
+          }
+        });
+
+        if (maxBin > 0) {
+          // B. Convolution (Smooth)
+          const smoothed = new Array(BIN_COUNT).fill(0);
+          let localMax = 0;
+          for (let i = 0; i < BIN_COUNT; i++) {
+            let sum = 0;
+            let weightSum = 0;
+            for (let k = -ksize; k <= ksize; k++) {
+              const idx = i + k;
+              if (idx >= 0 && idx < BIN_COUNT) {
+                sum += bins[idx] * kernel[k + ksize];
+              }
+              // Normalized kernel weight handling effectively happens if we considered edges, 
+              // but simplified here is fine for visual shape.
+            }
+            smoothed[i] = sum;
+            if (sum > localMax) localMax = sum;
+          }
+
+          // Waveform Drawing logic
+          ctx.save();
+          const r2 = 8;
+          ctx.beginPath();
+          ctx.moveTo(r2, 0);
+          ctx.lineTo(width - r2, 0);
+          ctx.quadraticCurveTo(width, 0, width, r2);
+          ctx.lineTo(width, WAVE_H - r2);
+          ctx.quadraticCurveTo(width, WAVE_H, width - r2, WAVE_H);
+          ctx.lineTo(r2, WAVE_H);
+          ctx.quadraticCurveTo(0, WAVE_H, 0, WAVE_H - r2);
+          ctx.lineTo(0, r2);
+          ctx.quadraticCurveTo(0, 0, r2, 0);
+          ctx.closePath();
+          ctx.clip();
+
+          const WAVE_BASE = WAVE_H;
+          const DRAW_H = WAVE_H * 0.9;
+
+          ctx.beginPath();
+          ctx.moveTo(0, WAVE_BASE);
+
+          for (let i = 0; i < BIN_COUNT; i++) {
+            const x = (i / (BIN_COUNT - 1)) * width;
+            const intensity = localMax > 0 ? (smoothed[i] / localMax) : 0;
+            const boosted = Math.pow(intensity, 0.7);
+            const yOffset = boosted * DRAW_H;
+            ctx.lineTo(x, WAVE_BASE - yOffset);
+          }
+
+          ctx.lineTo(width, WAVE_BASE);
+          ctx.closePath();
+
+          // Waveform Fill
+          const gradient = ctx.createLinearGradient(0, 0, 0, WAVE_H);
+          gradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)'); // Blue
+          gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
+          ctx.fillStyle = gradient;
+          ctx.fill();
+
+          ctx.restore(); // End Clipping
+        }
+      }
+
+
       // --- A. Draw Ticks ---
       const ticks = generateTicks(currentViewRange.min, currentViewRange.max, width);
-      const centerY = height / 2;
 
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.6)'; // slate-800/60
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
@@ -134,31 +270,25 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(15, 23, 42, 0.15)'; // slate-800/15
         ctx.lineWidth = 1;
-        ctx.moveTo(x, centerY + 12); // Start below the track
-        ctx.lineTo(x, centerY + 20); // Extend downwards
+        ctx.moveTo(x, WAVE_H);
+        ctx.lineTo(x, WAVE_H + 5);
         ctx.stroke();
 
         // Label
         const label = formatSliderTick(tick.value, span);
-        ctx.fillText(label, x, centerY + 22); // Draw text below the ticks
+        ctx.fillText(label, x, WAVE_H + 8);
       });
 
 
       // --- B. Draw Events ---
       // Marker Params
-      const MARKER_W = 4; // [CHANGE] Wider marker (was 2)
+      const MARKER_W = 4;
       const MARKER_H = 12;
-      const MARKER_Y = centerY; // Center vertically
+      // MARKER_Y is already defined above as WAVE_H / 2
 
       let hitEventId: string | null = null;
 
-      // Find hover candidate (scan all visible)
-      // Reverse order to hit top-most drawn element first if we cared about z-order, 
-      // but for hit testing, usually we want the "top" one.
-      // Let's draw first, then hit test logic? No, single loop is faster.
-
-      // Actually, we need to draw all of them.
-      // Mouse position is available in mouseRef.
+      // ... (Rest of event drawing logic) ...
 
       currentEvents.forEach(event => {
         // Calc X
@@ -184,8 +314,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
           const mx = mouseRef.current.x;
           const my = mouseRef.current.y;
 
-          // Simple Box Hit Test
-          // Hit box slightly larger than visual
           const hitW = 10;
           const hitH = 20;
           if (Math.abs(mx - x) < hitW / 2 && Math.abs(my - MARKER_Y) < hitH / 2) {
@@ -194,14 +322,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         }
 
         // Draw Logic
-        // Highlight expanded ones same as hovered ones? User said "with the marker itself also highlighted"
         ctx.fillStyle = isHighlighted ? '#2563eb' : 'rgba(51, 65, 85, 0.7)'; // blue-600 vs slate-700
 
         if (isHighlighted) {
-          // Highlight scale
-          // Maybe make expanded ones distinct? For now, same "active" blue style is good.
-          // Or maybe expanded is persistent blue, hovered is dynamic scale?
-          // Let's use same style for both for consistent "Active" feel.
           const scale = 1.5;
           const hw = (MARKER_W * scale) / 2;
           const hh = (MARKER_H * scale) / 2;
@@ -220,21 +343,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         }
       });
 
-      // Update external hover state if changed
-      // Note: modifying state in render loop is dangerous. 
-      // We should only do it if different.
-      if (hitEventId !== currentHoveredId) {
-        // Must schedule this to avoid React warning/infinite loop if synchronous
-        // But we are in animation frame, so effectively async to React render cycle? 
-        // No, effect runs after render.
-
-        // Ideally we handle hit testing in 'mousemove', not render loop. 
-        // But doing it here ensures sync with exact rendered position.
-        // Let's move hit testing to event handler for safety and perf.
-      }
-
-      // --- C. Tooltip Removed (Handled by DOM in parent) ---
-
+      // ...
 
       animationFrameId = requestAnimationFrame(render);
     };
