@@ -21,7 +21,7 @@ export const TimelinePlaybackControls: React.FC<TimelinePlaybackControlsProps> =
   onManualStep
 }) => {
   return (
-    <div className="absolute left-0 top-0 flex items-center gap-2">
+    <div className="flex items-center gap-2">
       <button
         onClick={() => {
           if (!isPlaying) {

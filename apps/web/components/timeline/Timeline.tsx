@@ -121,16 +121,23 @@ export const Timeline: React.FC<TimeControlProps> = ({
   const thumbPercent = ((currentDate - viewRange.min) / span) * 100;
   const isThumbVisible = currentDate >= viewRange.min && currentDate <= viewRange.max;
 
-  // [REMOVED] Header content extracted to TimelineHeader
-
   return (
-    <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full max-w-[55vw] px-4 z-10">
-      <div className="glass-panel rounded-2xl p-6 transition-all shadow-2xl">
+    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-6xl px-4 z-10">
+      <div className="glass-panel rounded-2xl p-4 shadow-2xl flex items-stretch gap-6">
 
-        {/* Controls Header */}
-        <div className="relative flex justify-end items-start mb-6">
+        {/* --- LEFT COLUMN: Controls & Info --- */}
+        <div className="flex flex-col gap-3 shrink-0 justify-center items-start min-w-[200px]">
+          {/* Header Info */}
+          <TimelineHeader
+            interactionMode={interactionMode}
+            setInteractionMode={setInteractionMode}
+            viewRange={viewRange}
+            currentDate={currentDate}
+            setCurrentDate={setCurrentDate}
+            mapBounds={mapBounds}
+          />
 
-          {/* [NEW] Top-Left Playback Controls */}
+          {/* Playback Controls (Moved below header) */}
           <TimelinePlaybackControls
             isPlaying={isPlaying}
             setIsPlaying={setIsPlaying}
@@ -140,49 +147,29 @@ export const Timeline: React.FC<TimeControlProps> = ({
             viewRange={viewRange}
             onManualStep={onManualStep}
           />
-
-          {/* Centered Title */}
-          <div className="absolute left-1/2 top-0 -translate-x-1/2">
-            <TimelineHeader
-              interactionMode={interactionMode}
-              setInteractionMode={setInteractionMode}
-              viewRange={viewRange}
-              currentDate={currentDate}
-              setCurrentDate={setCurrentDate}
-              mapBounds={mapBounds}
-            />
-          </div>
-
-          {/* Right Controls Group (Hover Trigger for Zoom Menu) */}
-          <TimelineZoomControls
-            currentDate={currentDate}
-            viewRange={viewRange}
-            setViewRange={setViewRange}
-            globalMin={globalMin}
-            globalMax={globalMax}
-          />
         </div>
 
-        {/* Slider Track */}
-        <div className="px-4">
+        {/* --- MIDDLE COLUMN: Timeline Tracks (Flexible) --- */}
+        <div className="flex-1 flex flex-col justify-center gap-0 min-w-0 relative">
+
+          {/* Main Track */}
           <div
             ref={trackRef}
-            className="relative h-16 mb-2 group cursor-pointer select-none"
+            className="relative h-20 group cursor-pointer select-none w-full"
             onMouseDown={handleTrackMouseDown}
           >
-            {/* [MOVED] Canvas Layer (Replaces DOM Ticks and DOM Markers) */}
             <TimelineTrack
               currentDate={currentDate}
               viewRange={viewRange}
-              events={events} // Render only filtered logic events
+              events={events}
               allEvents={allEvents}
-              onEventClick={onToggleExpand} // [CHANGE] Use toggle instead of smoothJump
+              onEventClick={onToggleExpand}
               onHoverChange={setHoveredEventId}
-              expandedEventIds={expandedEventIds} // [NEW]
-              densityEvents={densityEvents} // [NEW] Full visual density
+              expandedEventIds={expandedEventIds}
+              densityEvents={densityEvents}
             />
 
-            {/* [NEW] Playback Progress Bar - Conditional Render */}
+            {/* Playback Progress Bar */}
             {(interactionMode === 'playback' || isPlaying) && (
               <div
                 className="absolute top-0 h-[60%] bg-blue-400/10 z-0 pointer-events-none transition-all duration-75 border-r border-blue-400/30 rounded-l-lg"
@@ -193,7 +180,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
               />
             )}
 
-            {/* Slider Thumb - Hidden in Exploration Mode */}
+            {/* Slider Thumb */}
             <div
               className={`absolute top-[40%] w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
                         ${isThumbDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'} 
@@ -203,26 +190,37 @@ export const Timeline: React.FC<TimeControlProps> = ({
               onMouseDown={handleThumbMouseDown}
             />
 
-            {/* [NEW] DOM Tooltip Layer (Overlay) - Only in Investigation Mode */}
+            {/* Tooltip Overlay */}
             <TimelineTooltip
               hoveredEventId={hoveredEventId}
               interactionMode={interactionMode}
               events={events}
               viewRange={viewRange}
             />
+          </div>
 
+          {/* Overview Track */}
+          <div className="w-full -mt-3">
+            <TimelineOverview
+              viewRange={viewRange}
+              setViewRange={setViewRange}
+              globalMin={globalMin}
+              globalMax={globalMax}
+            />
           </div>
         </div>
 
-        {/* Heatmap Overview - Wrapped in px-4 to match Main Timeline width */}
-        <div className="px-4">
-          <TimelineOverview
+        {/* --- RIGHT COLUMN: Zoom Controls --- */}
+        <div className="shrink-0">
+          <TimelineZoomControls
+            currentDate={currentDate}
             viewRange={viewRange}
             setViewRange={setViewRange}
             globalMin={globalMin}
             globalMax={globalMax}
           />
         </div>
+
       </div>
     </div>
   );

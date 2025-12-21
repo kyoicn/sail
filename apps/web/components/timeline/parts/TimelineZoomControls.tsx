@@ -42,10 +42,10 @@ export const TimelineZoomControls: React.FC<TimelineZoomControlsProps> = ({
   const resetZoom = () => setViewRange({ min: globalMin, max: globalMax });
 
   return (
-    <div className="flex gap-2 relative z-10 group">
-      {/* Vertical Scale Menu (Drop-up) - Centered above zoom buttons */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-3 flex flex-col items-center opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 ease-out">
-        <div className="glass-panel rounded-lg shadow-2xl p-1 flex flex-col gap-0.5">
+    <div className="h-full flex flex-col justify-center gap-2 relative z-10 group">
+      {/* Vertical Scale Menu (Pop-out to the Right, Aligned to Panel Bottom) */}
+      <div className="absolute left-full -bottom-4 pl-6 flex flex-row items-end opacity-0 -translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 group-hover:pointer-events-auto transition-all duration-200 ease-out">
+        <div className="glass-panel rounded-lg shadow-2xl p-1 flex flex-col gap-0.5 min-w-[120px]">
           {[
             { label: 'All / Reset', id: 'ALL', span: globalMax - globalMin },
             { label: 'Millennium', id: 'MILLENNIUM', span: ZOOM_SCALES.MILLENNIUM },
@@ -89,17 +89,13 @@ export const TimelineZoomControls: React.FC<TimelineZoomControlsProps> = ({
             );
           })}
         </div>
-        {/* Connector nub */}
-        <div className="w-4 h-4 overflow-hidden -mt-2">
-          {/* Invisible spacer or visual connector if desired */}
-        </div>
       </div>
 
-      <button onClick={() => handleZoom(0.5)} className="p-2 rounded-lg bg-white/40 border border-black/5 text-slate-500 hover:text-blue-600 hover:bg-white/60 hover:border-blue-200 transition-all shadow-sm" title="Zoom Out">
-        <ZoomOut size={20} />
-      </button>
       <button onClick={() => handleZoom(2)} className="p-2 rounded-lg bg-white/40 border border-black/5 text-slate-500 hover:text-blue-600 hover:bg-white/60 hover:border-blue-200 transition-all shadow-sm" title="Zoom In">
         <ZoomIn size={20} />
+      </button>
+      <button onClick={() => handleZoom(0.5)} className="p-2 rounded-lg bg-white/40 border border-black/5 text-slate-500 hover:text-blue-600 hover:bg-white/60 hover:border-blue-200 transition-all shadow-sm" title="Zoom Out">
+        <ZoomOut size={20} />
       </button>
     </div>
   );
