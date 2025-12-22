@@ -48,16 +48,16 @@ export const HEATMAP_STYLES: Record<string, HeatmapStyleConfig> = {
   'ocean': {
     label: 'Deep Ocean',
     config: {
-      radius: 40,
+      radius: 30,
       blur: 25,
-      minOpacity: 0.2,
+      minOpacity: 0.3,
       maxZoom: 12,
       gradient: {
         0.1: '#f0f9ff', // sky-50
-        0.3: '#7dd3fc', // sky-300
-        0.6: '#0284c7', // sky-600
-        0.9: '#0c4a6e', // sky-900
-        1.0: '#082f49'  // sky-950
+        0.3: '#99cbe2ff', // sky-300
+        0.6: '#68abcdff', // sky-600
+        0.9: '#4088b1ff', // sky-900
+        1.0: '#236794ff'  // sky-950
       }
     } as any
   },
