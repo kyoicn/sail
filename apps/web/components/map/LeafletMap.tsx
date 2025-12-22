@@ -102,10 +102,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       style.id = styleId;
       style.innerHTML = `
             .map-dot {
-                transition: transform 0.05s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                /* No transition for static size */
             }
             .map-dot:hover {
-                transform: scale(1.2) !important;
+                /* transform: scale(1.2) !important; REMOVED */
                 z-index: 9999;
             }
             .card-wrapper {

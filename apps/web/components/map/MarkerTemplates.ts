@@ -7,13 +7,13 @@ export const getDotHtml = (dotColor: string, size: number, style: DotStyleConfig
     const finalSize = size * style.sizeMultiplier;
 
     let borderRadius = '50%';
-    let transform = 'translate(-50%, -50%)';
+    let transform = '';
 
     if (style.shape === 'square') {
         borderRadius = '4px';
     } else if (style.shape === 'diamond') {
         borderRadius = '2px';
-        transform += ' rotate(45deg)';
+        transform += 'rotate(45deg)';
     }
 
     let boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
@@ -42,7 +42,7 @@ export const getDotHtml = (dotColor: string, size: number, style: DotStyleConfig
             box-shadow: ${boxShadow};
             transform: ${transform};
             cursor: pointer;
-            opacity: 0.8;
+            opacity: 1.0;
             transition: all 0.2s ease;
         ">
         </div>
