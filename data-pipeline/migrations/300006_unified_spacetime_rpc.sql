@@ -10,6 +10,7 @@
 -- events first, rather than random ones.
 
 DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, float, float, float, text);
+DROP FUNCTION IF EXISTS get_events_in_view(float, float, float, float, float, float, float, text, int);
 
 CREATE OR REPLACE FUNCTION get_events_in_view(
     min_lat float,
