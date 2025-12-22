@@ -35,14 +35,22 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
   const processedDensityPoints = useMemo(() => {
     if (!densityEvents || densityEvents.length === 0) return [];
 
-    // Map to simple structure { val: sliderValue, importance: number }
+    // Map to simple structure { val: sliderValue, endVal: number | null, importance: number }
+    // [FIX] Sort by START time to keep potential optimization (though Sweep Line iterates all relevant)
     const points = densityEvents.map(e => {
       const startFraction = getAstroYear(e.start) - e.start.year;
       const val = toSliderValue(e.start.year) + startFraction;
-      return { val, importance: e.importance || 1 };
+
+      let endVal = null;
+      if (e.end) {
+        const endFraction = getAstroYear(e.end) - e.end.year;
+        endVal = toSliderValue(e.end.year) + endFraction;
+      }
+
+      return { val, endVal, importance: e.importance || 1 };
     });
 
-    // Ensure sorted for efficient range query
+    // Sort by value for potential early exits or standardized processing order
     points.sort((a, b) => a.val - b.val);
     return points;
   }, [densityEvents]);
@@ -199,34 +207,68 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       let WAVE_BASE = WAVE_H;
       let DRAW_H = WAVE_H * 0.9;
 
-      // --- 1. Draw Density Waveform (Optimized) ---
+      // --- 1. Draw Density Waveform (Squared Decay) ---
       if (currentPoints && currentPoints.length > 0) {
-        // ... (Skipping binning logic which is unchanged) ...
         BIN_COUNT = Math.ceil(DRAW_W / 2); // 1 bin per 2px approx
         const bins = new Array(BIN_COUNT).fill(0);
 
-        // A. Binning (Optimized Loop)
-        let maxBin = 0;
         const viewMin = currentViewRange.min - (span * 0.1);
         const viewMax = currentViewRange.max + (span * 0.1);
 
+        // Helper: Value to Bin Index (Unclamped)
+        const getRawBinIndex = (val: number) => {
+          const percent = (val - currentViewRange.min) / span;
+          return Math.floor(percent * (BIN_COUNT - 1));
+        };
+
+        let maxBin = 0;
+
         for (let i = 0; i < currentPoints.length; i++) {
           const p = currentPoints[i];
-          if (p.val > viewMax) break; // Sorted, so we can stop
-          if (p.val < viewMin) continue;
+          const startVal = p.val;
+          const endVal = p.endVal || p.val;
 
-          // Inside view
-          const percent = (p.val - currentViewRange.min) / span;
-          const idx = Math.floor(percent * (BIN_COUNT - 1));
-          // Check bounds (since we added buffer)
-          if (idx >= 0 && idx < BIN_COUNT) {
-            bins[idx] += p.importance;
-            if (bins[idx] > maxBin) maxBin = bins[idx];
+          if (endVal < viewMin || startVal > viewMax) continue;
+
+          const rawBinStart = getRawBinIndex(startVal);
+          const rawBinEnd = getRawBinIndex(endVal);
+          const eventDuration = endVal - startVal;
+
+          const loopStart = Math.max(0, rawBinStart);
+          const loopEnd = Math.min(BIN_COUNT - 1, rawBinEnd);
+
+          if (loopEnd < loopStart) continue;
+
+          // Point Event (or very small range)
+          if (rawBinEnd <= rawBinStart) {
+            const idx = rawBinStart;
+            if (idx >= 0 && idx < BIN_COUNT) {
+              bins[idx] += p.importance;
+              if (bins[idx] > maxBin) maxBin = bins[idx];
+            }
+          }
+          // Range Event (Squared Decay)
+          else {
+            for (let b = loopStart; b <= loopEnd; b++) {
+              const binT = b / (BIN_COUNT - 1);
+              const binVal = binT * span + currentViewRange.min;
+
+              let t = (binVal - startVal) / eventDuration;
+              if (t < 0) t = 0;
+              if (t > 1) t = 1;
+
+              // Decay: (1-t)^2
+              const factor = (1 - t) * (1 - t);
+              const val = p.importance * factor;
+
+              bins[b] += val;
+              if (bins[b] > maxBin) maxBin = bins[b];
+            }
           }
         }
 
         if (maxBin > 0) {
-          // B. Convolution (Smooth)
+          // C. Convolution (Smooth)
           smoothed = new Array(BIN_COUNT).fill(0); // Assign to shared var
           for (let i = 0; i < BIN_COUNT; i++) {
             let sum = 0;
