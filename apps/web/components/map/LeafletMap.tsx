@@ -64,9 +64,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const [isHeatLoaded, setIsHeatLoaded] = useState(false); // [NEW] Track lib loading
 
   // [OPTIMIZATION] Refs to track previous visual state to avoid redundant DOM updates
-  const prevVisualState = useRef({ zoom: initialZoom, span: 0 });
+  const prevVisualState = useRef({ zoom: initialZoom, span: 0, dotStyle: dotStyle });
 
-  // Dynamic Color Interpolator (Cyan -> Blue -> Indigo)
+  // Dynamic Color Interpolator
   const getDotColor = (importance: number) => {
     // Clamp 1-10
     const val = Math.max(1, Math.min(10, importance));
@@ -91,8 +91,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     return `rgb(${r}, ${g}, ${b})`;
   };
 
-  // Dynamic Threshold: 1/200 of the visible span (0.5% of viewport)
-  // This matches "slider minimum movement" feel better than a hardcoded floor.
+  // Dynamic Threshold
   const dynamicThreshold = (viewRange.max - viewRange.min) / 200;
 
   useEffect(() => {
@@ -147,7 +146,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         loadHeatmapLib();
 
         const map = L.map(mapRef.current, {
-          zoomControl: false, // [MODIFIED] Custom control externally
+          zoomControl: false,
           doubleClickZoom: false,
           attributionControl: false,
           zoomSnap: 0,
@@ -168,7 +167,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           bounds: [[-90, -180], [90, 180]]
         }).addTo(map);
 
-        (map as any)._tileLayer = tileLayer; // Keep ref for updates
+        (map as any)._tileLayer = tileLayer;
 
         map.createPane('shapesPane').style.zIndex = '450';
         map.createPane('linesPane').style.zIndex = '550';
@@ -197,9 +196,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         });
         map.on('moveend', updateBounds);
 
-        // [CRITICAL FIX] Force map to re-calculate size after mounting
-        // This fixes the bug where initial bounds are incorrect/zero-size
-        // causing events (like WWI) to be filtered out until the map is moved.
         setTimeout(() => {
           map.invalidateSize();
           updateBounds();
@@ -222,7 +218,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     return () => { };
   }, []);
 
-  // [NEW] Handle External Zoom Actions
   useEffect(() => {
     if (!mapInstanceRef.current || !zoomAction) return;
     const map = mapInstanceRef.current;
@@ -230,7 +225,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     if (zoomAction.type === 'out') map.zoomOut();
   }, [zoomAction]);
 
-  // [NEW] Handle Theme Change
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
@@ -250,10 +244,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const map = mapInstanceRef.current;
     const layersMap = layersMapRef.current;
 
-    // 1. Determine Active Events (for Dots)
     const activeEvents = events.filter(event => {
-      // [FIX] Use precise astro year to get the fractional part of the year
-      // Then map it to slider space (which shifts AD years by -1)
       const startFraction = getAstroYear(event.start) - event.start.year;
       const startVal = toSliderValue(event.start.year) + startFraction;
 
@@ -264,45 +255,35 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
 
       let isActive = false;
-
-      // [MODE LOGIC]
       if (interactionMode === 'exploration') {
-        // In Exploration Mode, filter by viewRange instead of specific currentDate
         if (endVal !== null) {
-          // Range Intersects View (Standard Overlap Logic: Start <= ViewMax && End >= ViewMin)
           isActive = startVal <= viewRange.max && endVal >= viewRange.min;
         } else {
-          // Point contained in View
           isActive = startVal >= viewRange.min && startVal <= viewRange.max;
         }
       } else if (interactionMode === 'investigation') {
-        // Investigation Mode: Transient Dots (Only visible when thumb is near)
-        const threshold = (viewRange.max - viewRange.min) * 0.01; // 1% tolerance
+        const threshold = (viewRange.max - viewRange.min) * 0.01;
         isActive = Math.abs(currentDate - startVal) <= threshold;
       } else {
-        // Playback Mode: Persistent Dots (Curtain Effect)
         isActive = startVal <= currentDate;
       }
       return isActive;
     });
 
-    // [NEW] Filter Dots if turned off
     const eventsToRender = (interactionMode === 'exploration' && !showDots)
-      ? activeEvents.filter(e => expandedEventIds.has(e.id)) // Only show expanded if dots hidden
+      ? activeEvents.filter(e => expandedEventIds.has(e.id))
       : activeEvents;
 
 
     const expandedActiveEvents = eventsToRender.filter(e => expandedEventIds.has(e.id));
     const layoutMap = calculateSmartLayout(expandedActiveEvents, map);
 
-    // 2. Cleanup (Iterate over existing layers to remove stale ones)
     layersMap.forEach((layerGroup, eventId) => {
       const isActive = eventsToRender.find(ae => ae.id === eventId);
       const isExpanded = expandedEventIds.has(eventId);
       const isHovered = hoveredEventId === eventId;
       const shouldShowCard = isExpanded || isHovered;
 
-      // Remove Dot if no longer active
       if (!isActive) {
         if (layerGroup.dot) layerGroup.dot.remove();
         if (layerGroup.card) layerGroup.card.remove();
@@ -312,7 +293,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         return;
       }
 
-      // Handle Collapse State (Remove expanded elements if they exist but shouldn't)
       if (!shouldShowCard) {
         if (layerGroup.card) { layerGroup.card.remove(); delete layerGroup.card; }
         if (layerGroup.line) { layerGroup.line.remove(); delete layerGroup.line; }
@@ -320,40 +300,34 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     });
 
-    // 3. Render Active
     eventsToRender.forEach(event => {
       const isExpanded = expandedEventIds.has(event.id);
       const isHovered = hoveredEventId === event.id;
       const shouldShowCard = isExpanded || isHovered;
 
-      // --- DOT RENDERING (Always) ---
       let layers = layersMap.get(event.id);
       const dotColor = getDotColor(event.importance || 1);
 
-      // [SMART SCALING]
-      // 1. Time Context Factor (Span based)
-      // Detail (<50y) -> 1.5x | Overview (>500y) -> 0.8x
       const span = viewRange.max - viewRange.min;
-      const tTime = Math.max(0, Math.min(1, (span - 50) / (500 - 50))); // 0 at 50y, 1 at 500y
-      const timeFactor = 1.5 - (tTime * 0.7); // 1.5 -> 0.8
+      const tTime = Math.max(0, Math.min(1, (span - 50) / (500 - 50)));
+      const timeFactor = 1.5 - (tTime * 0.7);
 
-      // 2. Map Context Factor (Zoom based range)
-      // Low Zoom (2): 6px-20px | High Zoom (12+): 10px-60px
       const zoomClamped = Math.max(2, Math.min(12, mapZoom));
-      const tZoom = (zoomClamped - 2) / 10; // 0 to 1
+      const tZoom = (zoomClamped - 2) / 10;
 
-      const baseMin = 6 + (tZoom * 4);   // 6 -> 10
-      const baseMax = 20 + (tZoom * 40); // 20 -> 60
+      const baseMin = 6 + (tZoom * 4);
+      const baseMax = 20 + (tZoom * 40);
 
       const imp = event.importance || 1;
-      const normalizedImp = (Math.max(1, Math.min(10, imp)) - 1) / 9; // 0 to 1
+      const normalizedImp = (Math.max(1, Math.min(10, imp)) - 1) / 9;
 
       const rawSize = baseMin + (normalizedImp * (baseMax - baseMin));
       const finalSize = rawSize * timeFactor;
 
+      const style = DOT_STYLES[dotStyle] || DOT_STYLES['classic'];
+      const dotHtml = getDotHtml(dotColor, finalSize, style);
+
       if (!layers) {
-        // Initialize Dot
-        const dotHtml = getDotHtml(dotColor, finalSize);
         const dotIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
         const dotMarker = L.marker([event.location.lat, event.location.lng], { icon: dotIcon, zIndexOffset: 2000 }).addTo(map);
 
@@ -362,99 +336,75 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           onToggleExpand(event.id);
         });
 
-        // [NEW] Hover Listeners on Dot
         dotMarker.on('mouseover', () => setHoveredEventId(event.id));
         dotMarker.on('mouseout', () => setHoveredEventId(null));
 
         layers = { dot: dotMarker };
         layersMap.set(event.id, layers);
       } else {
-        // Optimization: Only update if visual parameters changed
         const spanDiff = Math.abs((viewRange.max - viewRange.min) - prevVisualState.current.span);
         const zoomDiff = Math.abs(mapZoom - prevVisualState.current.zoom);
-        const needsVisualUpdate = spanDiff > 0.0001 || zoomDiff > 0.1;
+        const needsVisualUpdate = spanDiff > 0.0001 || zoomDiff > 0.1 || prevVisualState.current.dotStyle !== dotStyle;
 
         if (needsVisualUpdate) {
-          // Update Icon Size on Zoom/Span Change
-          const dotHtml = getDotHtml(dotColor, finalSize);
           const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
           layers.dot.setIcon(newIcon);
-
-          // Update Position (rarely needed unless lat/lng changes, but cheap if we skip Icon)
           layers.dot.setLatLng([event.location.lat, event.location.lng]);
         }
       }
 
-
-      // --- EXPANDED RENDERING (Conditional) ---
       if (shouldShowCard) {
         const layout = layoutMap.get(event.id) || { offsetX: 0, offsetY: 0 };
         const { offsetX, offsetY } = layout;
 
-        const BASE_LIFT = -25; // Higher lift for visibility
+        const BASE_LIFT = -25;
         const finalY = offsetY + BASE_LIFT;
         const finalX = offsetX;
 
-        // Line Logic
-        const lineTargetY = finalY - 10; // Connect to bottom of card roughly
+        const lineTargetY = finalY - 10;
         const lineLen = Math.sqrt(finalX * finalX + lineTargetY * lineTargetY);
         const lineAngle = Math.atan2(lineTargetY, finalX) * (180 / Math.PI);
 
-        // CREATE or UPDATE Expanded Layers
         if (!layers.card) {
-          // --- Create Line ---
           const lineHtml = getLineHtml(lineLen, lineAngle, dotColor);
           const lineIcon = L.divIcon({ className: '', html: lineHtml, iconSize: [0, 0] });
           const lineMarker = L.marker([event.location.lat, event.location.lng], { icon: lineIcon, pane: 'linesPane' }).addTo(map);
           layers.line = lineMarker;
 
-          // --- Create Card ---
-          // Card HTML with Close Button
           const cardContentHtml = getCardHtml(event, finalX, finalY);
           const cardIcon = L.divIcon({ className: '', html: cardContentHtml, iconSize: [0, 0] });
           const cardMarker = L.marker([event.location.lat, event.location.lng], { icon: cardIcon, pane: 'cardsPane' }).addTo(map);
 
-          // Attach Events Immediately
           const attachCardEvents = () => {
             const el = cardMarker.getElement();
             if (el) {
               const closeBtn = el.querySelector('.close-btn');
-              // Select the main card container for the click target instead of just card-body
               const cardContainer = el.querySelector('.card-wrapper > div');
 
               if (closeBtn) {
-                // Use standard DOM event listener with stopPropagation
                 closeBtn.addEventListener('click', (e: any) => {
                   e.preventDefault();
                   e.stopPropagation();
                   onToggleExpand(event.id);
                 });
-                // Prevent Leaflet map click-through on the button specifically
                 L.DomEvent.disableClickPropagation(closeBtn);
               }
 
               if (cardContainer) {
-                // Make the entire card container clickable
                 cardContainer.addEventListener('click', (e: any) => {
                   e.preventDefault();
-                  // Check if the click originated from the close button (just in case)
                   if (e.target.closest('.close-btn')) return;
-
                   e.stopPropagation();
                   onEventSelect(event);
                 });
-                // Prevent Leaflet map click-through on the card
                 L.DomEvent.disableClickPropagation(cardContainer);
               }
             }
           };
 
-          // Invoke immediately - element refers to the L.divIcon wrapper which should be in DOM by now
           attachCardEvents();
-
           layers.card = cardMarker;
 
-          // --- Create Shape ---
           if (event.location.granularity !== 'spot') {
             if (event.location.regionId && PREDEFINED_REGIONS[event.location.regionId]) {
               const latLngs = PREDEFINED_REGIONS[event.location.regionId];
@@ -469,17 +419,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           }
 
         } else {
-          // UPDATE Existing Layers (Animation)
           const finalY = offsetY + BASE_LIFT;
-          const lineTargetY = finalY - (event.imageUrl ? 110 : 60); // Approx
+          const lineTargetY = finalY - (event.imageUrl ? 110 : 60);
           const lineLen = Math.sqrt(offsetX * offsetX + lineTargetY * lineTargetY);
           const lineAngle = Math.atan2(lineTargetY, offsetX) * (180 / Math.PI);
 
-          // Update Line
           const lineHtml = getLineHtml(lineLen, lineAngle, dotColor);
           layers.line.setIcon(L.divIcon({ className: '', html: lineHtml, iconSize: [0, 0] }));
 
-          // Update Card Transform
           const cardEl = layers.card.getElement();
           if (cardEl) {
             const wrapper = cardEl.querySelector('.card-wrapper');
@@ -491,31 +438,25 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     });
 
-    // Update refs for next cycle
-    prevVisualState.current = { zoom: mapZoom, span: viewRange.max - viewRange.min };
+    prevVisualState.current = {
+      zoom: mapZoom,
+      span: viewRange.max - viewRange.min,
+      dotStyle: dotStyle
+    };
 
-  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max, hoveredEventId, showDots]);
+  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max, hoveredEventId, showDots, dotStyle]);
 
-  // [NEW] Heatmap Rendering
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
     const L = window.L as any;
 
-    if (activeAreaShape) {
-      // ... (existing shape logic reference)
-    }
-
-    // cleanup previous heat layer logic 
-    // We attach it to map object to persist between effects
     if ((map as any)._heatLayer) {
       map.removeLayer((map as any)._heatLayer);
       (map as any)._heatLayer = null;
     }
 
     if (interactionMode === 'exploration' && showHeatmap && L.heatLayer) {
-      console.log(`🔥 Rendering Heatmap: ${heatmapData.length} total events`);
-      // [TIME FILTER] Apply same time filtering logic as dots but on the heatmap data
       const activeHeatPoints = heatmapData.filter(event => {
         const startFraction = getAstroYear(event.start) - event.start.year;
         const startVal = toSliderValue(event.start.year) + startFraction;
@@ -526,24 +467,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         }
 
         if (endVal !== null) {
-          // Range Intersects View
           return startVal <= viewRange.max && endVal >= viewRange.min;
         } else {
-          // Point contained in View
           return startVal >= viewRange.min && startVal <= viewRange.max;
         }
       }).map(e => {
-        // Intensity Logic
-        // Log intensity for debug
-        // const intensity = 0.5 + (e.importance / 20); 
-        // return [e.location.lat, e.location.lng, intensity];
         const intensity = 0.5 + ((e.importance || 1) / 20);
         return [e.location.lat, e.location.lng, intensity];
       });
-
-      console.log(`🔥 Active Heat Points: ${activeHeatPoints.length} in view range`);
-
-      console.log(`🔥 Active Heat Points: ${activeHeatPoints.length} in view range`);
 
       if (activeHeatPoints.length > 0) {
         const styleConfig = HEATMAP_STYLES[heatmapStyle]?.config || HEATMAP_STYLES['classic'].config;
@@ -559,14 +490,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     }
 
-  }, [heatmapData, showHeatmap, heatmapStyle, interactionMode, viewRange.min, viewRange.max, activeAreaShape, isHeatLoaded]); // [NEW] Depend on isHeatLoaded
+  }, [heatmapData, showHeatmap, heatmapStyle, interactionMode, viewRange.min, viewRange.max, activeAreaShape, isHeatLoaded]);
 
-  // [NEW] Active Area Shape Rendering
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
 
-    // Cleanup previous shape layer if it exists
     const existingLayer = (map as any)._activeShapeLayer;
     if (existingLayer) {
       map.removeLayer(existingLayer);
@@ -574,20 +503,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     }
 
     if (activeAreaShape) {
-      // Create new GeoJSON Layer
       const shapeLayer = L.geoJSON(activeAreaShape, {
         style: {
-          color: '#3b82f6', // blue-500
+          color: '#3b82f6',
           weight: 2,
           opacity: 0.8,
           fillColor: '#3b82f6',
           fillOpacity: 0.1,
-          dashArray: '5, 5' // Dashed line for context boundary
+          dashArray: '5, 5'
         },
-        pane: 'shapesPane' // Ensure it's below markers
+        pane: 'shapesPane'
       }).addTo(map);
 
-      // Store ref on map instance for easy cleanup
       (map as any)._activeShapeLayer = shapeLayer;
     }
 

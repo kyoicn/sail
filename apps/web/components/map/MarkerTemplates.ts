@@ -1,19 +1,51 @@
-
 import { EventData } from '@sail/shared';
 import { formatEventDateRange } from '../../lib/time-engine';
 import { getLocationString } from '../../lib/utils';
+import { DotStyleConfig } from '../../lib/constants';
 
-export const getDotHtml = (dotColor: string, size: number): string => {
+export const getDotHtml = (dotColor: string, size: number, style: DotStyleConfig): string => {
+    const finalSize = size * style.sizeMultiplier;
+
+    let borderRadius = '50%';
+    let transform = 'translate(-50%, -50%)';
+
+    if (style.shape === 'square') {
+        borderRadius = '4px';
+    } else if (style.shape === 'diamond') {
+        borderRadius = '2px';
+        transform += ' rotate(45deg)';
+    }
+
+    let boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+    if (style.effect === 'glow') {
+        boxShadow = `0 0 10px ${dotColor}, 0 0 20px ${dotColor}44`;
+    } else if (style.effect === 'shadow') {
+        boxShadow = '2px 4px 8px rgba(0,0,0,0.5)';
+    } else if (style.effect === 'soft') {
+        boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+    }
+
+    const borderStyle = `${style.borderWidth}px solid white`;
+    const isRing = style.shape === 'ring';
+    const background = isRing ? 'transparent' : dotColor;
+    const ringBorder = isRing ? `${style.borderWidth + 1}px solid ${dotColor}` : borderStyle;
+
+    const pulseClass = style.shape === 'pulse' ? 'animate-pulse-slow' : '';
+
     return `
-        <div style="
-            width: ${size}px; height: ${size}px; 
-            background: ${dotColor}; 
-            border: 2px solid white; 
-            border-radius: 50%; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        <div class="map-dot ${pulseClass}" style="
+            width: ${finalSize}px; 
+            height: ${finalSize}px; 
+            background: ${background}; 
+            border: ${ringBorder}; 
+            border-radius: ${borderRadius}; 
+            box-shadow: ${boxShadow};
+            transform: ${transform};
             cursor: pointer;
-            opacity: 0.6;
-        " class="map-dot"></div>
+            opacity: 0.8;
+            transition: all 0.2s ease;
+        ">
+        </div>
     `;
 };
 

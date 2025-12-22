@@ -98,6 +98,10 @@ export interface DotStyleConfig {
     mid: [number, number, number];
     end: [number, number, number];
   };
+  shape: 'circle' | 'square' | 'diamond' | 'ring' | 'pulse';
+  effect: 'none' | 'glow' | 'shadow' | 'soft';
+  sizeMultiplier: number;
+  borderWidth: number;
 }
 
 export const DOT_STYLES: Record<string, DotStyleConfig> = {
@@ -107,7 +111,11 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
       start: [34, 211, 238],
       mid: [59, 130, 246],
       end: [49, 46, 129]
-    }
+    },
+    shape: 'circle',
+    effect: 'soft',
+    sizeMultiplier: 1.0,
+    borderWidth: 2
   },
   'volcano': {
     label: 'Volcano (Yellow/Red)',
@@ -115,30 +123,58 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
       start: [253, 224, 71], // yellow-300
       mid: [249, 115, 22],  // orange-500
       end: [153, 27, 27]   // red-800
-    }
+    },
+    shape: 'pulse',
+    effect: 'glow',
+    sizeMultiplier: 1.1,
+    borderWidth: 1
   },
   'emerald': {
-    label: 'Emerald (Lime/Teal)',
+    label: 'Emerald (Square)',
     colors: {
       start: [190, 242, 100], // lime-300
       mid: [20, 184, 166],    // teal-500
       end: [19, 78, 74]       // teal-900
-    }
+    },
+    shape: 'square',
+    effect: 'shadow',
+    sizeMultiplier: 0.9,
+    borderWidth: 2
   },
   'sunset': {
-    label: 'Sunset (Pink/Purple)',
+    label: 'Sunset (Diamond Glow)',
     colors: {
       start: [249, 168, 212], // pink-300
       mid: [168, 85, 247],    // purple-500
       end: [88, 28, 135]      // purple-900
-    }
+    },
+    shape: 'diamond',
+    effect: 'glow',
+    sizeMultiplier: 1.2,
+    borderWidth: 1
+  },
+  'ghost': {
+    label: 'Techno (Outer Ring)',
+    colors: {
+      start: [165, 180, 252], // indigo-300
+      mid: [99, 102, 241],    // indigo-500
+      end: [55, 48, 163]      // indigo-900
+    },
+    shape: 'ring',
+    effect: 'none',
+    sizeMultiplier: 1.3,
+    borderWidth: 3
   },
   'slate': {
-    label: 'Slate (Monochrome)',
+    label: 'Slate (Muted)',
     colors: {
       start: [203, 213, 225], // slate-300
       mid: [71, 85, 105],     // slate-600
       end: [15, 23, 42]       // slate-900
-    }
+    },
+    shape: 'circle',
+    effect: 'none',
+    sizeMultiplier: 0.8,
+    borderWidth: 1
   }
 };
