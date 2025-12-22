@@ -60,6 +60,7 @@ function ChronoMapContent() {
 
   // [NEW] Playback State
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playbackRef = useRef<number | null>(null);
   const lastTickRef = useRef<number>(0);
 
@@ -219,10 +220,10 @@ function ChronoMapContent() {
 
     const interval = setInterval(() => {
       handleManualStep();
-    }, 1000);
+    }, 1000 / playbackSpeed);
 
     return () => clearInterval(interval);
-  }, [interactionMode, isPlaying, handleManualStep]);
+  }, [interactionMode, isPlaying, handleManualStep, playbackSpeed]);
 
   // Interaction Interrupts Play Mode
   useEffect(() => {
@@ -383,6 +384,8 @@ function ChronoMapContent() {
         isPlaying={isPlaying}
         setIsPlaying={setIsPlaying}
         onManualStep={handleManualStep}
+        playbackSpeed={playbackSpeed}
+        setPlaybackSpeed={setPlaybackSpeed}
       />
 
       <EventDetailPanel

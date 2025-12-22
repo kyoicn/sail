@@ -28,6 +28,8 @@ interface TimeControlProps {
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
   onManualStep: () => void; // [NEW]
+  playbackSpeed: number;
+  setPlaybackSpeed: (speed: number) => void;
 }
 
 export const Timeline: React.FC<TimeControlProps> = ({
@@ -50,7 +52,9 @@ export const Timeline: React.FC<TimeControlProps> = ({
   mapBounds,
   isPlaying,
   setIsPlaying,
-  onManualStep
+  onManualStep,
+  playbackSpeed,
+  setPlaybackSpeed
 }) => {
   // --- Refs & State ---
   const trackRef = useRef<HTMLDivElement>(null);
@@ -142,8 +146,9 @@ export const Timeline: React.FC<TimeControlProps> = ({
         <div className="flex-1 flex flex-col justify-start gap-0 min-w-0 relative">
 
           {/* Main Track Row (Playback + Track) */}
-          <div className="flex items-center gap-3 w-full relative z-10">
+          <div className="flex items-start gap-3 w-full relative z-10">
             {/* Playback Controls (Left of Main Track) */}
+            {/* Force Update */}
             <TimelinePlaybackControls
               isPlaying={isPlaying}
               setIsPlaying={setIsPlaying}
@@ -152,6 +157,8 @@ export const Timeline: React.FC<TimeControlProps> = ({
               setCurrentDate={setCurrentDate}
               viewRange={viewRange}
               onManualStep={onManualStep}
+              playbackSpeed={playbackSpeed}
+              setPlaybackSpeed={setPlaybackSpeed}
             />
 
             {/* Main Track Container */}

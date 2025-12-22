@@ -171,15 +171,6 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
     <div className="flex flex-col items-start w-full">
       {/* Header Text - Fixed h-20 to match Main Track height exactly */}
       <div className="flex items-start gap-2 h-20 w-full pt-0.5">
-        {interactionMode !== 'exploration' && (
-          <button
-            onClick={() => setInteractionMode('exploration')}
-            className="group flex items-center justify-center p-1.5 bg-white/10 hover:bg-white/20 border border-white/10 hover:border-blue-400/50 text-white/90 hover:text-blue-400 rounded-lg shadow-sm transition-all mr-1 mt-0.5"
-            title="Back to Range"
-          >
-            <ArrowLeft size={16} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-          </button>
-        )}
         <span className="text-xl font-bold font-sans tabular-nums text-slate-800 dark:text-slate-100 break-words whitespace-normal leading-tight" style={{ color: 'var(--glass-text-primary)' }}>
           {headerText}
         </span>
