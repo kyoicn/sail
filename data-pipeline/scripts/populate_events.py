@@ -32,17 +32,20 @@ Detailed Parameter Guide:
     --input:
         Path to a single JSON file OR a directory containing JSON files.
         If a directory is provided, it globs all `*.json` files.
+    
+    --batch (default: 200):
+        Number of events to process before committing a transaction batch.
+
+    --tags:
+        Comma-separated list of tags to append to all imported events.
+        Example: "import_2023,reviewed"
 
 Usage Examples:
-    # 1. Import Full Folder to DEV:
-    #    Scans all .json files in 'data-pipeline/events' and upserts them into 'events_dev'.
-    #    This is the standard workflow for testing new data batches.
+    # 1. Import Folder to DEV (Default Batch Size 200):
     python data-pipeline/scripts/populate_events.py --input data-pipeline/events --instance dev
 
-    # 2. Import Single File to PROD:
-    #    Target specific file import to production. 
-    #    Useful for hotfixing a specific event set without reprocessing the entire folder.
-    python data-pipeline/scripts/populate_events.py --input data-pipeline/events/ancient_rome.json --instance prod
+    # 2. Import File to PROD with Custom Batch and Tags:
+    python data-pipeline/scripts/populate_events.py --input data-pipeline/all.json --instance prod --batch 1000 --tags "unified_import,v2"
 """
 
 # Adjust path to allow importing from src/shared
@@ -84,6 +87,8 @@ def main():
     parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Target instance (prod, dev, staging)")
     
     parser.add_argument("--input", help="Path to JSON file or folder containing JSON files")
+    parser.add_argument("--batch", type=int, default=200, help="Batch commit size (default: 200)")
+    parser.add_argument("--tags", help="Comma-separated tags to add to events")
 
     args = parser.parse_args()
 
@@ -195,9 +200,19 @@ def main():
                         "granularity": event.location.precision,
                         "certainty": event.location.certainty,
                         "importance": event.importance,
+                        "importance": event.importance,
                         "collections": event.collections or [],
                         "area_id": event.location.area_id
                     }
+                    
+                    # Apply CLI tags
+                    if args.tags:
+                        new_tags = [t.strip() for t in args.tags.split(',') if t.strip()]
+                        # Combine and Deduplicate
+                        current_tags = set(row["collections"])
+                        current_tags.update(new_tags)
+                        row["collections"] = list(current_tags)
+
                     events_to_upsert.append(row)
                     
                 except ValidationError as ve:
@@ -282,6 +297,12 @@ def main():
             # Progress update
             if (i + 1) % 10 == 0 or (i + 1) == total_events:
                 sys.stdout.write(f"\r[Progress] Processed {i + 1}/{total_events} events...")
+                sys.stdout.flush()
+
+            # Batch Commit
+            if (i + 1) % args.batch == 0:
+                conn.commit()
+                sys.stdout.write(f" [Committed {i + 1}]")
                 sys.stdout.flush()
                 
         conn.commit()

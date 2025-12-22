@@ -22,12 +22,20 @@ Detailed Parameter Guide:
         The directory will be created if it does not exist.
         If not provided, the script will prompt the user for input.
 
+    --tags (str):
+        Comma-separated list of tags to append to all generated events.
+        Example: "load_test,batch_1"
+
+    --collections (str):
+        Comma-separated list of collections to append to all generated events.
+        Example: "history,science"
+
 Usage Examples:
     # 1. Interactive Mode (Prompts for inputs):
     python data-pipeline/scripts/generate_test_events.py
 
     # 2. Non-Interactive Mode (CLI input):
-    python data-pipeline/scripts/generate_test_events.py --total_events 5000 --output data-pipeline/data/stress_test
+    python data-pipeline/scripts/generate_test_events.py --total_events 5000 --output data-pipeline/data/stress_test --tags "stress_v1" --collections "v2_dataset"
 """
 
 import sys
@@ -97,7 +105,7 @@ def random_importance():
     else:
         return round(random.uniform(7.0, 10.0), 2)
 
-def generate_data(total_events, output_dir_path):
+def generate_data(total_events, output_dir_path, tags=None, collections=None):
     output_dir = Path(output_dir_path)
     if not output_dir.exists():
         output_dir.mkdir(parents=True)
@@ -144,6 +152,10 @@ def generate_data(total_events, output_dir_path):
             candidates = random.sample(all_metadata, num_children)
             children_ids = [c['source_id'] for c in candidates if c['source_id'] != meta['source_id']]
 
+        event_collections = []
+        if tags: event_collections.extend(tags)
+        if collections: event_collections.extend(collections)
+
         event = EventSchema(
             title=meta['title'],
             summary=f"Synthetic summary for {meta['title']}. ID: {meta['source_id']}",
@@ -153,7 +165,7 @@ def generate_data(total_events, output_dir_path):
             importance=random_importance(),
             children=children_ids,
             sources=[Link(label="Synthetic Generator", url="http://localhost")],
-            collections=["test_data", f"batch_{meta['file_idx']}"]
+            collections=event_collections
         )
         
         events_by_file[meta['file_idx']].append(event.model_dump(exclude_none=True))
@@ -174,6 +186,8 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Synthetic Test Events")
     parser.add_argument("--total_events", type=int, help="Total number of events to generate")
     parser.add_argument("--output", help="Output directory folder")
+    parser.add_argument("--tags", help="Comma-separated tags to add to events")
+    parser.add_argument("--collections", help="Comma-separated collections to add to events")
     
     args = parser.parse_args()
     
@@ -191,7 +205,15 @@ def main():
         val = input("Enter output directory [data-pipeline/data]: ").strip()
         output = val if val else "data-pipeline/data"
 
-    generate_data(total_events, output)
+    tags = []
+    if args.tags:
+        tags = [t.strip() for t in args.tags.split(',') if t.strip()]
+
+    collections = []
+    if args.collections:
+        collections = [c.strip() for c in args.collections.split(',') if c.strip()]
+
+    generate_data(total_events, output, tags, collections)
 
 if __name__ == "__main__":
     main()
