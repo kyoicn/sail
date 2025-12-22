@@ -29,7 +29,10 @@ export const TimelinePlaybackControls: React.FC<TimelinePlaybackControlsProps> =
       {/* Back Button (Absolute Left of the Play Button) */}
       {interactionMode !== 'exploration' && (
         <button
-          onClick={() => setInteractionMode('exploration')}
+          onClick={() => {
+            setIsPlaying(false);
+            setInteractionMode('exploration');
+          }}
           className="group absolute right-full top-0 mr-2 flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-blue-500 hover:border-blue-200 hover:bg-slate-50 transition-all shadow-sm"
           title="Back to Range"
         >

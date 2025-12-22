@@ -159,6 +159,8 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       const RULER_H = 32; // 88 (total) - 32 (ruler) = 56 (waveform) -> Matches buttons
       const WAVE_H = height - RULER_H;
       const MARKER_Y = WAVE_H / 2;
+      const TRACK_PAD = 6; // Shift data inside pill (Increased to 6px)
+      const DRAW_W = width - TRACK_PAD * 2;
 
       // --- 0. Draw Background & Border ---
       const r = 8;
@@ -200,7 +202,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       // --- 1. Draw Density Waveform (Optimized) ---
       if (currentPoints && currentPoints.length > 0) {
         // ... (Skipping binning logic which is unchanged) ...
-        BIN_COUNT = Math.ceil(width / 2); // 1 bin per 2px approx
+        BIN_COUNT = Math.ceil(DRAW_W / 2); // 1 bin per 2px approx
         const bins = new Array(BIN_COUNT).fill(0);
 
         // A. Binning (Optimized Loop)
@@ -260,7 +262,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
           // Pre-calculate points to share between fill and stroke
           const points: [number, number][] = [];
           for (let i = 0; i < BIN_COUNT; i++) {
-            const x = (i / (BIN_COUNT - 1)) * width;
+            const x = TRACK_PAD + (i / (BIN_COUNT - 1)) * DRAW_W;
             const intensity = localMax > 0 ? (smoothed[i] / localMax) : 0;
             const boosted = Math.pow(intensity, 0.7);
             const yOffset = boosted * DRAW_H;
@@ -269,9 +271,9 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
 
           // 1. Fill Path
           ctx.beginPath();
-          ctx.moveTo(0, WAVE_BASE);
+          ctx.moveTo(TRACK_PAD, WAVE_BASE);
           points.forEach(([x, y]) => ctx.lineTo(x, y));
-          ctx.lineTo(width, WAVE_BASE);
+          ctx.lineTo(width - TRACK_PAD, WAVE_BASE);
           ctx.closePath();
 
           // Waveform Fill (Stronger Blue)
@@ -315,7 +317,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
 
       ticks.forEach(tick => {
         const percent = (tick.value - currentViewRange.min) / span;
-        const x = percent * width;
+        const x = TRACK_PAD + percent * DRAW_W;
 
         // Tick Line
         ctx.beginPath();
@@ -353,7 +355,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
         if (sliderVal < currentViewRange.min || sliderVal > currentViewRange.max) return;
 
         const percent = (sliderVal - currentViewRange.min) / span;
-        const x = percent * width;
+        const x = TRACK_PAD + percent * DRAW_W;
 
         // Calc Y based on Waveform
         let markerY = WAVE_BASE - 2; // Default near bottom if no wave
@@ -447,7 +449,9 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       if (sliderVal < viewRange.min || sliderVal > viewRange.max) continue;
 
       const percent = (sliderVal - viewRange.min) / span;
-      const ex = percent * width;
+      const TRACK_PAD = 6;
+      const DRAW_W = width - TRACK_PAD * 2;
+      const ex = TRACK_PAD + percent * DRAW_W;
 
       // Relaxed Vertical Band Logic:
       // Allow clicking if X is close, regardless of Y (easier interaction)
