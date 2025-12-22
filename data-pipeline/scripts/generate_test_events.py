@@ -109,11 +109,16 @@ def generate_data(total_events, output_dir_path):
     print(f"Generating {total_events} events into {files_count} files in {output_dir}...")
 
     all_metadata = [] 
+    
+    # Generate a unique batch ID (timestamp + short random) to ensure uniqueness across runs
+    import time
+    batch_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
 
     # 1. Pre-generate metadata
     for i in range(total_events):
         file_idx = (i // events_per_file) + 1
-        title = f"Test Event {i+1} - {random.choice(['Battle', 'Discovery', 'Treaty', 'Birth', 'Invention', 'Summit', 'Crisis'])}"
+        # Include batch_id in title to ensure global uniqueness
+        title = f"Test Event {i+1} [{batch_id}] - {random.choice(['Battle', 'Discovery', 'Treaty', 'Birth', 'Invention', 'Summit', 'Crisis'])}"
         
         filename_stem = f"test_events_{file_idx}"
         slug_title = slugify(title)
