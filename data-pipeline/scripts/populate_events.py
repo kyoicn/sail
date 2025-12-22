@@ -236,7 +236,8 @@ def main():
     updated = 0
     
     try:
-        for row in events_to_upsert:
+        total_events = len(events_to_upsert)
+        for i, row in enumerate(events_to_upsert):
             # We use ON CONFLICT DO UPDATE to handle both inserts and updates
             # How to distinguish? RETURNING xmax? 
             # Or just count "processed".
@@ -277,9 +278,14 @@ def main():
                 inserted += 1
             else:
                 updated += 1
+            
+            # Progress update
+            if (i + 1) % 10 == 0 or (i + 1) == total_events:
+                sys.stdout.write(f"\r[Progress] Processed {i + 1}/{total_events} events...")
+                sys.stdout.flush()
                 
         conn.commit()
-        print(f"✅ Success! Inserted: {inserted}, Updated: {updated}.")
+        print(f"\n✅ Success! Inserted: {inserted}, Updated: {updated}.")
         
     except Exception as e:
         conn.rollback()
