@@ -1,4 +1,47 @@
-import sys
+"""
+Script: populate_areas.py
+Description:
+    Populates the `areas` table from AreaModel objects (usually from JSON).
+    Inherits usage patterns from `populator_base.py`.
+    
+    It handles:
+    - Inserting new areas.
+    - Updating existing areas (Upsert).
+    - Geometry Dateline Fixing: Automatically splits polygons crossing the antimeridian.
+
+Detailed Parameter Guide:
+    --input:
+        Path to a single JSON file OR a directory containing JSON files.
+        Input files should match the AreaModel schema.
+
+    --instance:
+        Target database instance: 'prod', 'dev', 'staging'.
+        - prod: targets 'areas' table.
+        - dev: targets 'areas_dev' table.
+        - staging: targets 'areas_staging' table.
+
+    --existing (default: 'skip'):
+        Policy for handling existing records (by area_id).
+        - skip: Ignore existing records.
+        - overwrite: Update existing records with new data.
+
+Usage Examples:
+    # 1. Standard Import (Safe Mode):
+    #    Imports areas from a single file to the DEV environment. 
+    #    Any areas that already exist in the DB (by area_id) will be SKIPPED.
+    python data-pipeline/scripts/populate_areas.py --input data-pipeline/data/new_areas.json --instance dev
+
+    # 2. Force Update (Overwrite Mode):
+    #    Imports from a folder of JSON files to PROD.
+    #    Existing areas will be UPDATED with the new data from the JSON files.
+    #    Useful for applying corrections or geometry updates.
+    python data-pipeline/scripts/populate_areas.py --input data-pipeline/data/areas_dump/ --instance prod --existing overwrite
+
+    # 3. Validation Run (Staging):
+    #    Run against staging to test data integrity before prod promotion.
+    python data-pipeline/scripts/populate_areas.py --input data-pipeline/data/areas_v2.json --instance staging
+"""
+
 from pathlib import Path
 from typing import List
 

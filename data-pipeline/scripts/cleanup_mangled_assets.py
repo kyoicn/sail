@@ -1,3 +1,18 @@
+"""
+Script: cleanup_mangled_assets.py
+Description:
+    Corrects naming collisions in Postgres indexes and constraints that occur during
+    table renames (e.g. promoting staging to prod). It renames assets to follow
+    a deterministic canonical pattern: {table_name}_{column_name}_{suffix}.
+
+    Why this is needed:
+    Postgres automatically renames indexes when a table is renamed, but often appends
+    arbitrary digits (e.g., events_pkey1) if a collision occurs. This script cleans
+    up those messy names to keep the schema clean and predictable.
+
+Usage Examples:
+    python data-pipeline/scripts/cleanup_mangled_assets.py
+"""
 
 import os
 import psycopg2

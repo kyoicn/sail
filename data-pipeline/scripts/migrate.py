@@ -1,4 +1,23 @@
-import os
+"""
+Script: migrate.py
+Description:
+    Manages database schema migrations for different environments (prod, dev, staging).
+    It applies SQL files from `data-pipeline/migrations/` in version order.
+
+    Features:
+    - Instance Targeting: Supports separate migration history for 'prod', 'dev', and 'staging'.
+    - Dynamic suffixing: Automatically transforms table/function names in SQL (e.g., `events` -> `events_dev`).
+    - Reset Capability: Can un-apply specific migration versions.
+    - Transactional: Runs migrations in a transaction to ensure atomicity.
+
+Usage Examples:
+    # 1. Apply pending migrations to Dev
+    python data-pipeline/scripts/migrate.py --instance dev
+
+    # 2. Reset a specific migration in Staging
+    python data-pipeline/scripts/migrate.py --instance staging --reset 20241201_init.sql
+"""
+
 import sys
 import psycopg2
 import argparse

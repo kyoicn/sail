@@ -1,4 +1,47 @@
-import sys
+"""
+Script: populate_periods.py
+Description:
+    Populates the `historical_periods` and `period_areas` (junction) tables.
+    It takes HistoricalPeriodModel JSON data and ensures that:
+    1. The period is inserted/upserted.
+    2. Linked areas (primary and associated) are validated against the `areas` table.
+    3. Junction records are created in `period_areas`.
+
+    This script enforces referential integrity checks (warns/skips if linked area doesn't exist).
+
+Detailed Parameter Guide:
+    --input:
+        Path to a single JSON file OR a directory containing JSON files.
+        Input files should match the HistoricalPeriodModel schema.
+
+    --instance:
+        Target database instance: 'prod', 'dev', 'staging'.
+        - prod: targets 'historical_periods' table.
+        - dev: targets 'historical_periods_dev' table.
+        - staging: targets 'historical_periods_staging' table.
+
+    --existing (default: 'skip'):
+        Policy for handling existing records (by period_id).
+        - skip: Ignore existing records.
+        - overwrite: Update existing records with new data.
+
+Usage Examples:
+    # 1. Standard Import to Dev:
+    #    Reads all .json files in the 'periods' directory and inserts them into 'historical_periods_dev'.
+    #    Skips any periods that already exist.
+    python data-pipeline/scripts/populate_periods.py --input data-pipeline/data/periods/ --instance dev
+
+    # 2. Fix/Update Existing Periods in Prod:
+    #    Updates formatting or descriptions for specific periods defined in 'fixes.json'.
+    #    Note: Does NOT delete existing relationships, but will update role (primary/associated) if changed.
+    python data-pipeline/scripts/populate_periods.py --input data-pipeline/data/fixes.json --instance prod --existing overwrite
+
+    # 3. Check Relationships in Staging:
+    #    Good for verifying that all referenced 'area_ids' actually exist in the 'areas_staging' table.
+    #    The script will print [WARN] for any missing linked areas.
+    python data-pipeline/scripts/populate_periods.py --input data-pipeline/data/all_periods.json --instance staging
+"""
+
 from pathlib import Path
 from typing import List
 

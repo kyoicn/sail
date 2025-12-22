@@ -23,17 +23,26 @@ Description:
     - Generates 'source_id' from filename + title to ensure easy updates.
     - interactive mode for choosing Prod/Dev instance.
 
-Usage Examples:
+Detailed Parameter Guide:
+    --instance:
+        Target database instance: 'prod', 'dev', 'staging'.
+        - prod: targets 'events' table.
+        - dev: targets 'events_dev' table.
     
-    1. Import Folder to DEV:
-       python data-pipeline/scripts/populate_events.py --input data-pipeline/events --instance dev
+    --input:
+        Path to a single JSON file OR a directory containing JSON files.
+        If a directory is provided, it globs all `*.json` files.
 
-    2. Import File to PROD:
-       python data-pipeline/scripts/populate_events.py --input data-pipeline/all_events.json --instance prod
+Usage Examples:
+    # 1. Import Full Folder to DEV:
+    #    Scans all .json files in 'data-pipeline/events' and upserts them into 'events_dev'.
+    #    This is the standard workflow for testing new data batches.
+    python data-pipeline/scripts/populate_events.py --input data-pipeline/events --instance dev
 
-Arguments:
-    --instance : 'prod' or 'dev' (Required or interactive).
-    --input    : Path to JSON file or folder.
+    # 2. Import Single File to PROD:
+    #    Target specific file import to production. 
+    #    Useful for hotfixing a specific event set without reprocessing the entire folder.
+    python data-pipeline/scripts/populate_events.py --input data-pipeline/events/ancient_rome.json --instance prod
 """
 
 # Adjust path to allow importing from src/shared

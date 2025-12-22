@@ -1,4 +1,25 @@
-import os
+"""
+Script: promote_staging_prod.py
+Description:
+    Execute the critical "Staging -> Production" promotion workflow.
+    It performs an ATOMIC SWAP of tables to minimize downtime.
+
+    Workflow:
+    1. Verifies staging tables exist.
+    2. Transactions BEGIN:
+        a. Rename current `table` -> `table_backup`.
+        b. Rename `table_staging` -> `table`.
+    3. Commit Transaction (Atomic Swap).
+    4. Run Production Migrations (to fix RPCs/OIDs).
+    5. Re-create new empty Staging tables (`migrate.py`).
+    6. "Persistent Staging": Sync Prod data BACK to new Staging tables.
+
+    Tables handled: events, areas, historical_periods, period_areas.
+
+Usage Examples:
+    python data-pipeline/scripts/promote_staging_prod.py
+"""
+
 import sys
 import psycopg2
 from dotenv import load_dotenv

@@ -21,19 +21,26 @@ Description:
     - Deduplication (via upsert on source_id)
     - JSONB serialization for complex fields
 
+Detailed Parameter Guide:
+    --input:
+        Path to input file or directory containing .json files (required).
+
+    --instance:
+        Target database instance. Choices: 'dev', 'prod', 'staging'.
+        - dev (default): targets 'events_dev' table.
+        - prod: targets 'events' table.
+        - staging: targets 'events_staging' table.
+
 Usage Examples:
+    # 1. Batch Import for Development:
+    #    Processes a directory of ExtractionRecords (output from event-extractor).
+    #    Validates, converts, and inserts/updates into the 'events_dev' table.
+    python data-pipeline/scripts/populate_events_from_extraction_record.py --input data-pipeline/processed_events --instance dev
 
-    1. Import Folder to Development Table (events_dev)
-       python data-pipeline/scripts/populate_events_from_extraction_record.py --input data-pipeline/processed_events --instance dev
-
-    2. Import Single File to Production Table (events)
-       python data-pipeline/scripts/populate_events_from_extraction_record.py --input data-pipeline/processed_events/my_file.json --instance prod
-
-Arguments:
-    --input      : Path to input file or directory containing .json files (required).
-    --instance   : Target database instance. Choices: 'dev' (default), 'prod'.
-                   'dev' -> targets 'events_dev' table.
-                   'prod' -> targets 'events' table.
+    # 2. Production Hotfix:
+    #    Imports a single validated ExtractionRecord file into the main 'events' table.
+    #    Use this when promoting a specific validated extraction to production.
+    python data-pipeline/scripts/populate_events_from_extraction_record.py --input data-pipeline/processed_events/validated_batch_22.json --instance prod
 """
 
 # Adjust path to allow importing from src/shared

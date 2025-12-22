@@ -1,4 +1,21 @@
-import json
+"""
+Script: generate_sql_import.py
+Description:
+    Reads a JSON file containing event data (EventSchema format) and generates a raw 
+    SQL file (`import_events.sql`) containing INSERT statements for the `events` table.
+
+    Use Case:
+    Useful for initializing the database with a large static dataset without running
+    Python execution for every row against a live DB connection, or for generating
+    migration artifacts.
+
+    Output:
+    - data-pipeline/sql/import_events.sql
+
+Usage Examples:
+    python data-pipeline/scripts/generate_sql_import.py
+"""
+
 import os
 import uuid
 import re
