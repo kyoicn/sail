@@ -68,6 +68,7 @@ function ChronoMapContent() {
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [heatmapStyle, setHeatmapStyle] = useState('classic');
   const [showDots, setShowDots] = useState(true);
+  const [dotStyle, setDotStyle] = useState('classic');
 
   const handleZoomClick = (type: 'in' | 'out') => {
     setZoomAction({ type, id: Date.now() });
@@ -284,6 +285,8 @@ function ChronoMapContent() {
           setHeatmapStyle={setHeatmapStyle}
           showDots={showDots}
           setShowDots={setShowDots}
+          dotStyle={dotStyle}
+          setDotStyle={setDotStyle}
         />
       )}
 
@@ -375,6 +378,7 @@ function ChronoMapContent() {
           showHeatmap={showHeatmap}
           heatmapStyle={heatmapStyle}
           showDots={showDots}
+          dotStyle={dotStyle}
         />
       </main>
 

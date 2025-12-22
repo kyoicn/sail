@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { EventData, MapBounds } from '@sail/shared';
-import { PREDEFINED_REGIONS, HEATMAP_STYLES } from '../../lib/constants';
+import { PREDEFINED_REGIONS, HEATMAP_STYLES, DOT_STYLES } from '../../lib/constants';
 import { calculateSmartLayout } from '../../lib/layout-engine';
 import { toSliderValue, getAstroYear } from '../../lib/time-engine';
 import { getDotHtml, getLineHtml, getCardHtml } from './MarkerTemplates';
@@ -30,6 +30,7 @@ interface LeafletMapProps {
   showHeatmap: boolean;
   heatmapStyle?: string;
   showDots: boolean;
+  dotStyle?: string;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -53,7 +54,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   heatmapData,
   showHeatmap,
   heatmapStyle = 'classic',
-  showDots
+  showDots,
+  dotStyle = 'classic'
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -71,12 +73,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     // Normalize to 0-1
     const t = (val - 1) / 9;
 
-    // RGB Start (Cyan-400: 34, 211, 238)
-    const start = [34, 211, 238];
-    // RGB Mid (Blue-500: 59, 130, 246) at t=0.5
-    const mid = [59, 130, 246];
-    // RGB End (Indigo-900: 49, 46, 129)
-    const end = [49, 46, 129];
+    const style = DOT_STYLES[dotStyle] || DOT_STYLES['classic'];
+    const { start, mid, end } = style.colors;
 
     let r, g, b;
     if (t < 0.5) {

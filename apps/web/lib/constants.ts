@@ -89,3 +89,56 @@ export const HEATMAP_STYLES: Record<string, HeatmapStyleConfig> = {
     }
   }
 };
+
+// --- Dot Styles Configuration ---
+export interface DotStyleConfig {
+  label: string;
+  colors: {
+    start: [number, number, number];
+    mid: [number, number, number];
+    end: [number, number, number];
+  };
+}
+
+export const DOT_STYLES: Record<string, DotStyleConfig> = {
+  'classic': {
+    label: 'Classic (Cyan/Blue)',
+    colors: {
+      start: [34, 211, 238],
+      mid: [59, 130, 246],
+      end: [49, 46, 129]
+    }
+  },
+  'volcano': {
+    label: 'Volcano (Yellow/Red)',
+    colors: {
+      start: [253, 224, 71], // yellow-300
+      mid: [249, 115, 22],  // orange-500
+      end: [153, 27, 27]   // red-800
+    }
+  },
+  'emerald': {
+    label: 'Emerald (Lime/Teal)',
+    colors: {
+      start: [190, 242, 100], // lime-300
+      mid: [20, 184, 166],    // teal-500
+      end: [19, 78, 74]       // teal-900
+    }
+  },
+  'sunset': {
+    label: 'Sunset (Pink/Purple)',
+    colors: {
+      start: [249, 168, 212], // pink-300
+      mid: [168, 85, 247],    // purple-500
+      end: [88, 28, 135]      // purple-900
+    }
+  },
+  'slate': {
+    label: 'Slate (Monochrome)',
+    colors: {
+      start: [203, 213, 225], // slate-300
+      mid: [71, 85, 105],     // slate-600
+      end: [15, 23, 42]       // slate-900
+    }
+  }
+};

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, ChevronDown, ChevronUp, Database, Eye, Map as MapIcon, Globe, Layers } from 'lucide-react';
 import { EventData, MapBounds } from '@sail/shared';
-import { HEATMAP_STYLES } from '../../lib/constants';
+import { HEATMAP_STYLES, DOT_STYLES } from '../../lib/constants';
 
 interface DebugHUDProps {
   zoom: number;
@@ -20,6 +20,8 @@ interface DebugHUDProps {
   setHeatmapStyle: (v: string) => void;
   showDots: boolean;
   setShowDots: (v: boolean) => void;
+  dotStyle: string;
+  setDotStyle: (v: string) => void;
 }
 
 export const DebugHUD: React.FC<DebugHUDProps> = ({
@@ -38,7 +40,9 @@ export const DebugHUD: React.FC<DebugHUDProps> = ({
   heatmapStyle,
   setHeatmapStyle,
   showDots,
-  setShowDots
+  setShowDots,
+  dotStyle,
+  setDotStyle
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [inspectedEventId, setInspectedEventId] = useState<string | null>(null);
@@ -229,6 +233,23 @@ export const DebugHUD: React.FC<DebugHUDProps> = ({
                   className="rounded border-slate-300 text-blue-600 focus:ring-0 w-3 h-3"
                 />
               </label>
+
+              {/* Dot Style Selector */}
+              {showDots && (
+                <div className="pl-4 pr-1 pb-1">
+                  <select
+                    value={dotStyle}
+                    onChange={(e) => setDotStyle(e.target.value)}
+                    className="w-full text-[10px] p-1 rounded border border-slate-300 bg-white text-slate-700"
+                  >
+                    {Object.entries(DOT_STYLES).map(([key, style]) => (
+                      <option key={key} value={key}>
+                        {style.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
