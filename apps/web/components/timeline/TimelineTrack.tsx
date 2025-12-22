@@ -162,12 +162,12 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
 
       // --- 0. Draw Background & Border ---
       const r = 8;
-      // Sharp pixel rendering: offset by 0.5
-      // Top: 0.5, Bottom: WAVE_H - 0.5, Left: 0.5, Right: width - 0.5
-      const top = 0.5;
-      const left = 0.5;
-      const right = width - 0.5;
-      const bottom = WAVE_H - 0.5;
+      // Sharp pixel rendering: offset by 1 for 2px border
+      // Top: 1, Bottom: WAVE_H - 1, Left: 1, Right: width - 1
+      const top = 1;
+      const left = 1;
+      const right = width - 1;
+      const bottom = WAVE_H - 1;
 
       ctx.beginPath();
       ctx.moveTo(r, top);
@@ -181,37 +181,25 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       ctx.quadraticCurveTo(left, top, r, top);
       ctx.closePath();
 
-      // Background Fill (More opaque for contrast)
-      ctx.fillStyle = 'rgba(241, 245, 249, 0.9)'; // slate-100 @ 90%
+      // Background Fill (Reverted to Slate-100 for better integration)
+      ctx.fillStyle = 'rgba(241, 245, 249, 0.9)';
       ctx.fill();
 
-      // Border Stroke
-      ctx.strokeStyle = '#cbd5e1'; // slate-300
-      ctx.lineWidth = 1;
+      // Border Stroke (2px but lighter slate-300)
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 2;
       ctx.stroke();
 
       // --- 1. Draw Density Waveform (Optimized) ---
       if (currentPoints && currentPoints.length > 0) {
+        // ... (Skipping binning logic which is unchanged) ...
         const BIN_COUNT = Math.ceil(width / 2); // 1 bin per 2px approx
         const bins = new Array(BIN_COUNT).fill(0);
 
         // A. Binning (Optimized Loop)
         let maxBin = 0;
-
-        // Binary Search Start (Optional but good) or simple bounds check
-        // Simple linear scan is heavily optimized by JIT since objects are simple numbers now
-        // But for 10k items, let's just iterate. 
-        // Optimization: Since sorted, find start index and break after end?
-        // Let's do a simple optimization: Skip if val < min
-
-        // Actually, for smoothness we want a bit of buffer
         const viewMin = currentViewRange.min - (span * 0.1);
         const viewMax = currentViewRange.max + (span * 0.1);
-
-        // Finding start index via binary search would be O(log N). 
-        // Linear scan is O(N). 
-        // Let's stick to linear for code simplicity unless verified slow, 
-        // BUT we break early.
 
         for (let i = 0; i < currentPoints.length; i++) {
           const p = currentPoints[i];
@@ -263,26 +251,48 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
           const WAVE_BASE = WAVE_H;
           const DRAW_H = WAVE_H * 0.9;
 
-          ctx.beginPath();
-          ctx.moveTo(0, WAVE_BASE);
-
+          // Pre-calculate points to share between fill and stroke
+          const points: [number, number][] = [];
           for (let i = 0; i < BIN_COUNT; i++) {
             const x = (i / (BIN_COUNT - 1)) * width;
             const intensity = localMax > 0 ? (smoothed[i] / localMax) : 0;
             const boosted = Math.pow(intensity, 0.7);
             const yOffset = boosted * DRAW_H;
-            ctx.lineTo(x, WAVE_BASE - yOffset);
+            points.push([x, WAVE_BASE - yOffset]);
           }
 
+          // 1. Fill Path
+          ctx.beginPath();
+          ctx.moveTo(0, WAVE_BASE);
+          points.forEach(([x, y]) => ctx.lineTo(x, y));
           ctx.lineTo(width, WAVE_BASE);
           ctx.closePath();
 
-          // Waveform Fill
+          // Waveform Fill (Stronger Blue)
           const gradient = ctx.createLinearGradient(0, 0, 0, WAVE_H);
-          gradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)'); // Blue
-          gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
+          gradient.addColorStop(0, 'rgba(37, 99, 235, 0.6)'); // Blue-600 @ 60%
+          gradient.addColorStop(1, 'rgba(37, 99, 235, 0.2)'); // Blue-600 @ 20%
           ctx.fillStyle = gradient;
           ctx.fill();
+
+          // 2. Stroke Path (Curve Only)
+          ctx.beginPath();
+          if (points.length > 0) {
+            ctx.moveTo(points[0][0], points[0][1]);
+            for (let i = 1; i < points.length; i++) {
+              const [x1, y1] = points[i - 1];
+              const [x2, y2] = points[i];
+              // Skip drawing along the baseline to avoid covering the border
+              if (Math.abs(y1 - WAVE_BASE) < 0.1 && Math.abs(y2 - WAVE_BASE) < 0.1) {
+                ctx.moveTo(x2, y2);
+              } else {
+                ctx.lineTo(x2, y2);
+              }
+            }
+          }
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#60a5fa'; // Blue-400 (Softer)
+          ctx.stroke();
 
           ctx.restore(); // End Clipping
         }
