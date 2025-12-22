@@ -131,7 +131,7 @@ def main():
         json_files = [path_obj]
 
     # Load and Prepare Data
-    events_to_upsert = []
+    events_to_upsert = {}
     
     print(f"\nProcessing {len(json_files)} files...")
     
@@ -213,7 +213,10 @@ def main():
                         current_tags.update(new_tags)
                         row["collections"] = list(current_tags)
 
-                    events_to_upsert.append(row)
+                    if source_id in events_to_upsert:
+                        logger.debug(f"Duplicate source_id found: {source_id}. Overwriting with latest.")
+                    
+                    events_to_upsert[source_id] = row
                     
                 except ValidationError as ve:
                     logger.warning(f"Validation Error in {jp.name}: {ve}")
@@ -224,6 +227,9 @@ def main():
             logger.error(f"Failed to read file {jp.name}: {e}")
 
     # Summary and Confirmation
+    # Convert back to list for processing
+    events_to_upsert = list(events_to_upsert.values())
+
     if not events_to_upsert:
         print("No valid events found to import.")
         sys.exit(0)
@@ -247,70 +253,96 @@ def main():
     conn = get_connection()
     cur = conn.cursor()
     
+    from psycopg2.extras import execute_values
+    
     inserted = 0
-    updated = 0
+    updated = 0 # With bulk upsert, precise updated count is hard, we track 'processed'
     
     try:
         total_events = len(events_to_upsert)
-        for i, row in enumerate(events_to_upsert):
-            # We use ON CONFLICT DO UPDATE to handle both inserts and updates
-            # How to distinguish? RETURNING xmax? 
-            # Or just count "processed".
-            # Simple approach: just upsert.
-            
-            query = f"""
-                INSERT INTO {table_name} (
-                    source_id, title, summary, image_urls, links,
-                    start_astro_year, end_astro_year, start_time_entry, end_time_entry,
-                    location, place_name, granularity, certainty, importance, collections, area_id
-                ) VALUES (
-                    %(source_id)s, %(title)s, %(summary)s, %(image_urls)s, %(links)s,
-                    %(start_astro_year)s, %(end_astro_year)s, %(start_time_entry)s, %(end_time_entry)s,
-                    ST_GeogFromText(%(location_wkt)s), %(place_name)s, %(granularity)s, %(certainty)s, %(importance)s, %(collections)s, %(area_id)s
-                )
-                ON CONFLICT (source_id) DO UPDATE SET
-                    title = EXCLUDED.title,
-                    summary = EXCLUDED.summary,
-                    image_urls = EXCLUDED.image_urls,
-                    links = EXCLUDED.links,
-                    start_astro_year = EXCLUDED.start_astro_year,
-                    end_astro_year = EXCLUDED.end_astro_year,
-                    start_time_entry = EXCLUDED.start_time_entry,
-                    end_time_entry = EXCLUDED.end_time_entry,
-                    location = EXCLUDED.location,
-                    place_name = EXCLUDED.place_name,
-                    granularity = EXCLUDED.granularity,
-                    certainty = EXCLUDED.certainty,
-                    importance = EXCLUDED.importance,
-                    collections = EXCLUDED.collections,
-                    area_id = EXCLUDED.area_id
-                RETURNING (xmax = 0) AS inserted;
-            """
-            
-            cur.execute(query, row)
-            res = cur.fetchone()
-            if res and res[0]:
-                inserted += 1
-            else:
-                updated += 1
-            
-            # Progress update
-            if (i + 1) % 10 == 0 or (i + 1) == total_events:
-                sys.stdout.write(f"\r[Progress] Processed {i + 1}/{total_events} events...")
-                sys.stdout.flush()
+        batch_size = args.batch
+        
+        # Prepare Batch
+        # We need to ensure the columns match the template
+        columns = [
+            "source_id", "title", "summary", "image_urls", "links",
+            "start_astro_year", "end_astro_year", "start_time_entry", "end_time_entry",
+            "location_wkt", "place_name", "granularity", "certainty", "importance", "collections", "area_id"
+        ]
+        
+        # Convert dict rows to tuples in correct order
+        values_list = []
+        for row in events_to_upsert:
+            values_list.append((
+                row["source_id"], row["title"], row["summary"], row["image_urls"], row["links"],
+                row["start_astro_year"], row["end_astro_year"], row["start_time_entry"], row["end_time_entry"],
+                row["location_wkt"], row["place_name"], row["granularity"], row["certainty"], row["importance"], row["collections"], row["area_id"]
+            ))
 
-            # Batch Commit
-            if (i + 1) % args.batch == 0:
-                conn.commit()
-                sys.stdout.write(f" [Committed {i + 1}]")
-                sys.stdout.flush()
-                
-        conn.commit()
-        print(f"\n✅ Success! Inserted: {inserted}, Updated: {updated}.")
+        query = f"""
+            INSERT INTO {table_name} (
+                source_id, title, summary, image_urls, links,
+                start_astro_year, end_astro_year, start_time_entry, end_time_entry,
+                location, place_name, granularity, certainty, importance, collections, area_id
+            ) VALUES %s
+            ON CONFLICT (source_id) DO UPDATE SET
+                title = EXCLUDED.title,
+                summary = EXCLUDED.summary,
+                image_urls = EXCLUDED.image_urls,
+                links = EXCLUDED.links,
+                start_astro_year = EXCLUDED.start_astro_year,
+                end_astro_year = EXCLUDED.end_astro_year,
+                start_time_entry = EXCLUDED.start_time_entry,
+                end_time_entry = EXCLUDED.end_time_entry,
+                location = EXCLUDED.location,
+                place_name = EXCLUDED.place_name,
+                granularity = EXCLUDED.granularity,
+                certainty = EXCLUDED.certainty,
+                importance = EXCLUDED.importance,
+                collections = EXCLUDED.collections,
+                area_id = EXCLUDED.area_id
+        """
+        
+        # We process in chunks to avoid blowing up memory with huge value lists if total_events is massive
+        # although for <100k it's fine.
+        
+        for i in range(0, total_events, batch_size):
+            batch = values_list[i : i + batch_size]
+            
+            # Note: ST_GeogFromText is a function call. existing execute_values supports templates.
+            # However, our values list has the WKT string.
+            # We need a template that wraps the WKT param.
+            # Template must match the number of columns in the tuple.
+            # The column 'location_wkt' (index 9) needs wrapping.
+            
+            # %s for all except index 9 which is ST_GeogFromText(%s)
+            # Tuple has 16 items.
+            template = "(" + ", ".join(["%s"] * 16) + ")"
+            # Wait, execute_values effectively does "VALUES (v1, v2, ...), (u1, u2, ...)"
+            # If we want a function call on one value, we need to modify the template.
+            # We can't easily map one column to a function in the default template unless we craft it carefully.
+            # Alternative: Construct the template string manually.
+            
+            # Index 9 is location_wkt.
+            # template = "(%s, %s, ..., ST_GeogFromText(%s), ...)"
+            
+            placeholders = ["%s"] * 16
+            placeholders[9] = "ST_GeogFromText(%s)" # Wrap location WKT
+            template = "(" + ", ".join(placeholders) + ")"
+            
+            execute_values(cur, query, batch, template=template, page_size=batch_size)
+            
+            conn.commit()
+            
+            current_count = min(i + batch_size, total_events)
+            sys.stdout.write(f"\r[Progress] Committed {current_count}/{total_events} events...")
+            sys.stdout.flush()
+            
+        print(f"\n✅ Success! Processed {total_events} events.")
         
     except Exception as e:
         conn.rollback()
-        print(f"❌ Database Transaction Failed: {e}")
+        print(f"\n❌ Database Transaction Failed: {e}")
         sys.exit(1)
     finally:
         cur.close()

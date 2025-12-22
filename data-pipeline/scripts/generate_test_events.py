@@ -237,8 +237,8 @@ def group_events(wrappers: List[EventWrapper], prob: float, batch_id: str) -> (L
                 container_title = f"Apparent Container {random.randint(1000, 9999)} [{batch_id}]"
                 
                 # Importance Boost based on atomic count (log scale)
-                # e.g. count=2 -> +1.0, count=4 -> +2.0, count=8 -> +3.0
-                importance_boost = math.log(total_atomic_count, 2)
+                # e.g. count=10 -> +1.0, count=100 -> +2.0, count=1000 -> +3.0
+                importance_boost = math.log(total_atomic_count, 10)
                 final_importance = min(max_imp + importance_boost, 10.0)
                 
                 container_event = EventSchema(
