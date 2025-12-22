@@ -156,22 +156,29 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       const span = currentViewRange.max - currentViewRange.min;
       if (span <= 0) return;
 
-      const RULER_H = 35; // Increased to 35 to avoid collision with overlapping Overview (which uses -mt-3)
+      const RULER_H = 32; // 88 (total) - 32 (ruler) = 56 (waveform) -> Matches buttons
       const WAVE_H = height - RULER_H;
       const MARKER_Y = WAVE_H / 2;
 
       // --- 0. Draw Background & Border ---
       const r = 8;
+      // Sharp pixel rendering: offset by 0.5
+      // Top: 0.5, Bottom: WAVE_H - 0.5, Left: 0.5, Right: width - 0.5
+      const top = 0.5;
+      const left = 0.5;
+      const right = width - 0.5;
+      const bottom = WAVE_H - 0.5;
+
       ctx.beginPath();
-      ctx.moveTo(r, 0);
-      ctx.lineTo(width - r, 0);
-      ctx.quadraticCurveTo(width, 0, width, r);
-      ctx.lineTo(width, WAVE_H - r);
-      ctx.quadraticCurveTo(width, WAVE_H, width - r, WAVE_H);
-      ctx.lineTo(r, WAVE_H);
-      ctx.quadraticCurveTo(0, WAVE_H, 0, WAVE_H - r);
-      ctx.lineTo(0, r);
-      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.moveTo(r, top);
+      ctx.lineTo(right - r, top);
+      ctx.quadraticCurveTo(right, top, right, r);
+      ctx.lineTo(right, bottom - r);
+      ctx.quadraticCurveTo(right, bottom, right - r, bottom);
+      ctx.lineTo(r, bottom);
+      ctx.quadraticCurveTo(left, bottom, left, bottom - r);
+      ctx.lineTo(left, r);
+      ctx.quadraticCurveTo(left, top, r, top);
       ctx.closePath();
 
       // Background Fill (More opaque for contrast)

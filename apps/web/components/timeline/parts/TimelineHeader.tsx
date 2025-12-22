@@ -38,17 +38,23 @@ const formatSmartDateRange = (min: number, max: number): React.ReactNode => {
     if (sameMonth) {
       // "Jan 1 - 5, 1920 AD"
       return (
-        <span className="whitespace-nowrap">
-          {getMonthName(start.details!.month)} {start.details!.day} – {end.details!.day}, {start.year} {start.era}
-        </span>
+        <>
+          <span className="whitespace-nowrap">{getMonthName(start.details!.month)} {start.details!.day}</span>
+          {' – '}
+          <span className="whitespace-nowrap">{end.details!.day},</span>{' '}
+          <span className="whitespace-nowrap">{start.year} {start.era}</span>
+        </>
       );
     }
     if (sameYear) {
       // "Jan 1 - Feb 2, 1920 AD"
       return (
-        <span className="whitespace-nowrap">
-          {getMonthName(start.details!.month)} {start.details!.day} – {getMonthName(end.details!.month)} {end.details!.day}, {start.year} {start.era}
-        </span>
+        <>
+          <span className="whitespace-nowrap">{getMonthName(start.details!.month)} {start.details!.day}</span>
+          {' – '}
+          <span className="whitespace-nowrap">{getMonthName(end.details!.month)} {end.details!.day},</span>{' '}
+          <span className="whitespace-nowrap">{start.year} {start.era}</span>
+        </>
       );
     }
     // "Dec 31, 1919 AD - Jan 1, 1920 AD"
@@ -169,8 +175,8 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
 
   return (
     <div className="flex flex-col items-start w-full">
-      {/* Header Text - Fixed h-20 to match Main Track height exactly */}
-      <div className="flex items-start gap-2 h-20 w-full pt-0.5">
+      {/* Header Text - Fixed h-14 to match Main Track height exactly */}
+      <div className="flex items-start gap-2 h-14 w-full pt-0.5 mb-8">
         <span className="text-xl font-bold font-sans tabular-nums text-slate-800 dark:text-slate-100 break-words whitespace-normal leading-tight" style={{ color: 'var(--glass-text-primary)' }}>
           {headerText}
         </span>

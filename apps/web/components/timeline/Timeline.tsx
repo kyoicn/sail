@@ -130,7 +130,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
       <div className="glass-panel rounded-2xl p-3 shadow-2xl flex items-stretch gap-4">
 
         {/* --- LEFT COLUMN: Controls & Info --- */}
-        <div className="flex flex-col gap-0 shrink-0 justify-start items-start w-[340px]">
+        <div className="flex flex-col gap-0 shrink-0 justify-start items-start w-[200px]">
           {/* Header Info */}
           <TimelineHeader
             interactionMode={interactionMode}
@@ -164,7 +164,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
             {/* Main Track Container */}
             <div
               ref={trackRef}
-              className="relative h-20 flex-1 group cursor-pointer select-none"
+              className="relative h-[88px] flex-1 group cursor-pointer select-none"
               onMouseDown={handleTrackMouseDown}
             >
               <TimelineTrack
