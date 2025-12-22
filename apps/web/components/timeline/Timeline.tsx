@@ -191,13 +191,16 @@ export const Timeline: React.FC<TimeControlProps> = ({
 
               {/* Slider Thumb */}
               <div
-                className={`absolute top-[40%] w-6 h-6 bg-blue-600 rounded-full shadow-lg border-2 border-white z-40 transform -translate-y-1/2 -translate-x-1/2 
-                        ${isThumbDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'} 
-                        transition-transform duration-75 
-                        ${(interactionMode === 'investigation' || isPlaying) && isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={`absolute top-0 h-full w-4 z-40 transform -translate-x-1/2 flex justify-center
+                        ${isThumbDragging ? 'cursor-grabbing' : 'cursor-grab'} 
+                        ${(interactionMode === 'investigation' || isPlaying) && isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+                        transition-opacity duration-200`}
                 style={{ left: `${Math.max(0, Math.min(100, thumbPercent))}%` }}
                 onMouseDown={handleThumbMouseDown}
-              />
+              >
+                {/* Visual Line - Restricted to 56px (h-14) to match the "pill" visual boundary */}
+                <div className="w-[2px] h-14 bg-blue-600 shadow-sm" />
+              </div>
 
               <TimelineTooltip
                 hoveredEventId={hoveredEventId}
