@@ -24,6 +24,7 @@ import argparse
 from pathlib import Path
 from dotenv import load_dotenv
 import re
+import os
 
 # Load env from data-pipeline/.env
 current_file = Path(__file__).resolve()
