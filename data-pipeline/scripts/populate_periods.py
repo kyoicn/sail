@@ -42,6 +42,7 @@ Usage Examples:
     python data-pipeline/scripts/populate_periods.py --input data-pipeline/data/all_periods.json --instance staging
 """
 
+import sys
 from pathlib import Path
 from typing import List
 
