@@ -190,10 +190,17 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       ctx.lineWidth = 2;
       ctx.stroke();
 
+      // Variables for Marker Positioning (Shared from Waveform)
+      let smoothed: number[] | null = null;
+      let localMax = 0;
+      let BIN_COUNT = 0;
+      let WAVE_BASE = WAVE_H;
+      let DRAW_H = WAVE_H * 0.9;
+
       // --- 1. Draw Density Waveform (Optimized) ---
       if (currentPoints && currentPoints.length > 0) {
         // ... (Skipping binning logic which is unchanged) ...
-        const BIN_COUNT = Math.ceil(width / 2); // 1 bin per 2px approx
+        BIN_COUNT = Math.ceil(width / 2); // 1 bin per 2px approx
         const bins = new Array(BIN_COUNT).fill(0);
 
         // A. Binning (Optimized Loop)
@@ -218,8 +225,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
 
         if (maxBin > 0) {
           // B. Convolution (Smooth)
-          const smoothed = new Array(BIN_COUNT).fill(0);
-          let localMax = 0;
+          smoothed = new Array(BIN_COUNT).fill(0); // Assign to shared var
           for (let i = 0; i < BIN_COUNT; i++) {
             let sum = 0;
             for (let k = -ksize; k <= ksize; k++) {
@@ -326,66 +332,76 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
 
 
       // --- B. Draw Events ---
-      // Marker Params
-      const MARKER_W = 4;
-      const MARKER_H = 12;
-      // MARKER_Y is already defined above as WAVE_H / 2
-
       let hitEventId: string | null = null;
+      // Dot Params
+      const DOT_RADIUS = 2.5;
+      const DOT_HIT_RADIUS = 8; // Easier clicking
+      const DOT_PADDING = 8; // Increased padding to prevent border collision (R=4 + Stroke=2 + Safety)
 
-      // ... (Rest of event drawing logic) ...
+      // Sort interactions to draw highlighted last (on top)
+      const sortedEvents = [...currentEvents].sort((a, b) => {
+        const aH = currentHoveredId === a.id || currentExpanded.has(a.id);
+        const bH = currentHoveredId === b.id || currentExpanded.has(b.id);
+        return aH === bH ? 0 : aH ? 1 : -1;
+      });
 
-      currentEvents.forEach(event => {
+      sortedEvents.forEach(event => {
         // Calc X
         const startFraction = getAstroYear(event.start) - event.start.year;
         const sliderVal = toSliderValue(event.start.year) + startFraction;
 
-        // Skip if out of bounds (though React parent likely filtered 'events' prop, 
-        // but 'events' prop is usually 'renderable events' which are in view or close to it)
         if (sliderVal < currentViewRange.min || sliderVal > currentViewRange.max) return;
 
         const percent = (sliderVal - currentViewRange.min) / span;
         const x = percent * width;
 
-        // Hit Test
-        const isHovered = currentHoveredId === event.id;
-        const isExpanded = currentExpanded.has(event.id); // [NEW] Check expansion state
+        // Calc Y based on Waveform
+        let markerY = WAVE_BASE - 2; // Default near bottom if no wave
 
-        // Use either hovered OR expanded for highlight state
-        const isHighlighted = isHovered || isExpanded;
+        if (smoothed && smoothed.length > 0 && localMax > 0 && BIN_COUNT > 0) {
+          const idx = Math.floor(percent * (BIN_COUNT - 1));
+          if (idx >= 0 && idx < smoothed.length) {
+            const intensity = smoothed[idx] / localMax;
+            const boosted = Math.pow(intensity, 0.7);
+            const yOffset = boosted * DRAW_H;
+            markerY = WAVE_BASE - yOffset;
+          }
+        }
 
-        // If mouse is active, check specific collision
+        // Collision Avoidance / Clamping
+        // Avoid top border
+        if (markerY < DOT_PADDING) markerY = DOT_PADDING;
+        // Avoid bottom border
+        if (markerY > WAVE_BASE - DOT_PADDING) markerY = WAVE_BASE - DOT_PADDING;
+
+        // Hit Test (Vertical Band Logic + Proximity)
         if (mouseRef.current) {
           const mx = mouseRef.current.x;
           const my = mouseRef.current.y;
-
-          const hitW = 10;
-          const hitH = 20;
-          if (Math.abs(mx - x) < hitW / 2 && Math.abs(my - MARKER_Y) < hitH / 2) {
+          // Use vertical band for easier X interaction, but check Y proximity roughly if needed
+          // Actually, precise dot interaction usually expects proximity. 
+          // Let's settle for a generous box around the dot.
+          if (Math.abs(mx - x) < DOT_HIT_RADIUS && Math.abs(my - markerY) < DOT_HIT_RADIUS) {
             hitEventId = event.id;
           }
         }
 
-        // Draw Logic
-        ctx.fillStyle = isHighlighted ? '#2563eb' : 'rgba(51, 65, 85, 0.7)'; // blue-600 vs slate-700
+        // Highlight State
+        const isHovered = currentHoveredId === event.id;
+        const isExpanded = currentExpanded.has(event.id);
+        const isHighlighted = isHovered || isExpanded;
 
-        if (isHighlighted) {
-          const scale = 1.5;
-          const hw = (MARKER_W * scale) / 2;
-          const hh = (MARKER_H * scale) / 2;
+        // Draw Dot
+        ctx.beginPath();
+        const r = isHighlighted ? 4 : 2.5;
+        ctx.arc(x, markerY, r, 0, Math.PI * 2);
 
-          ctx.fillRect(x - hw, MARKER_Y - hh, MARKER_W * scale, MARKER_H * scale);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
 
-          // Border
-          ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x - hw, MARKER_Y - hh, MARKER_W * scale, MARKER_H * scale);
-
-        } else {
-          const hw = MARKER_W / 2;
-          const hh = MARKER_H / 2;
-          ctx.fillRect(x - hw, MARKER_Y - hh, MARKER_W, MARKER_H);
-        }
+        ctx.lineWidth = isHighlighted ? 2 : 1.5;
+        ctx.strokeStyle = isHighlighted ? '#2563eb' : '#60a5fa'; // Blue-600 : Blue-400
+        ctx.stroke();
       });
 
       // ...
@@ -433,10 +449,13 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       const percent = (sliderVal - viewRange.min) / span;
       const ex = percent * width;
 
-      if (Math.abs(x - ex) < hitW / 2 && Math.abs(y - MARKER_Y) < hitH / 2) {
+      // Relaxed Vertical Band Logic:
+      // Allow clicking if X is close, regardless of Y (easier interaction)
+      // Or verify Top/Bottom bounds vaguely (y > 0 && y < height)
+      if (Math.abs(x - ex) < hitW / 2 && y >= 0 && y <= height) {
         foundId = event.id;
-        // Keep searching? No, first hit is fine for now, or last drawn? 
-        // Last drawn is usually "on top".
+        // Keep searching for last drawn (usually on top) logic?
+        // Since we iterate all, later ones overwrite foundId which is correct for paint order.
       }
     }
 
