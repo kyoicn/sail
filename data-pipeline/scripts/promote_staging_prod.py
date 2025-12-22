@@ -24,6 +24,7 @@ import sys
 import psycopg2
 from dotenv import load_dotenv
 from pathlib import Path
+import os
 
 # Setup Environment
 current_file = Path(__file__).resolve()

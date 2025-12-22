@@ -103,12 +103,13 @@ def main():
             print("Invalid instance. Please choose 'prod', 'dev' or 'staging'.")
 
     # Determine Target Table
-    if instance == 'dev':
-        table_name = "events_dev"
-    elif instance == 'staging':
-        table_name = "events_staging"
+    # Determine Target Table
+    if instance == 'prod':
+        schema = 'public'
     else:
-        table_name = "events"
+        schema = instance
+    
+    table_name = f'"{schema}".events'
     
     # Collect Input Files
     json_files = []

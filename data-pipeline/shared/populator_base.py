@@ -87,8 +87,11 @@ class BasePopulator(Generic[T]):
         return all_raw_items
 
     def get_table_name(self, instance: str) -> str:
-        suffix = "" if instance == 'prod' else f"_{instance}"
-        return f"{self.default_table_name}{suffix}"
+        if instance == 'prod':
+            schema = 'public'
+        else:
+            schema = instance
+        return f'"{schema}".{self.default_table_name}'
 
     def run(self):
         args = self.parse_args()

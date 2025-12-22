@@ -62,10 +62,14 @@ class PeriodPopulator(BasePopulator[HistoricalPeriodModel]):
         conn = self.get_connection()
         cur = conn.cursor()
 
-        suffix = "" if instance == 'prod' else f"_{instance}"
-        table_areas = f"areas{suffix}"
-        table_periods = f"historical_periods{suffix}"
-        table_period_areas = f"period_areas{suffix}"
+        if instance == 'prod':
+            schema = 'public'
+        else:
+            schema = instance
+
+        table_areas = f'"{schema}".areas'
+        table_periods = f'"{schema}".historical_periods'
+        table_period_areas = f'"{schema}".period_areas'
 
         print(f"Targeting tables: {table_periods}, {table_period_areas} (linking to {table_areas})")
 

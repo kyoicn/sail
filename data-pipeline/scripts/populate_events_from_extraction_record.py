@@ -89,12 +89,13 @@ def main():
         sys.exit(1)
 
     # Determine target table
-    if args.instance == "dev":
-        table_name = "events_dev"
-    elif args.instance == "staging":
-        table_name = "events_staging"
+    # Determine target table
+    if args.instance == "prod":
+        schema = "public"
     else:
-        table_name = "events"
+        schema = args.instance
+        
+    table_name = f'"{schema}".events'
     
     files = []
     if input_path.is_file():
