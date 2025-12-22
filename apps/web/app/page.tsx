@@ -282,7 +282,7 @@ function ChronoMapContent() {
       />
 
       <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
-        <div className="max-w-7xl mx-auto flex justify-between items-start">
+        <div className="w-full flex justify-between items-start">
           <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 pointer-events-auto border border-white/50 flex items-center gap-3">
             <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
               <MapIcon className="text-blue-600 w-6 h-6" />

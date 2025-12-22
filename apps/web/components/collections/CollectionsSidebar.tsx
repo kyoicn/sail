@@ -33,18 +33,18 @@ export function CollectionsSidebar({ selectedCollection, onSelect, dataset }: Co
   if (collections.length === 0 && !isLoading) return null;
 
   return (
-    <div className="fixed left-6 bottom-8 z-10 w-[18vw] min-w-[230px] max-w-[350px] bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 overflow-hidden flex flex-col p-4 gap-3 animate-in fade-in slide-in-from-left-4 duration-500">
-      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-        <Hash className="w-4 h-4 text-slate-400" />
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-          Select a Collection
+    <div className="fixed left-6 top-[88px] z-10 w-48 bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 overflow-hidden flex flex-col p-2 gap-2 animate-in fade-in slide-in-from-left-4 duration-500">
+      <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
+        <Hash className="w-3 h-3 text-slate-400" />
+        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          Collections
         </h3>
       </div>
 
-      <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto pr-1">
+      <div className="flex flex-col gap-0.5 max-h-[60vh] overflow-y-auto pr-1">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8 text-slate-400">
-            <Loader2 className="w-5 h-5 animate-spin" />
+          <div className="flex items-center justify-center py-4 text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
           </div>
         ) : (
           collections.map(col => (
@@ -52,7 +52,7 @@ export function CollectionsSidebar({ selectedCollection, onSelect, dataset }: Co
               key={col}
               onClick={() => onSelect(col === selectedCollection ? null : col)}
               className={cn(
-                "w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all duration-200 border",
+                "w-full text-left px-2 py-1.5 rounded-lg text-xs transition-all duration-200 border",
                 selectedCollection === col
                   ? "bg-blue-50 text-blue-700 font-semibold border-blue-200 shadow-sm translate-x-1"
                   : "bg-transparent text-slate-600 border-transparent hover:bg-slate-100 hover:text-slate-900"
