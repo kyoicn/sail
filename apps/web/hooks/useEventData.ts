@@ -28,12 +28,33 @@ const fetcher = async (url: string) => {
 export function useEventData(
   mapBounds: MapBounds | null,
   zoom: number,
-  dataset: string, // <--- Injected dependency
+  viewRange: { min: number, max: number }, // [NEW] Time Viewport
+  dataset: string,
   collection: string | null = null
 ) {
-  const queryKey = mapBounds
-    ? `/api/events?n=${mapBounds.north}&s=${mapBounds.south}&e=${mapBounds.east}&w=${mapBounds.west}&z=${zoom}&dataset=${dataset}`
-    : null;
+  // [NEW] Local state for Debounced Time Range
+  // Initialize with a wide global buffer or current view
+  const [fetchedTimeRange, setFetchedTimeRange] = useState({
+    min: viewRange.min, // Initial: just view
+    max: viewRange.max
+  });
+
+  // [NEW] Buffer & Debounce Logic
+  useEffect(() => {
+    // 1. Calculate Buffered Target
+    const span = viewRange.max - viewRange.min;
+    const padding = span * 1.5; // 1.5 screen widths on each side
+    const targetMin = Math.floor(viewRange.min - padding);
+    const targetMax = Math.ceil(viewRange.max + padding);
+
+    // 2. Debounce Update
+    const handler = setTimeout(() => {
+      setFetchedTimeRange({ min: targetMin, max: targetMax });
+    }, 300); // 300ms delay to wait for settling
+
+    return () => clearTimeout(handler);
+  }, [viewRange.min, viewRange.max]);
+
 
   const [allLoadedEvents, setAllLoadedEvents] = useState<EventData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -51,15 +72,17 @@ export function useEventData(
     setIsLoading(true);
     setError(null);
 
+    // [NEW] Use Buffered Time Range
     const queryParams = new URLSearchParams({
-      minYear: '-5000', // For now, we fetch a wide range or based on view
-      maxYear: '2050',
+      minYear: fetchedTimeRange.min.toString(),
+      maxYear: fetchedTimeRange.max.toString(),
       n: mapBounds.north.toString(),
       s: mapBounds.south.toString(),
       e: mapBounds.east.toString(),
       w: mapBounds.west.toString(),
       z: zoom.toString(),
-      dataset: dataset
+      dataset: dataset,
+      limit: '1000' // [NEW] Explicit Limit
     });
 
     if (collection) {
@@ -102,7 +125,7 @@ export function useEventData(
     return () => {
       isMounted = false;
     };
-  }, [mapBounds, zoom, dataset, collection]);
+  }, [mapBounds, zoom, dataset, collection, fetchedTimeRange]); // [NEW] Fetch on Time Change too
 
   useEffect(() => {
     if (serverEvents.length > 0) {

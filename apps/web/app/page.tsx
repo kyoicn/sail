@@ -102,6 +102,7 @@ function ChronoMapContent() {
   const { allVisibleEvents, allLoadedEvents, isLoading } = useEventData(
     mapBounds,
     mapViewport.zoom,
+    viewRange, // [NEW] Unified Space-Time
     dataset,
     selectedCollection
   );

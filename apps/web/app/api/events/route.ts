@@ -85,6 +85,9 @@ export async function GET(request: Request) {
   // Collection Filter
   const collectionFilter = searchParams.get('collection') || null;
 
+  // Determine Limit (Default to 1000 if not specified)
+  const limit = parseInt(searchParams.get('limit') || '1000', 10);
+
   const { data, error } = await supabase.rpc(rpcName, {
     min_lat: rpcSouth,
     max_lat: rpcNorth,
@@ -93,7 +96,8 @@ export async function GET(request: Request) {
     min_year: minYear,
     max_year: maxYear,
     min_importance: minImportance,
-    collection_filter: collectionFilter
+    collection_filter: collectionFilter,
+    p_limit: limit
   });
 
   if (error) {
