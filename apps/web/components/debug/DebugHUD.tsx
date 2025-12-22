@@ -13,6 +13,10 @@ interface DebugHUDProps {
   // [NEW]
   activeEvents: EventData[];
   expandedEventIds: Set<string>;
+  showHeatmap: boolean;
+  setShowHeatmap: (v: boolean) => void;
+  showDots: boolean;
+  setShowDots: (v: boolean) => void;
 }
 
 export const DebugHUD: React.FC<DebugHUDProps> = ({
@@ -24,7 +28,12 @@ export const DebugHUD: React.FC<DebugHUDProps> = ({
   renderedCount,
   isGlobalViewGuess,
   activeEvents,
-  expandedEventIds
+  expandedEventIds,
+  // [NEW] Visual Toggles
+  showHeatmap,
+  setShowHeatmap,
+  showDots,
+  setShowDots
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [inspectedEventId, setInspectedEventId] = useState<string | null>(null);
@@ -169,6 +178,34 @@ export const DebugHUD: React.FC<DebugHUDProps> = ({
             </div>
             <div className="text-[10px] text-slate-400 mt-1">
               Events with importance &lt; {lodThreshold} are hidden.
+            </div>
+          </div>
+
+          {/* Section 4: Visual Layers */}
+          <div className="space-y-1 pt-2 border-t border-slate-200">
+            <div className="flex items-center gap-2 text-slate-500 mb-1">
+              <Layers size={12} />
+              <span className="font-semibold uppercase tracking-wider">Visual Layers</span>
+            </div>
+            <div className="space-y-1">
+              <label className="flex items-center justify-between text-[10px] cursor-pointer hover:bg-slate-50 p-1 rounded">
+                <span className="text-slate-700">Show Heatmap</span>
+                <input
+                  type="checkbox"
+                  checked={showHeatmap}
+                  onChange={(e) => setShowHeatmap(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-0 w-3 h-3"
+                />
+              </label>
+              <label className="flex items-center justify-between text-[10px] cursor-pointer hover:bg-slate-50 p-1 rounded">
+                <span className="text-slate-700">Show Dots (LOD)</span>
+                <input
+                  type="checkbox"
+                  checked={showDots}
+                  onChange={(e) => setShowDots(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-0 w-3 h-3"
+                />
+              </label>
             </div>
           </div>
 

@@ -352,15 +352,37 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
         const startFraction = getAstroYear(event.start) - event.start.year;
         const sliderVal = toSliderValue(event.start.year) + startFraction;
 
-        if (sliderVal < currentViewRange.min || sliderVal > currentViewRange.max) return;
+        let endVal: number | null = null;
+        if (event.end) {
+          const endFraction = getAstroYear(event.end) - event.end.year;
+          endVal = toSliderValue(event.end.year) + endFraction;
+        }
+
+        if (endVal !== null) {
+          // Range Logic: Check intersection
+          if (endVal < currentViewRange.min || sliderVal > currentViewRange.max) return;
+        } else {
+          // Point Logic: Check containment
+          if (sliderVal < currentViewRange.min || sliderVal > currentViewRange.max) return;
+        }
 
         const percent = (sliderVal - currentViewRange.min) / span;
-        const x = TRACK_PAD + percent * DRAW_W;
+        let x = TRACK_PAD + percent * DRAW_W;
+
+        // [NEW] Clamp X to view bounds for persistent visibility of spanning events
+        const minX = TRACK_PAD;
+        const maxX = width - TRACK_PAD;
+        const isClamped = x < minX || x > maxX;
+
+        if (x < minX) x = minX;
+        if (x > maxX) x = maxX;
 
         // Calc Y based on Waveform
         let markerY = WAVE_BASE - 2; // Default near bottom if no wave
 
-        if (smoothed && smoothed.length > 0 && localMax > 0 && BIN_COUNT > 0) {
+        if (isClamped) {
+          markerY = MARKER_Y;
+        } else if (smoothed && smoothed.length > 0 && localMax > 0 && BIN_COUNT > 0) {
           const idx = Math.floor(percent * (BIN_COUNT - 1));
           if (idx >= 0 && idx < smoothed.length) {
             const intensity = smoothed[idx] / localMax;
@@ -399,7 +421,9 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
         ctx.arc(x, markerY, r, 0, Math.PI * 2);
 
         ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = isClamped ? 0.5 : 1.0; // Fade out if clamped
         ctx.fill();
+        ctx.globalAlpha = 1.0;
 
         ctx.lineWidth = isHighlighted ? 2 : 1.5;
         ctx.strokeStyle = isHighlighted ? '#2563eb' : '#60a5fa'; // Blue-600 : Blue-400

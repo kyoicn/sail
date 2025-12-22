@@ -24,7 +24,11 @@ interface LeafletMapProps {
   hoveredEventId: string | null;
   setHoveredEventId: (id: string | null) => void;
   activeAreaShape?: any | null; // GeoJSON MultiPolygon
-  theme: 'light' | 'dark'; // [NEW] Theme Prop
+  theme: 'light' | 'dark';
+  // [NEW] Heatmap Props
+  heatmapData: EventData[];
+  showHeatmap: boolean;
+  showDots: boolean;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -37,19 +41,23 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   initialZoom,
   onViewportChange,
   onEventSelect,
-  expandedEventIds, // [NEW]
-  onToggleExpand,    // [NEW]
+  expandedEventIds,
+  onToggleExpand,
   zoomAction,
   interactionMode,
   hoveredEventId,
   setHoveredEventId,
   activeAreaShape,
-  theme // [NEW]
+  theme,
+  heatmapData,
+  showHeatmap,
+  showDots
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const layersMapRef = useRef<Map<string, { dot: any, card?: any, line?: any, shape?: any }>>(new Map());
   const [mapZoom, setMapZoom] = useState(initialZoom);
+  const [isHeatLoaded, setIsHeatLoaded] = useState(false); // [NEW] Track lib loading
 
   // [OPTIMIZATION] Refs to track previous visual state to avoid redundant DOM updates
   const prevVisualState = useRef({ zoom: initialZoom, span: 0 });
@@ -116,9 +124,27 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       document.head.appendChild(link);
     }
 
+    const loadHeatmapLib = () => {
+      if (!document.getElementById('leaflet-heat-js')) {
+        const script = document.createElement('script');
+        script.id = 'leaflet-heat-js';
+        script.src = 'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js';
+        script.onload = () => {
+          console.log("🔥 Heatmap Library Loaded");
+          setIsHeatLoaded(true);
+        };
+        document.head.appendChild(script);
+      } else if ((window as any).L && (window as any).L.heatLayer) {
+        setIsHeatLoaded(true);
+      }
+    };
+
     const initMap = () => {
       if (mapRef.current && !mapInstanceRef.current && (window as any).L) {
         const L = (window as any).L;
+
+        // [DEPENDENCY] Load Heatmap Lib NOW that L is ready
+        loadHeatmapLib();
 
         const map = L.map(mapRef.current, {
           zoomControl: false, // [MODIFIED] Custom control externally
@@ -224,7 +250,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const map = mapInstanceRef.current;
     const layersMap = layersMapRef.current;
 
-    // 1. Determine Active Events
+    // 1. Determine Active Events (for Dots)
     const activeEvents = events.filter(event => {
       // [FIX] Use precise astro year to get the fractional part of the year
       // Then map it to slider space (which shifts AD years by -1)
@@ -260,12 +286,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       return isActive;
     });
 
-    const expandedActiveEvents = activeEvents.filter(e => expandedEventIds.has(e.id));
+    // [NEW] Filter Dots if turned off
+    const eventsToRender = (interactionMode === 'exploration' && !showDots)
+      ? activeEvents.filter(e => expandedEventIds.has(e.id)) // Only show expanded if dots hidden
+      : activeEvents;
+
+
+    const expandedActiveEvents = eventsToRender.filter(e => expandedEventIds.has(e.id));
     const layoutMap = calculateSmartLayout(expandedActiveEvents, map);
 
     // 2. Cleanup (Iterate over existing layers to remove stale ones)
     layersMap.forEach((layerGroup, eventId) => {
-      const isActive = activeEvents.find(ae => ae.id === eventId);
+      const isActive = eventsToRender.find(ae => ae.id === eventId);
       const isExpanded = expandedEventIds.has(eventId);
       const isHovered = hoveredEventId === eventId;
       const shouldShowCard = isExpanded || isHovered;
@@ -289,7 +321,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     });
 
     // 3. Render Active
-    activeEvents.forEach(event => {
+    eventsToRender.forEach(event => {
       const isExpanded = expandedEventIds.has(event.id);
       const isHovered = hoveredEventId === event.id;
       const shouldShowCard = isExpanded || isHovered;
@@ -459,12 +491,77 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     });
 
-
-
     // Update refs for next cycle
     prevVisualState.current = { zoom: mapZoom, span: viewRange.max - viewRange.min };
 
-  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max, hoveredEventId]);
+  }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max, hoveredEventId, showDots]);
+
+  // [NEW] Heatmap Rendering
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L) return;
+    const map = mapInstanceRef.current;
+    const L = window.L as any;
+
+    if (activeAreaShape) {
+      // ... (existing shape logic reference)
+    }
+
+    // cleanup previous heat layer logic 
+    // We attach it to map object to persist between effects
+    if ((map as any)._heatLayer) {
+      map.removeLayer((map as any)._heatLayer);
+      (map as any)._heatLayer = null;
+    }
+
+    if (interactionMode === 'exploration' && showHeatmap && L.heatLayer) {
+      console.log(`🔥 Rendering Heatmap: ${heatmapData.length} total events`);
+      // [TIME FILTER] Apply same time filtering logic as dots but on the heatmap data
+      const activeHeatPoints = heatmapData.filter(event => {
+        const startFraction = getAstroYear(event.start) - event.start.year;
+        const startVal = toSliderValue(event.start.year) + startFraction;
+        let endVal = null;
+        if (event.end) {
+          const endFraction = getAstroYear(event.end) - event.end.year;
+          endVal = toSliderValue(event.end.year) + endFraction;
+        }
+
+        if (endVal !== null) {
+          // Range Intersects View
+          return startVal <= viewRange.max && endVal >= viewRange.min;
+        } else {
+          // Point contained in View
+          return startVal >= viewRange.min && startVal <= viewRange.max;
+        }
+      }).map(e => {
+        // Intensity Logic
+        // Log intensity for debug
+        // const intensity = 0.5 + (e.importance / 20); 
+        // return [e.location.lat, e.location.lng, intensity];
+        const intensity = 0.5 + ((e.importance || 1) / 20);
+        return [e.location.lat, e.location.lng, intensity];
+      });
+
+      console.log(`🔥 Active Heat Points: ${activeHeatPoints.length} in view range`);
+
+      if (activeHeatPoints.length > 0) {
+        const heat = L.heatLayer(activeHeatPoints, {
+          radius: 35,
+          blur: 20,
+          minOpacity: 0.3,
+          maxZoom: 10,
+          gradient: {
+            0.2: 'blue',
+            0.4: 'cyan',
+            0.6: 'lime',
+            0.8: 'yellow',
+            1.0: 'red'
+          }
+        }).addTo(map);
+        (map as any)._heatLayer = heat;
+      }
+    }
+
+  }, [heatmapData, showHeatmap, interactionMode, viewRange.min, viewRange.max, activeAreaShape, isHeatLoaded]); // [NEW] Depend on isHeatLoaded
 
   // [NEW] Active Area Shape Rendering
   useEffect(() => {
@@ -494,8 +591,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
       // Store ref on map instance for easy cleanup
       (map as any)._activeShapeLayer = shapeLayer;
-
-      // Optional: Fly to bounds? No, can be distracting. Let user explore.
     }
 
   }, [activeAreaShape]);

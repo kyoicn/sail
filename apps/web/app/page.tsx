@@ -64,6 +64,10 @@ function ChronoMapContent() {
   const playbackRef = useRef<number | null>(null);
   const lastTickRef = useRef<number>(0);
 
+  // [NEW] Visual Layer Toggles
+  const [showHeatmap, setShowHeatmap] = useState(true);
+  const [showDots, setShowDots] = useState(true);
+
   const handleZoomClick = (type: 'in' | 'out') => {
     setZoomAction({ type, id: Date.now() });
   };
@@ -272,6 +276,11 @@ function ChronoMapContent() {
           isGlobalViewGuess={isGlobalViewGuess}
           activeEvents={renderableEvents}
           expandedEventIds={expandedEventIds}
+
+          showHeatmap={showHeatmap}
+          setShowHeatmap={setShowHeatmap}
+          showDots={showDots}
+          setShowDots={setShowDots}
         />
       )}
 
@@ -359,6 +368,9 @@ function ChronoMapContent() {
           setHoveredEventId={setHoveredEventId}
           activeAreaShape={activeAreaShape}
           theme={theme}
+          heatmapData={spatiallyFilteredEvents}
+          showHeatmap={showHeatmap}
+          showDots={showDots}
         />
       </main>
 
