@@ -66,6 +66,7 @@ function ChronoMapContent() {
 
   // [NEW] Visual Layer Toggles
   const [showHeatmap, setShowHeatmap] = useState(true);
+  const [heatmapStyle, setHeatmapStyle] = useState('classic');
   const [showDots, setShowDots] = useState(true);
 
   const handleZoomClick = (type: 'in' | 'out') => {
@@ -279,6 +280,8 @@ function ChronoMapContent() {
 
           showHeatmap={showHeatmap}
           setShowHeatmap={setShowHeatmap}
+          heatmapStyle={heatmapStyle}
+          setHeatmapStyle={setHeatmapStyle}
           showDots={showDots}
           setShowDots={setShowDots}
         />
@@ -370,6 +373,7 @@ function ChronoMapContent() {
           theme={theme}
           heatmapData={spatiallyFilteredEvents}
           showHeatmap={showHeatmap}
+          heatmapStyle={heatmapStyle}
           showDots={showDots}
         />
       </main>

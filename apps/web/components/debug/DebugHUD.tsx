@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, ChevronDown, ChevronUp, Database, Eye, Map as MapIcon, Globe, Layers } from 'lucide-react';
 import { EventData, MapBounds } from '@sail/shared';
+import { HEATMAP_STYLES } from '../../lib/constants';
 
 interface DebugHUDProps {
   zoom: number;
@@ -15,6 +16,8 @@ interface DebugHUDProps {
   expandedEventIds: Set<string>;
   showHeatmap: boolean;
   setShowHeatmap: (v: boolean) => void;
+  heatmapStyle: string;
+  setHeatmapStyle: (v: string) => void;
   showDots: boolean;
   setShowDots: (v: boolean) => void;
 }
@@ -32,6 +35,8 @@ export const DebugHUD: React.FC<DebugHUDProps> = ({
   // [NEW] Visual Toggles
   showHeatmap,
   setShowHeatmap,
+  heatmapStyle,
+  setHeatmapStyle,
   showDots,
   setShowDots
 }) => {
@@ -197,6 +202,24 @@ export const DebugHUD: React.FC<DebugHUDProps> = ({
                   className="rounded border-slate-300 text-blue-600 focus:ring-0 w-3 h-3"
                 />
               </label>
+
+              {/* Heatmap Style Selector */}
+              {showHeatmap && (
+                <div className="pl-4 pr-1 pb-1">
+                  <select
+                    value={heatmapStyle}
+                    onChange={(e) => setHeatmapStyle(e.target.value)}
+                    className="w-full text-[10px] p-1 rounded border border-slate-300 bg-white text-slate-700"
+                  >
+                    {Object.entries(HEATMAP_STYLES).map(([key, style]) => (
+                      <option key={key} value={key}>
+                        {style.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <label className="flex items-center justify-between text-[10px] cursor-pointer hover:bg-slate-50 p-1 rounded">
                 <span className="text-slate-700">Show Dots (LOD)</span>
                 <input

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { EventData, MapBounds } from '@sail/shared';
-import { PREDEFINED_REGIONS } from '../../lib/constants';
+import { PREDEFINED_REGIONS, HEATMAP_STYLES } from '../../lib/constants';
 import { calculateSmartLayout } from '../../lib/layout-engine';
 import { toSliderValue, getAstroYear } from '../../lib/time-engine';
 import { getDotHtml, getLineHtml, getCardHtml } from './MarkerTemplates';
@@ -28,6 +28,7 @@ interface LeafletMapProps {
   // [NEW] Heatmap Props
   heatmapData: EventData[];
   showHeatmap: boolean;
+  heatmapStyle?: string;
   showDots: boolean;
 }
 
@@ -51,6 +52,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   theme,
   heatmapData,
   showHeatmap,
+  heatmapStyle = 'classic',
   showDots
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -543,25 +545,23 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
       console.log(`🔥 Active Heat Points: ${activeHeatPoints.length} in view range`);
 
+      console.log(`🔥 Active Heat Points: ${activeHeatPoints.length} in view range`);
+
       if (activeHeatPoints.length > 0) {
+        const styleConfig = HEATMAP_STYLES[heatmapStyle]?.config || HEATMAP_STYLES['classic'].config;
+
         const heat = L.heatLayer(activeHeatPoints, {
-          radius: 35,
-          blur: 20,
-          minOpacity: 0.3,
+          radius: styleConfig.radius,
+          blur: styleConfig.blur,
+          minOpacity: styleConfig.minOpacity,
           maxZoom: 10,
-          gradient: {
-            0.2: 'blue',
-            0.4: 'cyan',
-            0.6: 'lime',
-            0.8: 'yellow',
-            1.0: 'red'
-          }
+          gradient: styleConfig.gradient
         }).addTo(map);
         (map as any)._heatLayer = heat;
       }
     }
 
-  }, [heatmapData, showHeatmap, interactionMode, viewRange.min, viewRange.max, activeAreaShape, isHeatLoaded]); // [NEW] Depend on isHeatLoaded
+  }, [heatmapData, showHeatmap, heatmapStyle, interactionMode, viewRange.min, viewRange.max, activeAreaShape, isHeatLoaded]); // [NEW] Depend on isHeatLoaded
 
   // [NEW] Active Area Shape Rendering
   useEffect(() => {
