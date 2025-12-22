@@ -26,15 +26,14 @@ Description:
 Usage Examples:
     
     1. Import Folder to DEV:
-       python data-pipeline/scripts/populate_events.py --folder data-pipeline/events --instance dev
+       python data-pipeline/scripts/populate_events.py --input data-pipeline/events --instance dev
 
     2. Import File to PROD:
-       python data-pipeline/scripts/populate_events.py --file data-pipeline/all_events.json --instance prod
+       python data-pipeline/scripts/populate_events.py --input data-pipeline/all_events.json --instance prod
 
 Arguments:
     --instance : 'prod' or 'dev' (Required or interactive).
-    --folder   : Path to folder of JSON files.
-    --file     : Path to single JSON file.
+    --input    : Path to JSON file or folder.
 """
 
 # Adjust path to allow importing from src/shared
@@ -75,9 +74,7 @@ def main():
     parser = argparse.ArgumentParser(description="Populate Events Data")
     parser.add_argument("--instance", choices=['prod', 'dev', 'staging'], help="Target instance (prod, dev, staging)")
     
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--file", help="Path to JSON file containing list of events")
-    group.add_argument("--folder", help="Path to folder containing multiple JSON files")
+    parser.add_argument("--input", help="Path to JSON file or folder containing JSON files")
 
     args = parser.parse_args()
 
@@ -101,32 +98,23 @@ def main():
     
     # Collect Input Files
     json_files = []
-    if args.folder:
-        folder_path = Path(args.folder)
-        if not folder_path.exists() or not folder_path.is_dir():
-             print(f"Error: Folder not found: {folder_path}")
-             sys.exit(1)
-        json_files = sorted(list(folder_path.glob("*.json")))
-        print(f"Found {len(json_files)} JSON files in folder.")
-    elif args.file:
-        input_path = Path(args.file)
-        if not input_path.exists():
-            print(f"Error: File not found: {input_path}")
-            sys.exit(1)
-        json_files = [input_path]
-    else:
+    
+    # Determine input path
+    input_path_str = args.input
+    if not input_path_str:
         # Fallback interactive
-        path_str = input("Path to JSON file or folder: ").strip()
-        path_obj = Path(path_str)
-        if not path_obj.exists():
-             print(f"Error: Path not found: {path_obj}")
-             sys.exit(1)
-        
-        if path_obj.is_dir():
-            json_files = sorted(list(path_obj.glob("*.json")))
-            print(f"Found {len(json_files)} JSON files in folder.")
-        else:
-            json_files = [path_obj]
+        input_path_str = input("Path to JSON file or folder: ").strip()
+    
+    path_obj = Path(input_path_str)
+    if not path_obj.exists():
+            print(f"Error: Path not found: {path_obj}")
+            sys.exit(1)
+    
+    if path_obj.is_dir():
+        json_files = sorted(list(path_obj.glob("*.json")))
+        print(f"Found {len(json_files)} JSON files in folder.")
+    else:
+        json_files = [path_obj]
 
     # Load and Prepare Data
     events_to_upsert = []
