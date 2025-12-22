@@ -10,8 +10,18 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const dataset = searchParams.get('dataset') || 'prod';
 
-  // Decide which RPC to call
-  const rpcName = dataset === 'dev' ? 'get_all_collections_dev' : 'get_all_collections';
+  let targetSchema = 'public';
+  if (dataset === 'dev') targetSchema = 'dev';
+  if (dataset === 'staging') targetSchema = 'staging';
+
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    { db: { schema: targetSchema } }
+  );
+
+  // Constant RPC name
+  const rpcName = 'get_all_collections';
 
   const { data, error } = await supabase.rpc(rpcName);
 

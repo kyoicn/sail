@@ -27,25 +27,30 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   // [NEW] Dataset Switcher
-  // Determine Environment (dev / staging / prod)
-  // Logic: 
-  // 1. 'env' param takes precedence.
-  // 2. 'dataset' param supported for backward compatibility (legacy).
-  // 3. Default to 'prod'.
+  // Determined by 'env' or 'dataset' param.
   const envParam = searchParams.get('env') || searchParams.get('dataset');
-  const env = (envParam === 'dev' || envParam === 'staging' || envParam === 'local') ? envParam : 'prod';
+  let targetSchema = 'public';
+  if (envParam === 'dev') targetSchema = 'dev';
+  if (envParam === 'staging') targetSchema = 'staging';
 
-  // Local Mode: Return mock data directly (No DB call)
-  if (env === 'local') {
+  // Local Mock Mode
+  if (envParam === 'local') {
     return NextResponse.json(MOCK_EVENTS, {
       headers: { 'Cache-Control': 'no-store' }
     });
   }
 
-  // Decide which RPC to call
-  let rpcName = 'get_events_in_view'; // default (prod)
-  if (env === 'dev') rpcName = 'get_events_in_view_dev';
-  if (env === 'staging') rpcName = 'get_events_in_view_staging';
+  // Create Schema-Specific Supabase Client
+  // We re-initialize the client here because the global one is bound to 'public' by default.
+  // This is lightweight.
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    { db: { schema: targetSchema } }
+  );
+
+  // RPC Name is now CONSTANT across all environments
+  const rpcName = 'get_events_in_view';
 
   const minYear = parseFloat(searchParams.get('minYear') || '-5000');
   const maxYear = parseFloat(searchParams.get('maxYear') || '2050');

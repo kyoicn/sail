@@ -22,10 +22,20 @@ export async function GET(request: Request) {
 
   const dataset = searchParams.get('dataset') || 'prod';
 
-  // Determine RPC name based on dataset
-  let rpcName = 'get_active_periods';
-  if (dataset === 'dev') rpcName = 'get_active_periods_dev';
-  else if (dataset === 'staging') rpcName = 'get_active_periods_staging';
+  let targetSchema = 'public';
+  if (dataset === 'dev') targetSchema = 'dev';
+  if (dataset === 'staging') targetSchema = 'staging';
+
+  // [NEW] Schema-Aware Client
+  // Re-init client for specific schema
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    { db: { schema: targetSchema } }
+  );
+
+  // Constant RPC name, resolved relative to the selected schema
+  const rpcName = 'get_active_periods';
 
   const { data, error } = await supabase.rpc(rpcName, {
     view_min_lng: min_lng,
