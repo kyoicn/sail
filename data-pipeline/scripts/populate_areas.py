@@ -42,6 +42,7 @@ Usage Examples:
     python data-pipeline/scripts/populate_areas.py --input data-pipeline/data/areas_v2.json --instance staging
 """
 
+import sys
 from pathlib import Path
 from typing import List
 
