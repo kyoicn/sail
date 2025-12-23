@@ -72,7 +72,12 @@ class AreaPopulator(BasePopulator[AreaModel]):
             updated_count = 0
             inserted_count = 0
             
-            for area in items:
+            total = len(items)
+            for i, area in enumerate(items):
+                # Progress
+                sys.stdout.write(f"\r  Processing {i+1}/{total}...")
+                sys.stdout.flush()
+
                 # Check existence
                 cur.execute(f"SELECT id FROM {table_areas} WHERE area_id = %s", (area.area_id,))
                 exists = cur.fetchone()
@@ -80,18 +85,18 @@ class AreaPopulator(BasePopulator[AreaModel]):
                 should_update = False
                 if exists:
                     if existing_policy == 'skip':
-                        print(f"  [SKIP] Area exists: {area.area_id}")
+                        # print(f"  [SKIP] Area exists: {area.area_id}")
                         skipped_count += 1
                         continue
                     else:
-                        print(f"  [OVERWRITE] Updating area: {area.area_id}")
+                        # print(f"  [OVERWRITE] Updating area: {area.area_id}")
                         should_update = True
                 
                 # Fix Geometry (Dateline splitting)
                 try:
                     wkt_str = fix_dateline_geometry(area.geometry)
                 except Exception as e:
-                    print(f"  [ERROR] Failed to process geometry for {area.area_id}: {e}")
+                    print(f"\n  [ERROR] Failed to process geometry for {area.area_id}: {e}")
                     continue
                 
                 try:
@@ -110,8 +115,10 @@ class AreaPopulator(BasePopulator[AreaModel]):
                     else:
                         inserted_count += 1
                 except Exception as e:
-                    print(f"  [DB ERROR] Failed to insert/update {area.area_id}: {e}")
+                    print(f"\n  [DB ERROR] Failed to insert/update {area.area_id}: {e}")
                     continue
+            
+            print("") # newline after loop
 
             conn.commit()
             print(f"✅ Areas population complete. (Inserted: {inserted_count}, Updated: {updated_count}, Skipped: {skipped_count})")
