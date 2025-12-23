@@ -3,14 +3,13 @@
 -- ------------------------------------------------------------------------------
 
 -- 0. Cleanup (Safe for iterative dev)
+-- 0. Cleanup (Safe for iterative dev)
 DROP FUNCTION IF EXISTS get_active_periods(float, float, float, float, float);
-DROP TABLE IF EXISTS period_areas CASCADE;
-DROP TABLE IF EXISTS historical_periods CASCADE;
-DROP TABLE IF EXISTS areas CASCADE;
+-- Removed UNSAFE DROP TABLE commands that affect public schema
 
 -- 1. Areas Table
 -- Stores reusable geographic definitions.
-CREATE TABLE IF NOT EXISTS areas (
+CREATE TABLE areas (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     area_id text UNIQUE NOT NULL,    -- Human-readable ID (e.g. 'china_proper')
     display_name text NOT NULL,      -- e.g. "China Proper"
@@ -20,7 +19,7 @@ CREATE TABLE IF NOT EXISTS areas (
 
 -- 2. Historical Periods Table
 -- Stores timeline definitions.
-CREATE TABLE IF NOT EXISTS historical_periods (
+CREATE TABLE historical_periods (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     period_id text UNIQUE NOT NULL,  -- e.g. 'qing_dynasty' (Slug)
     display_name text NOT NULL,      -- e.g. "Qing Dynasty"
@@ -32,7 +31,7 @@ CREATE TABLE IF NOT EXISTS historical_periods (
 
 -- 3. Junction Table
 -- Links Periods to Areas (M:N).
-CREATE TABLE IF NOT EXISTS period_areas (
+CREATE TABLE period_areas (
     period_id uuid REFERENCES historical_periods(id) ON DELETE CASCADE,
     area_id uuid REFERENCES areas(id) ON DELETE CASCADE,
     PRIMARY KEY (period_id, area_id)

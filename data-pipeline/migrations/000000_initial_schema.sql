@@ -16,7 +16,7 @@ EXCEPTION
 END $$;
 
 -- 2. Create Table
-CREATE TABLE IF NOT EXISTS events (
+CREATE TABLE events (
     -- Identity & Metadata
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     source_id text NOT NULL,
