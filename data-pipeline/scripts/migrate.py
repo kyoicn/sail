@@ -1,27 +1,44 @@
 """
 Script: migrate.py
 Description:
-    Manages database schema migrations using Postgres SCHEMAS (Namespaces).
-    
-    Architecture:
-    - 'prod' environment -> 'public' schema.
-    - 'staging' environment -> 'staging' schema.
-    - 'dev' environment -> 'dev' schema.
-    
-    It applies SQL files from `data-pipeline/migrations/` unmodified, but ensures
-    they run within the correct `search_path`.
-    
-    Features:
-    - Schema Creation: Automatically creates target schema if missing.
-    - search_path isolation: Sets `search_path` to `{target_schema}, public` before running SQL.
-    - Migration Tracking: Stores history in `{target_schema}.schema_migrations`.
-    - No Regex: SQL files are executed exactly as written.
+    Manages database schema migrations for the Sail application using Postgres Schemas.
+    It applies SQL files from `data-pipeline/migrations/` unmodified, ensuring
+    they run within the correct `search_path` (Namespace).
+
+    Key Features:
+    - Environment/Schema Isolation: Supports `prod` (public), `dev`, and `staging` schemas.
+    - Idempotency: Checks `schema_migrations` to avoid double-application.
+    - Rollback/Reset: Supports un-applying a specific migration record (forcing a re-run).
+    - Zero Regex: SQL files are executed exactly as written; isolation is handled by `search_path`.
+
+Detailed Parameter Guide:
+    --env:
+        The target environment for the migration. Choices: 'prod', 'dev', 'staging'.
+        - prod: Applies to the `public` schema.
+        - dev: Applies to the `dev` schema.
+        - staging: Applies to the `staging` schema.
+        Note: The script automatically creates the schema if it doesn't exist.
+
+    --instance:
+        Alias for --env (maintained for backward compatibility with older CI scripts).
+
+    --reset:
+        The filename (version) of a specific migration to "un-apply" (mark as not applied).
+        NOTE: This does NOT run down-migrations (SQL reversal). It only removes the 
+        record from the `schema_migrations` tracking table in the specified schema.
+        Use this if you manually fixed a migration or want to force a re-run during dev.
 
 Usage Examples:
-    # 1. Apply confirmed migrations to Dev schema
+    # 1. Migrate Development Environment:
+    #    Applies all pending migrations to the 'dev' schema.
     python data-pipeline/scripts/migrate.py --env dev
 
-    # 2. Reset a specific migration in Staging
+    # 2. Migrate Production:
+    #    Applies all pending migrations to the 'public' schema.
+    python data-pipeline/scripts/migrate.py --env prod
+
+    # 3. Reset a Migration in Staging:
+    #    If '20241201_init.sql' failed partway and was manually cleaned:
     python data-pipeline/scripts/migrate.py --env staging --reset 20241201_init.sql
 """
 
