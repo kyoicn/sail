@@ -1,5 +1,6 @@
 import React from 'react';
-import { Play, Pause, ArrowLeft } from 'lucide-react';
+import { Play, Pause, ArrowLeft, XCircle } from 'lucide-react';
+import { EventData } from '@sail/shared';
 
 interface TimelinePlaybackControlsProps {
   isPlaying: boolean;
@@ -11,6 +12,8 @@ interface TimelinePlaybackControlsProps {
   onManualStep: () => void;
   playbackSpeed: number;
   setPlaybackSpeed: (speed: number) => void;
+  focusedEvent: EventData | null;
+  onExitFocusMode: () => void;
 }
 
 export const TimelinePlaybackControls: React.FC<TimelinePlaybackControlsProps> = ({
@@ -18,12 +21,17 @@ export const TimelinePlaybackControls: React.FC<TimelinePlaybackControlsProps> =
   setIsPlaying,
   interactionMode,
   setInteractionMode,
+
   setCurrentDate,
   viewRange,
   onManualStep,
   playbackSpeed,
-  setPlaybackSpeed
+  setPlaybackSpeed,
+  focusedEvent,
+  onExitFocusMode
 }) => {
+  // Logic using focusedEvent or onExitFocusMode could go here if needed in the future
+
   return (
     <div className="flex flex-col items-center gap-1 relative">
       {/* Back Button (Absolute Left of the Play Button) */}
@@ -39,6 +47,8 @@ export const TimelinePlaybackControls: React.FC<TimelinePlaybackControlsProps> =
           <ArrowLeft size={16} className="transition-colors" />
         </button>
       )}
+
+      {/* Focus Mode Indicator Removed - Moved to Timeline Header Bar */}
 
       {/* Play/Pause Button */}
       <button

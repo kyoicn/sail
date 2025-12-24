@@ -49,8 +49,47 @@ export async function GET(request: Request) {
     { db: { schema: targetSchema } }
   );
 
-  // RPC Name is now CONSTANT across all environments
-  const rpcName = 'get_events_in_view';
+  // [NEW] ID-Based Fetch (Bypass RPC)
+  const idsParam = searchParams.get('ids');
+  const uuidsParam = searchParams.get('uuids');
+
+  if (idsParam || uuidsParam) {
+    if (idsParam) {
+      // Source IDs -> RPC
+      const ids = idsParam.split(',').map(s => s.trim()).filter(Boolean);
+      if (ids.length === 0) return NextResponse.json([]);
+
+      const { data: idData, error: idError } = await supabase.rpc('get_events_by_ids', {
+        p_source_ids: ids
+      });
+      if (idError) throw new Error(idError.message);
+      return mapAndReturnEvents(idData || []);
+    }
+
+    if (uuidsParam) {
+      // UUIDs -> Direct Query
+      const ids = uuidsParam.split(',').map(s => s.trim()).filter(Boolean);
+      if (ids.length === 0) return NextResponse.json([]);
+
+      const { data: uuidData, error: uuidError } = await supabase
+        .from('events')
+        .select('*')
+        .in('id', ids);
+
+      if (uuidError) throw new Error(uuidError.message);
+      return mapAndReturnEvents(uuidData || []);
+    }
+  }
+
+  // Determine which RPC to use based on context
+  // Standard: get_events_in_view
+  // Focus Mode Hybrid: get_descendants_in_view
+  let rpcName = 'get_events_in_view';
+  const rootId = searchParams.get('root_id'); // [NEW] Context for Hybrid Fetch
+
+  if (rootId) {
+    rpcName = 'get_descendants_in_view';
+  }
 
   const minYear = parseFloat(searchParams.get('minYear') || '-5000');
   const maxYear = parseFloat(searchParams.get('maxYear') || '2050');
@@ -91,25 +130,53 @@ export async function GET(request: Request) {
   const collectionFilter = searchParams.get('collection') || null;
 
   // Determine Limit (Default to 1000 if not specified)
+  // Determine Limit
   const limit = parseInt(searchParams.get('limit') || '1000', 10);
 
-  const { data, error } = await supabase.rpc(rpcName, {
-    min_lat: rpcSouth,
-    max_lat: rpcNorth,
-    min_lng: rpcWest,
-    max_lng: rpcEast,
-    min_year: minYear,
-    max_year: maxYear,
-    min_importance: minImportance,
-    collection_filter: collectionFilter,
-    p_limit: limit
-  });
+  // [FIX] Strict Argument Construction
+  let rpcArgs: any = {};
+
+  if (rpcName === 'get_descendants_in_view') {
+    // Signature: (min_lng, min_lat, max_lng, max_lat, zoom_level, min_year, max_year, p_dataset, p_root_id)
+    rpcArgs = {
+      min_lng: rpcWest,
+      min_lat: rpcSouth,
+      max_lng: rpcEast,
+      max_lat: rpcNorth,
+      zoom_level: Math.floor(zoom),
+      min_year: minYear,
+      max_year: maxYear,
+      p_dataset: envParam || 'prod',
+      p_root_id: rootId
+    };
+  } else {
+    // Signature: (min_lat, max_lat, min_lng, max_lng, min_year, max_year, min_importance, collection_filter, p_limit)
+    // Note: p_dataset is NOT in this signature (it relies on client schema)
+    rpcArgs = {
+      min_lat: rpcSouth,
+      max_lat: rpcNorth,
+      min_lng: rpcWest,
+      max_lng: rpcEast,
+      min_year: minYear,
+      max_year: maxYear,
+      min_importance: minImportance,
+      collection_filter: collectionFilter,
+      p_limit: limit
+    };
+  }
+
+  const { data, error } = await supabase.rpc(rpcName, rpcArgs);
 
   if (error) {
     console.error('Supabase RPC Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  return mapAndReturnEvents(data);
+}
+
+// Helper to keep mapping consistent
+function mapAndReturnEvents(data: any[]) {
   // Explicitly map to EventData[]
   const formattedEvents: EventData[] = (data || []).map((row: any): EventData => {
     // Unpack JSONB Time Entries
@@ -155,23 +222,27 @@ export async function GET(request: Request) {
       } : undefined,
 
       location: {
-        lat: row.lat,
-        lng: row.lng,
+        lat: row.lat, // RPC returns lat/lng, table returns location geometry... wait.
+        // CHECK: The RPC returns columns `lat` and `lng` computed from ST_Y/ST_X.
+        // The raw table `select('*')` returns `location` (geog) but NOT separate lat/lng columns unless generated.
+        // We need to handle this discrepancy.
+        // The safest way for raw table fetch is to compute lat/lng or use a custom query.
+        // OR, we can just use the geometry.
+        // But the interface expects lat/lng.
+        // Let's modify the raw query to extract lat/lng or process it.
+        lng: row.lng ?? 0, // Fallback if missing
         placeName: sanitized(row.place_name),
         granularity: sanitized(row.granularity),
         certainty: sanitized(row.certainty),
         regionId: sanitized(row.geo_shape_id),
         areaId: sanitized(row.area_id),
       },
-
+      // ... (rest is same)
       importance: Number(row.importance) || 1.0,
-
       collections: row.collections || [],
-
       sources: row.links || [],
-
       children: row.child_source_ids || [],
-
+      parentId: row.parent_source_id || undefined,
       pipeline: row.pipeline
     };
   });

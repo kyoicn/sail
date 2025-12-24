@@ -60,6 +60,10 @@ export const EventDataSchema = z.object({
   importance: z.coerce.number().min(0.1).max(10),
 
   sources: z.array(EventSourceSchema).optional().default([]),
+
+  // [NEW] Relationship Fields
+  source_id: z.string().optional(),
+  children: z.array(z.string()).optional(),
 });
 
 // Export the array schema for API responses

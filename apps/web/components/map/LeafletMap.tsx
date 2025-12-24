@@ -31,6 +31,7 @@ interface LeafletMapProps {
   heatmapStyle?: string;
   showDots: boolean;
   dotStyle?: string;
+  onEnterFocusMode?: (event: EventData) => void;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -55,7 +56,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   showHeatmap,
   heatmapStyle = 'classic',
   showDots,
-  dotStyle = 'classic'
+  dotStyle = 'classic',
+  onEnterFocusMode
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -371,7 +373,16 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           const lineMarker = L.marker([event.location.lat, event.location.lng], { icon: lineIcon, pane: 'linesPane' }).addTo(map);
           layers.line = lineMarker;
 
-          const cardContentHtml = getCardHtml(event, finalX, finalY);
+          const hasChildren = (event.children?.length ?? 0) > 0;
+          if (event.title.includes('Container')) {
+            console.log(`[FocusDebug] Event: ${event.title}`, {
+              id: event.id,
+              children: event.children,
+              hasChildren,
+              onEnterFocusMode: !!onEnterFocusMode
+            });
+          }
+          const cardContentHtml = getCardHtml(event, finalX, finalY, hasChildren);
           const cardIcon = L.divIcon({ className: '', html: cardContentHtml, iconSize: [0, 0] });
           const cardMarker = L.marker([event.location.lat, event.location.lng], { icon: cardIcon, pane: 'cardsPane' }).addTo(map);
 
@@ -398,6 +409,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   onEventSelect(event);
                 });
                 L.DomEvent.disableClickPropagation(cardContainer);
+                L.DomEvent.disableClickPropagation(cardContainer);
+              }
+
+              // Attach Focus Button Event
+              const focusBtn = el.querySelector('.focus-btn');
+              if (focusBtn && onEnterFocusMode) {
+                focusBtn.addEventListener('click', (e: any) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onEnterFocusMode(event);
+                });
+                L.DomEvent.disableClickPropagation(focusBtn);
               }
             }
           };

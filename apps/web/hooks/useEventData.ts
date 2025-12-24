@@ -30,7 +30,9 @@ export function useEventData(
   zoom: number,
   viewRange: { min: number, max: number }, // [NEW] Time Viewport
   dataset: string,
-  collection: string | null = null
+  collection: string | null = null,
+  enabled: boolean = true, // [NEW] Control Flag
+  rootId: string | null = null // [NEW] Hybrid Fetch Context
 ) {
   // [NEW] Local state for Debounced Time Range
   // Initialize with a wide global buffer or current view
@@ -61,10 +63,22 @@ export function useEventData(
   const [error, setError] = useState<Error | null>(null);
   const [serverEvents, setServerEvents] = useState<EventData[]>([]);
 
+  // [NEW] Cache Clearing on Context Switch
+  // When switching collections or focus contexts (rootId), we must clear the accumulated buffer
+  // to avoid mixing unrelated data (e.g. Global events vs Focus Descendants).
   useEffect(() => {
-    // If no bounds yet, don't fetch
-    if (!mapBounds) {
-      setServerEvents([]);
+    setAllLoadedEvents([]);
+    setServerEvents([]);
+  }, [dataset, collection, rootId]);
+
+  useEffect(() => {
+    // If disabled or no bounds, don't fetch
+    if (!enabled || !mapBounds) {
+      if (!enabled) {
+        // If disabled, we might want to keep existing events or clear?
+        // Keeping them allows for smooth transitions back.
+        // setServerEvents([]); 
+      }
       return;
     }
 
@@ -87,6 +101,11 @@ export function useEventData(
 
     if (collection) {
       queryParams.append('collection', collection);
+    }
+
+    // [FIX] Pass Context for Hybrid Fetching
+    if (rootId) {
+      queryParams.append('root_id', rootId);
     }
 
     fetch(`/api/events?${queryParams.toString()}`)
@@ -125,7 +144,7 @@ export function useEventData(
     return () => {
       isMounted = false;
     };
-  }, [mapBounds, zoom, dataset, collection, fetchedTimeRange]); // [NEW] Fetch on Time Change too
+  }, [mapBounds, zoom, dataset, collection, fetchedTimeRange, enabled, rootId]); // [NEW] Fetch on Time Change too
 
   useEffect(() => {
     if (serverEvents.length > 0) {

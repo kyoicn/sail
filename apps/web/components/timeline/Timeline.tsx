@@ -30,6 +30,10 @@ interface TimeControlProps {
   onManualStep: () => void; // [NEW]
   playbackSpeed: number;
   setPlaybackSpeed: (speed: number) => void;
+  focusedEvent: EventData | null;
+  canGoUp: boolean;
+  onFocusGoUp: () => void;
+  onFocusExit: () => void;
 }
 
 export const Timeline: React.FC<TimeControlProps> = ({
@@ -54,7 +58,11 @@ export const Timeline: React.FC<TimeControlProps> = ({
   setIsPlaying,
   onManualStep,
   playbackSpeed,
-  setPlaybackSpeed
+  setPlaybackSpeed,
+  focusedEvent,
+  canGoUp,
+  onFocusGoUp,
+  onFocusExit
 }) => {
   // --- Refs & State ---
   const trackRef = useRef<HTMLDivElement>(null);
@@ -126,9 +134,40 @@ export const Timeline: React.FC<TimeControlProps> = ({
   const isThumbVisible = currentDate >= viewRange.min && currentDate <= viewRange.max;
 
   return (
-    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-6xl px-4 z-10">
-      <div className="glass-panel rounded-2xl p-3 shadow-2xl flex items-stretch gap-4">
+    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-full max-w-6xl px-4 z-10 flex flex-col items-center gap-2">
 
+      {/* [NEW] Focus Mode Header Bar */}
+      {focusedEvent && (
+        <div className="bg-white/90 backdrop-blur-md rounded-2xl px-4 py-2 flex items-start gap-3 shadow-lg border border-white/50 animate-in fade-in slide-in-from-bottom-2 max-w-lg">
+          <span className="text-xs font-bold uppercase tracking-wide text-blue-800/60 mt-1 shrink-0">Focusing:</span>
+          <span className="text-sm font-bold text-slate-800 flex-1 leading-snug py-0.5">{focusedEvent.title}</span>
+
+          <div className="flex items-center gap-1 shrink-0 mt-0.5">
+            {canGoUp && (
+              <>
+                <div className="h-4 w-px bg-slate-200 mx-1" />
+                <button
+                  onClick={onFocusGoUp}
+                  className="p-1 hover:bg-slate-100 rounded-full text-slate-500 hover:text-blue-600 transition-colors"
+                  title="Go Up to Parent"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6" /></svg>
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={onFocusExit}
+              className="p-1 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-500 transition-colors"
+              title="Exit Focus Mode"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="pointer-events-auto glass-panel rounded-2xl p-3 shadow-2xl flex items-stretch gap-4 w-full">
         {/* --- LEFT COLUMN: Controls & Info --- */}
         <div className="flex flex-col gap-0 shrink-0 justify-start items-start w-[200px]">
           {/* Header Info */}
@@ -159,6 +198,8 @@ export const Timeline: React.FC<TimeControlProps> = ({
               onManualStep={onManualStep}
               playbackSpeed={playbackSpeed}
               setPlaybackSpeed={setPlaybackSpeed}
+              focusedEvent={focusedEvent}
+              onExitFocusMode={onFocusExit}
             />
 
             {/* Main Track Container */}
@@ -250,6 +291,6 @@ export const Timeline: React.FC<TimeControlProps> = ({
         </div>
 
       </div>
-    </div>
+    </div >
   );
 };

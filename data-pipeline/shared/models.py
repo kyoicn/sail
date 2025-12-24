@@ -38,6 +38,8 @@ class LocationEntry(BaseModel):
 
 class EventSchema(BaseModel):
     ## Basic information
+    source_id: Optional[str] = None # Explicit ID override
+    parent_source_id: Optional[str] = None # Back-reference to parent
     title: str
     summary: str
     

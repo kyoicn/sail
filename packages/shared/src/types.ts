@@ -113,6 +113,8 @@ export interface EventData {
   // Recursive Tree Relationship
   // List of child source_ids (e.g. ["gemini:battle_of_waterloo_phase_1"])
   children?: string[];
+  // Pointer back to parent source_id (optional)
+  parentId?: string;
 
   // Pipeline Metadata (Internal Use)
   pipeline?: {

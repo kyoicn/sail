@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ExternalLink, Calendar, MapPin, BookOpen } from 'lucide-react';
+import { X, ExternalLink, Calendar, MapPin, BookOpen, Crosshair } from 'lucide-react';
 import { EventData } from '@sail/shared';
 import { formatChronosTime } from '../../lib/time-engine';
 import { getLocationString } from '../../lib/utils';
@@ -8,6 +8,7 @@ interface EventDetailPanelProps {
     event: EventData | null;
     isOpen: boolean;
     onClose: () => void;
+    onEnterFocusMode: (event: EventData) => void;
 }
 
 /**
@@ -18,7 +19,8 @@ interface EventDetailPanelProps {
 export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({
     event,
     isOpen,
-    onClose
+    onClose,
+    onEnterFocusMode
 }) => {
     const content = event ? (
         <>
@@ -34,6 +36,18 @@ export const EventDetailPanel: React.FC<EventDetailPanelProps> = ({
                         <span className="text-sm">No Image Available</span>
                     </div>
                 )}
+                <div className="absolute top-4 right-16 z-10">
+                    {event.children && event.children.length > 0 && (
+                        <button
+                            onClick={() => onEnterFocusMode(event)}
+                            className="flex items-center gap-2 px-3 py-2 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:bg-blue-50 hover:text-blue-600 text-slate-700 font-bold text-xs uppercase tracking-wide transition-all border border-slate-200/50"
+                            title="Focus on this event's timeline"
+                        >
+                            <span>Focus</span>
+                        </button>
+                    )}
+                </div>
+
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:bg-white text-slate-600 transition-all z-10"

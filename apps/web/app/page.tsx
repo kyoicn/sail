@@ -14,14 +14,19 @@ import { CollectionsSidebar } from '../components/collections/CollectionsSidebar
 import { useUrlSync } from '../hooks/useUrlSync';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { useEventData } from '../hooks/useEventData';
+import { useFocusData } from '../hooks/useFocusData';
 import { useLOD } from '../hooks/useLOD';
 import { useEventFilter } from '../hooks/useEventFilter';
 import { useAreaShape } from '../hooks/useAreaShape';
+import { useFocus } from '../context/FocusContext';
 import { ZOOM_SCALES } from '../lib/time-engine';
+import { getBoundsForEvents } from '../lib/geo-engine';
+import { useEventsByIds } from '../hooks/useEventsByIds';
 
 function ChronoMapContent() {
   const GLOBAL_MIN = -3000;
   const GLOBAL_MAX = 2024;
+  // ... (rest of imports are fine, just ensuring useEventsByIds is at top)
 
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -56,6 +61,16 @@ function ChronoMapContent() {
   const [interactionMode, setInteractionMode] = useState<'exploration' | 'investigation' | 'playback'>('exploration');
   // [NEW] Shared Hover State for Maps and Timeline
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+
+  const {
+    focusStack,
+    handleFocus,
+    handleGoUp,
+    handleExit,
+    focusedEvent: contextFocusedEvent,
+    canGoUp,
+    setFocusedEvent: setContextFocusedEvent
+  } = useFocus();
 
   // [NEW] Playback State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -98,24 +113,38 @@ function ChronoMapContent() {
 
   // --- 3. Logic Pipelines ---
 
-  // Data Fetching Pipeline
-  const { allVisibleEvents, allLoadedEvents, isLoading } = useEventData(
+
+
+  // Unified Focus-Aware Data Fetching
+  const activeFocusedEventId = focusStack.length > 0 ? focusStack[focusStack.length - 1] : null;
+
+  const { allLoadedEvents, loadedEventsBySource, focusedEvent, isLoading } = useFocusData(
     mapBounds,
     mapViewport.zoom,
-    viewRange, // [NEW] Unified Space-Time
+    viewRange,
     dataset,
-    selectedCollection
+    selectedCollection,
+    activeFocusedEventId
   );
+
+  // Sync focused object back to context (needed for UI labels, etc.)
+  useEffect(() => {
+    setContextFocusedEvent(focusedEvent);
+  }, [focusedEvent, setContextFocusedEvent]);
+
+  // Compatibility for DebugHUD
+  const allVisibleEvents = allLoadedEvents;
 
   // LOD Calculation Pipeline
   const lodThreshold = useLOD(viewRange, mapViewport.zoom);
 
   // Filtering Pipeline
   const { spatiallyFilteredEvents, renderableEvents: baseRenderableEvents } = useEventFilter(
-    allVisibleEvents,
+    allLoadedEvents, // [FIX] Use the merged list (Base + Forced), not just Base.
     mapBounds,
     lodThreshold,
-    selectedEvent?.id
+    selectedEvent?.id,
+    focusedEvent
   );
 
   // [NEW] Playback Filtering: Only show events that have "happened" (start <= currentDate)
@@ -159,7 +188,7 @@ function ChronoMapContent() {
     else if (span >= ZOOM_SCALES.CENTURY * 2) stepSize = ZOOM_SCALES.DECADE;
     else if (span >= ZOOM_SCALES.DECADE * 2) stepSize = ZOOM_SCALES.YEAR;
 
-    setCurrentDate(prev => {
+    setCurrentDate((prev: number) => {
       const nextDate = prev + stepSize;
 
       if (nextDate > viewRange.max) {
@@ -174,7 +203,7 @@ function ChronoMapContent() {
       );
 
       if (newActiveEvents.length > 0) {
-        setExpandedEventIds(prevSet => {
+        setExpandedEventIds((prevSet: Set<string>) => {
           const next = new Set(prevSet);
           newActiveEvents.forEach(e => next.add(e.id));
           return next;
@@ -218,7 +247,55 @@ function ChronoMapContent() {
 
       return nextDate;
     });
+
   }, [viewRange, spatiallyFilteredEvents, baseRenderableEvents]);
+
+  // [NEW] Focus Mode Handlers
+  const handleEnterFocusMode = (event: EventData) => {
+    handleFocus(event.id);
+  };
+
+  // [NEW] Auto-zoom effect on Focus Change
+  useEffect(() => {
+    if (!focusedEvent || !focusedEvent.children) return;
+
+    console.log('[FocusMode] Auto-zooming to children of:', focusedEvent.title);
+
+    // Efficiently resolve children using Map
+    const childrenOfFocus: EventData[] = [];
+    focusedEvent.children.forEach(cid => {
+      const child = loadedEventsBySource.get(cid);
+      if (child) childrenOfFocus.push(child);
+    });
+
+    if (childrenOfFocus.length > 0) {
+      const newBounds = getBoundsForEvents(childrenOfFocus);
+      if (newBounds) {
+        const latSpan = newBounds.north - newBounds.south;
+        const lngSpan = newBounds.east - newBounds.west;
+        const centerLat = (newBounds.north + newBounds.south) / 2;
+        const centerLng = (newBounds.east + newBounds.west) / 2;
+        const maxSpan = Math.max(latSpan, lngSpan);
+        let zoom = 11;
+        if (maxSpan > 0) {
+          zoom = Math.floor(Math.log2(360 / maxSpan)) + 1;
+          zoom = Math.min(Math.max(zoom, 2), 16);
+        }
+        setMapViewport({ lat: centerLat, lng: centerLng, zoom });
+
+        let minYear = Infinity;
+        let maxYear = -Infinity;
+        childrenOfFocus.forEach(e => {
+          if (e.start.astro_year < minYear) minYear = e.start.astro_year;
+          const endY = e.end ? e.end.astro_year : e.start.astro_year;
+          if (endY > maxYear) maxYear = endY;
+        });
+        const timeSpan = maxYear - minYear;
+        const padding = timeSpan * 0.1 || 10;
+        setViewRange({ min: minYear - padding, max: maxYear + padding });
+      }
+    }
+  }, [focusedEvent?.id]); // Runs when the identity of the focused event changes
 
   // [NEW] Auto-Play Loop
   useEffect(() => {
@@ -379,6 +456,7 @@ function ChronoMapContent() {
           heatmapStyle={heatmapStyle}
           showDots={showDots}
           dotStyle={dotStyle}
+          onEnterFocusMode={handleEnterFocusMode}
         />
       </main>
 
@@ -406,12 +484,17 @@ function ChronoMapContent() {
         onManualStep={handleManualStep}
         playbackSpeed={playbackSpeed}
         setPlaybackSpeed={setPlaybackSpeed}
+        focusedEvent={contextFocusedEvent}
+        canGoUp={canGoUp}
+        onFocusGoUp={handleGoUp}
+        onFocusExit={handleExit}
       />
 
       <EventDetailPanel
         event={selectedEvent}
         isOpen={!!selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        onEnterFocusMode={handleEnterFocusMode}
       />
 
     </div>
