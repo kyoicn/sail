@@ -349,8 +349,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const needsVisualUpdate = spanDiff > 0.0001 || zoomDiff > 0.1 || prevVisualState.current.dotStyle !== dotStyle;
 
         if (needsVisualUpdate) {
-          const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
-          layers.dot.setIcon(newIcon);
+          // [PATCH] Prevent redundant DOM updates if HTML content is identical
+          // This fixes micro-flickering during timeline/map slides
+          const currentIcon = layers.dot.getIcon();
+          if (!currentIcon || currentIcon.options.html !== dotHtml) {
+            const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
+            layers.dot.setIcon(newIcon);
+          }
           layers.dot.setLatLng([event.location.lat, event.location.lng]);
         }
       }
