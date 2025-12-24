@@ -193,7 +193,8 @@ class EventPopulator(BasePopulator[EventSchema]):
                     "certainty": model.location.certainty,
                     "importance": model.importance,
                     "collections": model.collections or [],
-                    "area_id": model.location.area_id
+                    "area_id": model.location.area_id,
+                    "child_source_ids": model.children or []
                 }
                 valid_rows.append(row)
                 
@@ -252,12 +253,13 @@ class EventPopulator(BasePopulator[EventSchema]):
                     values.append((
                         r["source_id"], r["title"], r["summary"], r["image_urls"], r["links"],
                         r["start_astro_year"], r["end_astro_year"], r["start_time_entry"], r["end_time_entry"],
-                        r["location_wkt"], r["place_name"], r["granularity"], r["certainty"], r["importance"], r["collections"], r["area_id"]
+                        r["location_wkt"], r["place_name"], r["granularity"], r["certainty"], r["importance"], r["collections"], r["area_id"],
+                        r["child_source_ids"]
                     ))
                 
                 # ST_GeogFromText wrapper for location
-                # 16 columns total. location_wkt is at index 9 (0-based)
-                placeholders = ["%s"] * 16
+                # 17 columns total. location_wkt is at index 9 (0-based)
+                placeholders = ["%s"] * 17
                 placeholders[9] = "ST_GeogFromText(%s)"
                 template = "(" + ", ".join(placeholders) + ")"
                 
@@ -265,7 +267,8 @@ class EventPopulator(BasePopulator[EventSchema]):
                     INSERT INTO {table_name} (
                         source_id, title, summary, image_urls, links,
                         start_astro_year, end_astro_year, start_time_entry, end_time_entry,
-                        location, place_name, granularity, certainty, importance, collections, area_id
+                        location, place_name, granularity, certainty, importance, collections, area_id,
+                        child_source_ids
                     ) VALUES %s
                     ON CONFLICT (source_id) DO UPDATE SET
                         title = EXCLUDED.title,
@@ -282,7 +285,8 @@ class EventPopulator(BasePopulator[EventSchema]):
                         certainty = EXCLUDED.certainty,
                         importance = EXCLUDED.importance,
                         collections = EXCLUDED.collections,
-                        area_id = EXCLUDED.area_id
+                        area_id = EXCLUDED.area_id,
+                        child_source_ids = EXCLUDED.child_source_ids
                 """
                 
                 execute_values(cur, query, values, template=template)
