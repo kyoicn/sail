@@ -330,6 +330,8 @@ def generate_data(total_events, output_dir_path, container_prob=0.2, tags=None, 
     
     # Map temp_id -> final_source_id
     id_map = {}
+    # Map temp_id -> EventWrapper object (needed for parent back-pointers)
+    wrapper_map = {w.temp_id: w for w in final_list}
     
     # First pass: assign files and generate IDs
     files_map = {} # file_idx -> list of wrappers
@@ -358,20 +360,28 @@ def generate_data(total_events, output_dir_path, container_prob=0.2, tags=None, 
     # 4. Resolve Children Links
     # -------------------------
     for w in final_list:
+        # [FIX] Always use explicit source_id 
+        w.event.source_id = w.final_source_id
+        
         if w.child_temp_ids:
             # Map temp IDs to final IDs
             resolved_children = []
             for tid in w.child_temp_ids:
                 if tid in id_map:
-                    resolved_children.append(id_map[tid])
+                    child_final_id = id_map[tid]
+                    resolved_children.append(child_final_id)
+                    
+                    # [NEW] Set parent back-pointer on the child event
+                    if tid in wrapper_map:
+                        wrapper_map[tid].event.parent_source_id = w.final_source_id
                 else:
                     print(f"Warning: Child temp ID {tid} not found in map!")
             w.event.children = resolved_children
             
             # Update summary to debug
             w.event.summary += f" [ID: {w.final_source_id}]"
+            
 
-    # 5. Write to Disk
     # ----------------
     for f_idx, wrappers in files_map.items():
         filename = f"test_events_{f_idx}.json"

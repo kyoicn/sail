@@ -152,7 +152,8 @@ class EventPopulator(BasePopulator[EventSchema]):
                 model = EventSchema(**item)
                 
                 # Prepare DB Row
-                source_id = f"{slugify(source_stem)}:{slugify(model.title)}"
+                # [FIX] Use explicit source_id from generator if available, else fallback to slug
+                source_id = model.source_id or f"{slugify(source_stem)}:{slugify(model.title)}"
                 
                 # Time
                 start_astro = calculate_astro_year(model.start_time)
@@ -194,7 +195,8 @@ class EventPopulator(BasePopulator[EventSchema]):
                     "importance": model.importance,
                     "collections": model.collections or [],
                     "area_id": model.location.area_id,
-                    "child_source_ids": model.children or []
+                    "child_source_ids": model.children or [],
+                    "parent_source_id": model.parent_source_id
                 }
                 valid_rows.append(row)
                 
@@ -254,12 +256,12 @@ class EventPopulator(BasePopulator[EventSchema]):
                         r["source_id"], r["title"], r["summary"], r["image_urls"], r["links"],
                         r["start_astro_year"], r["end_astro_year"], r["start_time_entry"], r["end_time_entry"],
                         r["location_wkt"], r["place_name"], r["granularity"], r["certainty"], r["importance"], r["collections"], r["area_id"],
-                        r["child_source_ids"]
+                        r["child_source_ids"], r["parent_source_id"]
                     ))
                 
                 # ST_GeogFromText wrapper for location
-                # 17 columns total. location_wkt is at index 9 (0-based)
-                placeholders = ["%s"] * 17
+                # 18 columns total. location_wkt is at index 9 (0-based)
+                placeholders = ["%s"] * 18
                 placeholders[9] = "ST_GeogFromText(%s)"
                 template = "(" + ", ".join(placeholders) + ")"
                 
@@ -268,7 +270,7 @@ class EventPopulator(BasePopulator[EventSchema]):
                         source_id, title, summary, image_urls, links,
                         start_astro_year, end_astro_year, start_time_entry, end_time_entry,
                         location, place_name, granularity, certainty, importance, collections, area_id,
-                        child_source_ids
+                        child_source_ids, parent_source_id
                     ) VALUES %s
                     ON CONFLICT (source_id) DO UPDATE SET
                         title = EXCLUDED.title,
@@ -286,7 +288,8 @@ class EventPopulator(BasePopulator[EventSchema]):
                         importance = EXCLUDED.importance,
                         collections = EXCLUDED.collections,
                         area_id = EXCLUDED.area_id,
-                        child_source_ids = EXCLUDED.child_source_ids
+                        child_source_ids = EXCLUDED.child_source_ids,
+                        parent_source_id = EXCLUDED.parent_source_id
                 """
                 
                 execute_values(cur, query, values, template=template)
