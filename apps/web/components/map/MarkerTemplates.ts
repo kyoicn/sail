@@ -61,8 +61,12 @@ export const getCardHtml = (
     event: EventData,
     x: number,
     y: number,
-    hasChildren: boolean = false
+    hasChildren: boolean = false,
+    focusStack: string[] = []
 ): string => {
+    const isAlreadyInStack = focusStack.includes(event.id);
+    const showFocusTab = hasChildren && !isAlreadyInStack;
+
     return `
        <div class="card-wrapper" style="
            position: absolute; left: 0; top: 0; 
@@ -111,7 +115,7 @@ export const getCardHtml = (
           </div>
 
           <!-- Focus Tab Expansion -->
-          ${hasChildren ? `
+          ${showFocusTab ? `
             <div class="focus-btn" style="
                 pointer-events: auto;
                 position: absolute; 

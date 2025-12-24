@@ -69,7 +69,7 @@ export function useEventData(
   useEffect(() => {
     setAllLoadedEvents([]);
     setServerEvents([]);
-  }, [dataset, collection]); // Removed rootId to keep global cache warm during focus transitions
+  }, [dataset, collection, rootId]); // Restore rootId to clear cache immediately on focus change
 
   useEffect(() => {
     // If disabled or no bounds, don't fetch

@@ -22,8 +22,16 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
 
   const handleFocus = useCallback((eventId: string) => {
     setFocusStack(prev => {
-      // Don't push duplicates if we clicked the same thing
+      // 1. If it's already the top, do nothing
       if (prev.length > 0 && prev[prev.length - 1] === eventId) return prev;
+
+      // 2. If it exists earlier in the stack, truncate to that level
+      const existingIndex = prev.indexOf(eventId);
+      if (existingIndex !== -1) {
+        return prev.slice(0, existingIndex + 1);
+      }
+
+      // 3. Otherwise, push new
       return [...prev, eventId];
     });
   }, []);

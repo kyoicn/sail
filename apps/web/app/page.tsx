@@ -72,6 +72,13 @@ function ChronoMapContent() {
     setFocusedEvent: setContextFocusedEvent
   } = useFocus();
 
+  // [NEW] Restore Focus Stack from URL on mount
+  useEffect(() => {
+    if (initialState.focus && focusStack.length === 0) {
+      handleFocus(initialState.focus);
+    }
+  }, []); // Only on mount
+
   // [NEW] Playback State
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -107,8 +114,16 @@ function ChronoMapContent() {
   };
 
   useEffect(() => {
-    updateUrl({ lat: mapViewport.lat, lng: mapViewport.lng, zoom: mapViewport.zoom, year: currentDate, span: viewRange.max - viewRange.min });
-  }, [currentDate, viewRange, mapViewport, updateUrl]);
+    const activeFocusedEventId = focusStack.length > 0 ? focusStack[focusStack.length - 1] : null;
+    updateUrl({
+      lat: mapViewport.lat,
+      lng: mapViewport.lng,
+      zoom: mapViewport.zoom,
+      year: currentDate,
+      span: viewRange.max - viewRange.min,
+      focus: activeFocusedEventId
+    });
+  }, [currentDate, viewRange, mapViewport, focusStack, updateUrl]);
 
 
   // --- 3. Logic Pipelines ---
@@ -118,7 +133,7 @@ function ChronoMapContent() {
   // Unified Focus-Aware Data Fetching
   const activeFocusedEventId = focusStack.length > 0 ? focusStack[focusStack.length - 1] : null;
 
-  const { allLoadedEvents, loadedEventsBySource, focusedEvent, isLoading } = useFocusData(
+  const { allLoadedEvents, allVisibleEvents, loadedEventsBySource, focusedEvent, isLoading } = useFocusData(
     mapBounds,
     mapViewport.zoom,
     viewRange,
@@ -133,7 +148,7 @@ function ChronoMapContent() {
   }, [focusedEvent, setContextFocusedEvent]);
 
   // Compatibility for DebugHUD
-  const allVisibleEvents = allLoadedEvents;
+  const debugLoadedEvents = allLoadedEvents;
 
   // LOD Calculation Pipeline
   const lodThreshold = useLOD(viewRange, mapViewport.zoom);
@@ -350,7 +365,7 @@ function ChronoMapContent() {
           center={mapViewport}
           bounds={mapBounds}
           lodThreshold={lodThreshold}
-          fetchedCount={allVisibleEvents.length}
+          fetchedCount={debugLoadedEvents.length}
           renderedCount={renderableEvents.length}
           isGlobalViewGuess={isGlobalViewGuess}
           activeEvents={renderableEvents}
@@ -457,6 +472,7 @@ function ChronoMapContent() {
           showDots={showDots}
           dotStyle={dotStyle}
           onEnterFocusMode={handleEnterFocusMode}
+          focusStack={focusStack}
         />
       </main>
 

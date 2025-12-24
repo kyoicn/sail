@@ -23,8 +23,6 @@ export function useEventFilter(
             return allVisibleEvents;
         }
 
-        // Optional: We could verify lineage if we had that data, but we don't.
-        // We assume the upstream data is already filtered by context (via useEventData's rootId).
         return allVisibleEvents;
     }, [allVisibleEvents, focusedEvent]);
 

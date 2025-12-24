@@ -32,6 +32,7 @@ interface LeafletMapProps {
   showDots: boolean;
   dotStyle?: string;
   onEnterFocusMode?: (event: EventData) => void;
+  focusStack?: string[];
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -57,7 +58,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   heatmapStyle = 'classic',
   showDots,
   dotStyle = 'classic',
-  onEnterFocusMode
+  onEnterFocusMode,
+  focusStack = []
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -387,7 +389,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               onEnterFocusMode: !!onEnterFocusMode
             });
           }
-          const cardContentHtml = getCardHtml(event, finalX, finalY, hasChildren);
+          const cardContentHtml = getCardHtml(event, finalX, finalY, hasChildren, focusStack);
           const cardIcon = L.divIcon({ className: '', html: cardContentHtml, iconSize: [0, 0] });
           const cardMarker = L.marker([event.location.lat, event.location.lng], { icon: cardIcon, pane: 'cardsPane' }).addTo(map);
 

@@ -7,16 +7,17 @@ interface UrlState {
   zoom: number;
   year: number;
   span: number;
+  focus?: string | null;
 }
 
 export function useUrlSync(
   defaultState: UrlState,
-  delay: number = 1000 
+  delay: number = 1000
 ) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  
+
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup on unmount
@@ -33,7 +34,8 @@ export function useUrlSync(
     const zoom = parseInt(searchParams.get('z') || '') || defaultState.zoom;
     const year = parseFloat(searchParams.get('y') || '') || defaultState.year;
     const span = parseFloat(searchParams.get('s') || '') || defaultState.span;
-    return { lat, lng, zoom, year, span };
+    const focus = searchParams.get('focus') || defaultState.focus || null;
+    return { lat, lng, zoom, year, span, focus };
   };
 
   const updateUrl = useCallback((newState: UrlState) => {
@@ -45,12 +47,18 @@ export function useUrlSync(
       // 1. Construct the new params
       const currentParams = new URLSearchParams(searchParams?.toString());
       const newParams = new URLSearchParams(searchParams?.toString());
-      
+
       newParams.set('lat', newState.lat.toFixed(4));
       newParams.set('lng', newState.lng.toFixed(4));
       newParams.set('z', newState.zoom.toString());
       newParams.set('y', newState.year.toFixed(1));
       newParams.set('s', newState.span.toFixed(0));
+
+      if (newState.focus) {
+        newParams.set('focus', newState.focus);
+      } else {
+        newParams.delete('focus');
+      }
 
       // 2. [CRITICAL FIX] Dirty Check: Compare strings to avoid redundant updates
       // This breaks the infinite loop: State -> URL -> SearchParams -> Effect -> State
@@ -60,7 +68,7 @@ export function useUrlSync(
 
       // 3. Only replace if different
       router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
-      
+
     }, delay);
   }, [pathname, router, searchParams, delay]);
 

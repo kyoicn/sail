@@ -11,8 +11,9 @@ export function useEventsByIds(
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    setEvents([]); // ALWAYS clear on dependency change to prevent stale leaks
+
     if (!ids || ids.length === 0) {
-      setEvents([]);
       return;
     }
 

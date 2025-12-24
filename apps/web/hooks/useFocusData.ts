@@ -105,6 +105,7 @@ export function useFocusData(
 
   return {
     allLoadedEvents,
+    allVisibleEvents: baseLoadedEvents, // Fresh descendants from RPC
     loadedEventsBySource,
     focusedEvent: resolvedFocusEvent,
     isLoading: isBaseLoading || isForcedLoading
