@@ -62,10 +62,9 @@ class PeriodPopulator(BasePopulator[HistoricalPeriodModel]):
         conn = self.get_connection()
         cur = conn.cursor()
 
-        if instance == 'prod':
-            schema = 'public'
-        else:
-            schema = instance
+        # Schema Validation
+        # prod -> prod (no longer public)
+        schema = instance
 
         table_areas = f'"{schema}".areas'
         table_periods = f'"{schema}".historical_periods'

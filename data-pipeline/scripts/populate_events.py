@@ -13,7 +13,7 @@ Description:
 Detailed Parameter Guide:
     --instance:
         Target database instance. Choices: 'prod', 'dev', 'staging'.
-        - prod: targets 'events' table (PUBLIC schema).
+        - prod: targets 'events' table (PROD schema).
         - dev: targets 'events_dev' table (DEV schema).
         - staging: targets 'events_staging' table (STAGING schema).
     
