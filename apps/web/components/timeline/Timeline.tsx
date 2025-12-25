@@ -334,7 +334,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
               {/* Slider Thumb */}
               <div
                 className={`absolute top-0 h-14 w-4 z-40 transform -translate-x-1/2 flex flex-col justify-center items-center
-                        ${isThumbDragging ? 'cursor-grabbing' : 'cursor-grab'} 
+                        ${isThumbDragging ? 'cursor-grabbing' : 'cursor-ew-resize'} 
                         ${(interactionMode === 'investigation' || isPlaying) && isThumbVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}
                         transition-opacity duration-200`}
                 style={{ left: `calc(6px + (100% - 12px) * ${Math.max(0, Math.min(100, thumbPercent)) / 100})` }}
