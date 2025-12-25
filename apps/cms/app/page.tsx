@@ -19,6 +19,9 @@ export default function Home() {
             <Link href="/areas" className="block w-full text-center bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 transition-colors">
               Manage Areas
             </Link>
+            <Link href="/extractor" className="block w-full text-center bg-indigo-600 text-white px-4 py-2 rounded font-medium hover:bg-indigo-700 transition-colors">
+              Event Extractor
+            </Link>
             <button className="w-full bg-white text-blue-600 border border-blue-600 px-4 py-2 rounded font-medium hover:bg-blue-50 transition-colors">
               Manage Events
             </button>
