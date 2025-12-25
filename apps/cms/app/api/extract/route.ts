@@ -156,11 +156,11 @@ export async function POST(request: Request) {
 
         } else {
           // Ollama
-          const ollamaHost = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+          const ollamaHost = process.env.OLLAMA_HOST;
           const response = await fetch(`${ollamaHost}/api/chat`, {
             method: 'POST',
             body: JSON.stringify({
-              model: model || 'llama3', // Default to llama3 or user choice
+              model: model || 'deepseek-r1:8b',
               messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
                 { role: 'user', content: cleanText }
@@ -232,8 +232,25 @@ export async function POST(request: Request) {
         controller.close();
 
       } catch (error: any) {
-        console.error('Extraction Error:', error);
-        sendError(error.message);
+        console.error('Extraction Error Stack:', error);
+
+        // Construct detailed error message
+        let errorMessage = error.message || 'Unknown error';
+        if (error.cause) {
+          try {
+            const causeStr = error.cause instanceof Error ? error.cause.toString() : JSON.stringify(error.cause);
+            errorMessage += ` [cause]: ${causeStr}`;
+          } catch (e) {
+            errorMessage += ` [cause]: ${String(error.cause)}`;
+          }
+        }
+
+        console.log('Sending error to client:', errorMessage);
+        try {
+          sendError(errorMessage);
+        } catch (sendErr) {
+          console.error('Failed to send error to client:', sendErr);
+        }
         controller.close();
       }
     }
