@@ -55,14 +55,43 @@ export async function GET(request: Request) {
 
   if (idsParam || uuidsParam) {
     if (idsParam) {
-      // Source IDs -> RPC
       const ids = idsParam.split(',').map(s => s.trim()).filter(Boolean);
       if (ids.length === 0) return NextResponse.json([]);
 
-      const { data: idData, error: idError } = await supabase.rpc('get_events_by_ids', {
-        p_source_ids: ids
-      });
+      // [FIX] Use direct query instead of RPC to ensure we get all columns (including new parent_source_id)
+      // regardless of whether the RPC signature is stale.
+      const { data: idData, error: idError } = await supabase
+        .from('events')
+        .select('*')
+        .in('source_id', ids);
+
       if (idError) throw new Error(idError.message);
+
+      // [POLYFILL] Reverse Lookup for missing parent_source_id
+      // If data is stale and missing parent_source_id, we infer it from child_source_ids of parents.
+      const orphans = (idData || []).filter((e: any) => !e.parent_source_id && e.source_id);
+      if (orphans.length > 0) {
+        const orphanIds = orphans.map((e: any) => e.source_id);
+        const { data: parents, error: parentError } = await supabase
+          .from('events')
+          .select('source_id, child_source_ids')
+          .overlaps('child_source_ids', orphanIds);
+
+        if (parents && !parentError) {
+          const parentMap = new Map<string, string>();
+          parents.forEach((p: any) => {
+            (p.child_source_ids || []).forEach((cid: string) => {
+              if (orphanIds.includes(cid)) parentMap.set(cid, p.source_id);
+            });
+          });
+          idData?.forEach((row: any) => {
+            if (!row.parent_source_id && row.source_id && parentMap.has(row.source_id)) {
+              row.parent_source_id = parentMap.get(row.source_id);
+            }
+          });
+        }
+      }
+
       return mapAndReturnEvents(idData || []);
     }
 
@@ -71,12 +100,50 @@ export async function GET(request: Request) {
       const ids = uuidsParam.split(',').map(s => s.trim()).filter(Boolean);
       if (ids.length === 0) return NextResponse.json([]);
 
-      const { data: uuidData, error: uuidError } = await supabase
+      let { data: uuidData, error: uuidError } = await supabase
         .from('events')
         .select('*')
         .in('id', ids);
 
+      // [FIX] Fallback to source_id if UUID syntax is invalid
+      // This handles cases where the client sends Source IDs to the UUID endpoint (e.g. from URL)
+      if (uuidError && (uuidError.code === '22P02' || uuidError.message.includes('uuid'))) {
+        const { data: retryData, error: retryError } = await supabase
+          .from('events')
+          .select('*')
+          .in('source_id', ids);
+
+        if (retryError) throw new Error(retryError.message);
+        uuidData = retryData;
+        uuidError = null;
+      }
+
       if (uuidError) throw new Error(uuidError.message);
+
+      // [POLYFILL] Same logic for UUID fetch
+      const orphans = (uuidData || []).filter((e: any) => !e.parent_source_id && e.source_id);
+      if (orphans.length > 0) {
+        const orphanIds = orphans.map((e: any) => e.source_id);
+        const { data: parents, error: parentError } = await supabase
+          .from('events')
+          .select('source_id, child_source_ids')
+          .overlaps('child_source_ids', orphanIds);
+
+        if (parents && !parentError) {
+          const parentMap = new Map<string, string>();
+          parents.forEach((p: any) => {
+            (p.child_source_ids || []).forEach((cid: string) => {
+              if (orphanIds.includes(cid)) parentMap.set(cid, p.source_id);
+            });
+          });
+          uuidData?.forEach((row: any) => {
+            if (!row.parent_source_id && row.source_id && parentMap.has(row.source_id)) {
+              row.parent_source_id = parentMap.get(row.source_id);
+            }
+          });
+        }
+      }
+
       return mapAndReturnEvents(uuidData || []);
     }
   }
@@ -249,7 +316,7 @@ function mapAndReturnEvents(data: any[]) {
 
   return NextResponse.json(formattedEvents, {
     headers: {
-      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600'
+      'Cache-Control': 'no-store, max-age=0'
     }
   });
 }

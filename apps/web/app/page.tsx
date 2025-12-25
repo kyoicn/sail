@@ -294,7 +294,8 @@ function ChronoMapContent() {
         const centerLat = (newBounds.north + newBounds.south) / 2;
         const centerLng = (newBounds.east + newBounds.west) / 2;
         const maxSpan = Math.max(latSpan, lngSpan);
-        let zoom = 11;
+        // [FIX] If point event (maxSpan=0), keep current zoom if deeper than 11, else zoom to 11.
+        let zoom = Math.max(11, mapViewport.zoom);
         if (maxSpan > 0) {
           zoom = Math.floor(Math.log2(360 / maxSpan)) + 1;
           zoom = Math.min(Math.max(zoom, 2), 16);
