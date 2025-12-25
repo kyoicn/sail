@@ -60,17 +60,14 @@ data_pipeline_root = current_file.parents[1]
 sys.path.append(str(data_pipeline_root))
 
 from shared.models import EventSchema
-from shared.utils import calculate_astro_year
+from shared.utils import calculate_astro_year, slugify
 from shared.populator_base import BasePopulator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def slugify(text):
-    text = str(text).lower()
-    text = re.sub(r'[^a-z0-9]+', '_', text)
-    return text.strip('_')
+
 
 class EventPopulator(BasePopulator[EventSchema]):
     def __init__(self):

@@ -57,11 +57,9 @@ data_pipeline_root = current_file.parents[1]
 sys.path.append(str(data_pipeline_root))
 
 from shared.models import EventSchema, TimeEntry, LocationEntry, Link
+from shared.utils import slugify, calculate_astro_year
 
-def slugify(text):
-    text = text.lower()
-    text = re.sub(r'[^a-z0-9]+', '_', text)
-    return text.strip('_')
+
 
 class EventWrapper:
     def __init__(self, event: EventSchema, temp_id: str, atomic_count: int = 1):
@@ -75,19 +73,14 @@ class EventWrapper:
 
     @property
     def start_decimal(self):
-        return calculate_decimal_year(self.event.start_time)
+        return calculate_astro_year(self.event.start_time)
 
-def calculate_decimal_year(te: TimeEntry) -> float:
-    y = te.year
-    m = te.month if te.month else 1
-    d = te.day if te.day else 1
-    h = te.hour if te.hour else 0
-    # Approximate
-    return y + (m - 1) / 12.0 + (d - 1) / 365.0 + h / (365.0 * 24.0)
 
 def random_time() -> TimeEntry:
-    # Range: -3000 BC to 2025 AD
+    # Range: -3000 BC to 2025 AD (Excluding 0)
     year = random.randint(-3000, 2025)
+    while year == 0:
+        year = random.randint(-3000, 2025)
     precisions = ["year", "month", "day", "hour", "minute"]
     precision = random.choice(precisions)
     
@@ -227,9 +220,8 @@ def group_events(wrappers: List[EventWrapper], prob: float, batch_id: str) -> (L
                     total_atomic_count += c.atomic_count
                     
                     # End time
-                    # Use end_time if present, else start_time
                     et = c.event.end_time or c.event.start_time
-                    et_dec = calculate_decimal_year(et)
+                    et_dec = calculate_astro_year(et)
                     if et_dec > latest_end_decimal:
                         latest_end_decimal = et_dec
                         final_end_time = et

@@ -3,6 +3,12 @@ from shapely.geometry import MultiPolygon, Polygon, box
 from shapely.ops import unary_union, transform
 from shapely.validation import make_valid
 from typing import List
+import re
+
+def slugify(text):
+    text = str(text).lower()
+    text = re.sub(r'[^a-z0-9]+', '_', text)
+    return text.strip('_')
 
 def calculate_astro_year(entry: TimeEntry) -> float:
     """
