@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { getTableName, getRpcName } from '@/lib/db';
+import { getTableName, getRpcName, getDbSchema } from '@/lib/db';
 
 // Initialize Supabase Client (Server-Side)
 const supabase = createClient(
@@ -15,12 +15,16 @@ export async function GET(request: Request) {
     const dataset = searchParams.get('dataset') || 'prod';
 
     // Determine Table and RPC names based on dataset
-    const tableName = getTableName('areas', dataset);
-    const rpcName = getRpcName('get_areas_by_ids', dataset);
+    const schema = getDbSchema(dataset);
+    const tableName = 'areas'; // Base name
+    const rpcName = 'get_areas_by_ids'; // Base name
+
+    // Scope the client to the correct schema
+    const db = supabase.schema(schema);
 
     // 1. DETAIL MODE: Fetch single area with Geometry via RPC
     if (id) {
-      const { data, error } = await supabase.rpc(rpcName, {
+      const { data, error } = await db.rpc(rpcName, {
         area_ids_input: [id]
       });
 
@@ -30,14 +34,11 @@ export async function GET(request: Request) {
 
       if (area) {
         // Fetch Associated Periods
-        // We need to resolve the correct table names with suffixes
-        // Fetch Associated Periods
-        // Refactored to use shared utility
-        const tablePeriodAreas = getTableName('period_areas', dataset);
-        const tableHistoricalPeriods = getTableName('historical_periods', dataset);
+        const tablePeriodAreas = 'period_areas';
+        const tableHistoricalPeriods = 'historical_periods';
 
         // 1. Get the links (period_id (uuid), role)
-        const { data: links, error: linkError } = await supabase
+        const { data: links, error: linkError } = await db
           .from(tablePeriodAreas)
           .select('period_id, role')
           .eq('area_id', area.id);
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
         } else if (links && links.length > 0) {
           // 2. Get the period details
           const periodTypeIds = links.map(l => l.period_id);
-          const { data: periodDetails, error: periodError } = await supabase
+          const { data: periodDetails, error: periodError } = await db
             .from(tableHistoricalPeriods)
             .select('id, period_id, display_name, start_astro_year, end_astro_year')
             .in('id', periodTypeIds);
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
 
     // 2. LIST MODE: Fetch list without Geometry (Lightweight)
     const limit = parseInt(searchParams.get('limit') || '100');
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from(tableName)
       .select('id, area_id, display_name')
       .limit(limit);
