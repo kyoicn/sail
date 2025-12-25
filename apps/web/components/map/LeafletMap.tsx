@@ -78,7 +78,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const t = (val - 1) / 9;
 
     const hexToRgb = (hex: string): [number, number, number] => {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      // Allow 6 or 8 digit hex (ignore alpha if present)
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})(?:[a-f\d]{2})?$/i.exec(hex);
       return result ? [
         parseInt(result[1], 16),
         parseInt(result[2], 16),
@@ -326,7 +327,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
       let styleKey = dotStyle; // Current global theme as fallback
       if (isFocused) {
-        styleKey = 'sunset';
+        styleKey = 'focus';
       } else if (isContainer) {
         styleKey = 'volcano';
       } else {

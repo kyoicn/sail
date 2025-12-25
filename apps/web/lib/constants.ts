@@ -206,5 +206,17 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
     effect: 'none',
     sizeMultiplier: 0.8,
     borderWidth: 1
+  },
+  'focus': {
+    label: 'Focus (Neon Orchid)',
+    colors: {
+      start: '#d67b1bff',
+      mid: '#d67b1bff',
+      end: '#d67b1bff'
+    },
+    shape: 'circle',
+    effect: 'glow',
+    sizeMultiplier: 1.2,
+    borderWidth: 2
   }
 };
