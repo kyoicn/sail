@@ -42,6 +42,11 @@ export const MapStyleSelector: React.FC<MapStyleSelectorProps> = ({
 
   const styles = Object.entries(MAP_STYLES);
 
+  const getLocalThumbnail = (key: string) => {
+    if (key === 'satellite' || key === 'terrain') return `/map-thumbs/${key}.jpg`;
+    return `/map-thumbs/${key}.png`;
+  };
+
   return (
     <div ref={ref} className="absolute top-20 right-20 z-30 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 p-2 w-64 animate-in fade-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between px-2 py-1 mb-2 border-b border-slate-200/50">
@@ -64,15 +69,13 @@ export const MapStyleSelector: React.FC<MapStyleSelectorProps> = ({
             `}
           >
             {/* Simple Preview Swatch */}
-            <div className={`w-8 h-8 rounded-lg border shadow-sm shrink-0 overflow-hidden relative ${currentStyle === key ? 'border-blue-300' : 'border-slate-200'}`}>
-              {/* Just a color block for now, or we could potentially use an actual mini-img if we had assets. 
-                   For now, we'll mimic the "vibe" with CSS colors.
-               */}
-              <div className={`w-full h-full 
-                 ${key.includes('dark') || key === 'satellite' ? 'bg-slate-800' : 'bg-slate-100'}
-                 ${key === 'voyager' ? 'bg-amber-100' : ''}
-                 ${key === 'terrain' ? 'bg-emerald-100' : ''}
-               `} />
+            <div className={`w-10 h-10 rounded-lg border shadow-sm shrink-0 overflow-hidden relative ${currentStyle === key ? 'border-blue-300' : 'border-slate-200'}`}>
+              <img
+                src={getLocalThumbnail(key)}
+                alt={config.label}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
             </div>
 
             <div className="flex flex-col">
