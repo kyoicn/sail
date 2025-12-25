@@ -69,21 +69,22 @@ export const Timeline: React.FC<TimeControlProps> = ({
   const [isThumbDragging, setIsThumbDragging] = useState(false);
   const animationRef = useRef<number | null>(null);
 
+  // [NEW] Track Dragging State
+  const dragStartRef = useRef<{ x: number, viewRange: { min: number, max: number } } | null>(null);
+  const hasPannedRef = useRef(false);
+  const [isTrackDragging, setIsTrackDragging] = useState(false);
+
   // --- Interaction Handlers ---
 
   const handleTrackMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    // If in Exploration mode, seeking immediately switches to Investigation mode
-    if (interactionMode === 'exploration') {
-      setInteractionMode('investigation');
-    }
-
-    setIsThumbDragging(true);
-    const rect = trackRef.current?.getBoundingClientRect();
-    if (rect) {
-      const offsetX = e.clientX - rect.left;
-      const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
-      const newValue = viewRange.min + percentage * (viewRange.max - viewRange.min);
-      setCurrentDate(newValue);
+    // Initialize Drag State (Don't seek yet)
+    if (trackRef.current) {
+      setIsTrackDragging(true);
+      hasPannedRef.current = false;
+      dragStartRef.current = {
+        x: e.clientX,
+        viewRange: { ...viewRange }
+      };
     }
   };
 
@@ -103,7 +104,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isThumbDragging || !trackRef.current) return;
+      if ((!isThumbDragging && !isTrackDragging) || !trackRef.current) return;
 
       const now = performance.now();
       // Throttle to ~30fps (33ms) to prevent excessive Map re-renders
@@ -111,13 +112,70 @@ export const Timeline: React.FC<TimeControlProps> = ({
       lastUpdateRef.current = now;
 
       const rect = trackRef.current.getBoundingClientRect();
-      const percent = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+      const width = rect.width;
       const span = viewRange.max - viewRange.min;
-      setCurrentDate(viewRange.min + (span * percent));
-    };
-    const handleMouseUp = () => setIsThumbDragging(false);
 
-    if (isThumbDragging) {
+      // Case 1: Thumb Dragging (Seeking within view)
+      if (isThumbDragging) {
+        const percent = Math.min(Math.max((e.clientX - rect.left) / width, 0), 1);
+        setCurrentDate(viewRange.min + (span * percent));
+      }
+
+      // Case 2: Track Dragging (Panning the View)
+      if (isTrackDragging && dragStartRef.current) {
+        const deltaX = dragStartRef.current.x - e.clientX; // Drag Left -> Move View Right (Time increases)
+
+        // Only start panning after a small threshold to allow for sloppy clicks
+        if (Math.abs(deltaX) > 5) {
+          hasPannedRef.current = true;
+        }
+
+        if (hasPannedRef.current) {
+          // Calculate time delta based on pixel delta
+          // 1000px = span years
+          // deltaX px = ? years
+          const timeDelta = (deltaX / width) * (dragStartRef.current.viewRange.max - dragStartRef.current.viewRange.min);
+
+          const newMin = dragStartRef.current.viewRange.min + timeDelta;
+          const newMax = dragStartRef.current.viewRange.max + timeDelta;
+
+          // Optional: Clamp global bounds?
+          // For now, allow free panning
+          setViewRange({ min: newMin, max: newMax });
+        }
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      // End Thumb Drag
+      if (isThumbDragging) {
+        setIsThumbDragging(false);
+      }
+
+      // End Track Drag
+      if (isTrackDragging) {
+        setIsTrackDragging(false);
+
+        // If we didn't pan significantly, treat it as a CLICK (Seek)
+        if (!hasPannedRef.current && trackRef.current) {
+          const rect = trackRef.current.getBoundingClientRect();
+          const offsetX = e.clientX - rect.left;
+          const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
+          const newValue = viewRange.min + percentage * (viewRange.max - viewRange.min);
+          setCurrentDate(newValue);
+
+          // [Fix] Only switch mode on CLICK, not drag
+          if (interactionMode === 'exploration') {
+            setInteractionMode('investigation');
+          }
+        }
+
+        dragStartRef.current = null;
+        hasPannedRef.current = false;
+      }
+    };
+
+    if (isThumbDragging || isTrackDragging) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
@@ -125,9 +183,51 @@ export const Timeline: React.FC<TimeControlProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isThumbDragging, viewRange, setCurrentDate]);
+  }, [isThumbDragging, isTrackDragging, viewRange, setCurrentDate, setViewRange, interactionMode, setInteractionMode]);
 
   // [REMOVED] Zoom Logic extracted to TimelineZoomControls
+
+  // [NEW] Scroll to Zoom
+  const handleTrackWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    // e.preventDefault(); // React's synthetic event might not support this for passive listeners, but standard behavior usually scrolls page.
+    // We want to stop page scroll if possible, but 'wheel' is often passive.
+    // In this specific UI (absolute positioned bottom bar), page scroll might not be the primary concern,
+    // but let's try to capture it.
+
+    if (!trackRef.current) return;
+
+    const rect = trackRef.current.getBoundingClientRect();
+    const width = rect.width;
+    const offsetX = e.clientX - rect.left;
+
+    // 1. Calculate Mouse Time (Anchor)
+    const percent = Math.max(0, Math.min(1, offsetX / width));
+    const currentSpan = viewRange.max - viewRange.min;
+    const mouseTime = viewRange.min + (currentSpan * percent);
+
+    // 2. Determine Zoom Factor
+    // DeltaY > 0 means scroll down (Zoom Out)
+    // DeltaY < 0 means scroll up (Zoom In)
+    const ZOOM_SPEED = 0.001;
+    const zoomFactor = 1 + (e.deltaY * ZOOM_SPEED);
+
+    // 3. New Span (Clamped)
+    // Limits: Min 1 year, Max 20,000 years
+    const MIN_SPAN = 1;
+    const MAX_SPAN = 20000;
+
+    let newSpan = currentSpan * zoomFactor;
+    newSpan = Math.max(MIN_SPAN, Math.min(MAX_SPAN, newSpan));
+
+    // 4. Calculate New Range to keep mouseTime stationary
+    // mouseTime = newMin + (percent * newSpan)
+    // => newMin = mouseTime - (percent * newSpan)
+    const newMin = mouseTime - (percent * newSpan);
+    const newMax = newMin + newSpan;
+
+    setViewRange({ min: newMin, max: newMax });
+  };
 
   const span = viewRange.max - viewRange.min;
   const thumbPercent = ((currentDate - viewRange.min) / span) * 100;
@@ -207,6 +307,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
               ref={trackRef}
               className="relative h-[88px] flex-1 group cursor-pointer select-none"
               onMouseDown={handleTrackMouseDown}
+              onWheel={handleTrackWheel}
             >
               <TimelineTrack
                 currentDate={currentDate}
