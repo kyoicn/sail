@@ -213,8 +213,8 @@ export const Timeline: React.FC<TimeControlProps> = ({
     const zoomFactor = 1 + (e.deltaY * ZOOM_SPEED);
 
     // 3. New Span (Clamped)
-    // Limits: Min 1 year, Max 20,000 years
-    const MIN_SPAN = 1;
+    // Limits: Min ~1 second, Max 20,000 years
+    const MIN_SPAN = 0.00000003; // Approx 1 second
     const MAX_SPAN = 20000;
 
     let newSpan = currentSpan * zoomFactor;

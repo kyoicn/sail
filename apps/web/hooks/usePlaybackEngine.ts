@@ -29,11 +29,16 @@ export function usePlaybackEngine({
   const handleManualStep = useCallback(() => {
     // Step aligned with Time Engine Zoom Scales
     const span = viewRange.max - viewRange.min;
-    let stepSize = ZOOM_SCALES.MONTH;
+    let stepSize = ZOOM_SCALES.SECOND;
 
     if (span >= ZOOM_SCALES.MILLENNIUM * 2) stepSize = ZOOM_SCALES.CENTURY;
     else if (span >= ZOOM_SCALES.CENTURY * 2) stepSize = ZOOM_SCALES.DECADE;
     else if (span >= ZOOM_SCALES.DECADE * 2) stepSize = ZOOM_SCALES.YEAR;
+    else if (span >= ZOOM_SCALES.YEAR * 2) stepSize = ZOOM_SCALES.MONTH;
+    else if (span >= ZOOM_SCALES.MONTH * 2) stepSize = ZOOM_SCALES.DAY;
+    else if (span >= ZOOM_SCALES.DAY * 2) stepSize = ZOOM_SCALES.HOUR;
+    else if (span >= ZOOM_SCALES.HOUR * 2) stepSize = ZOOM_SCALES.MINUTE;
+    else stepSize = ZOOM_SCALES.SECOND;
 
     setCurrentDate((prev: number) => {
       const nextDate = prev + stepSize;
