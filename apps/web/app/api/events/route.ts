@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   // [NEW] Dataset Switcher
   // Determined by 'env' or 'dataset' param.
   const envParam = searchParams.get('env') || searchParams.get('dataset');
-  let targetSchema = 'public';
+  let targetSchema = 'prod';
   if (envParam === 'dev') targetSchema = 'dev';
   if (envParam === 'staging') targetSchema = 'staging';
 

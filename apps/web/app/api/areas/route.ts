@@ -28,9 +28,19 @@ export async function GET(request: Request) {
 
   // [NEW] Dataset Switcher (Prod/Dev)
   const dataset = searchParams.get('dataset') || 'prod';
-  const rpcName = dataset === 'dev' ? 'get_areas_by_ids_dev' : 'get_areas_by_ids';
+  let targetSchema = 'prod';
+  if (dataset === 'dev') targetSchema = 'dev';
+  if (dataset === 'staging') targetSchema = 'staging';
 
-  // Call the RPC
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    { db: { schema: targetSchema } }
+  );
+
+  // Call the RPC (Same name for all schemas now!)
+  const rpcName = 'get_areas_by_ids';
+
   const { data, error } = await supabase.rpc(rpcName, {
     area_ids_input: areaIds
   });

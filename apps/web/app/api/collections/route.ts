@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const dataset = searchParams.get('dataset') || 'prod';
 
-  let targetSchema = 'public';
+  let targetSchema = 'prod';
   if (dataset === 'dev') targetSchema = 'dev';
   if (dataset === 'staging') targetSchema = 'staging';
 
