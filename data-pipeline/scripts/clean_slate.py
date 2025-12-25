@@ -1,7 +1,34 @@
+"""
+Script: clean_slate.py
+Description:
+    Utilities to completely wipe database schemas to a fresh state. 
+    Useful for local development resets or "scorched earth" debugging.
+
+Flags:
+    --instance <instance1,instance2,...>:
+        REQUIRED. Specifies one or more instances (schemas) to clean, COMMA SEPARATED.
+        - dev: Drops 'dev' schema.
+        - staging: Drops 'staging' schema.
+        - prod: Drops 'public' schema (and recreates it empty with PostGIS).
+
+Usage Examples:
+    # 1. Clean ONLY Staging
+    #    Useful if staging is corrupted but you want to keep dev/prod data.
+    python data-pipeline/scripts/clean_slate.py --instance staging
+
+    # 2. Clean Dev AND Staging
+    python data-pipeline/scripts/clean_slate.py --instance dev,staging
+
+    # 3. Clean EVERYTHING (Manual specification required)
+    python data-pipeline/scripts/clean_slate.py --instance dev,staging,prod
+"""
 import os
 import psycopg2
 from dotenv import load_dotenv
 from pathlib import Path
+
+import argparse
+import sys
 
 # Setup
 current_file = Path(__file__).resolve()
@@ -11,44 +38,74 @@ load_dotenv(data_pipeline_root / '.env')
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def clean_slate():
+    parser = argparse.ArgumentParser(description="Clean up database schemas.")
+    parser.add_argument("--instance", required=True,
+                        help="Specific instance(s) (schema) to clean. REQUIRED. Comma separated (e.g. dev,staging).")
+    args = parser.parse_args()
+
+    # Parse and Validate Instances
+    requested_instances = [i.strip() for i in args.instance.split(',')]
+    valid_choices = {'dev', 'staging', 'prod'}
+    
+    for inst in requested_instances:
+        if inst not in valid_choices:
+            print(f"Error: Invalid instance '{inst}'. Choices are: {', '.join(valid_choices)}")
+            sys.exit(1)
+
     conn = psycopg2.connect(DATABASE_URL)
     conn.autocommit = True
     
+    # Determine targets
+    target_schemas = []
+    for inst in requested_instances:
+        if inst == 'prod':
+            target_schemas.append('public')
+        else:
+            target_schemas.append(inst)
+            
+    warning_list = ", ".join(target_schemas)
+    warning_msg = f"This script will DESTROY ALL DATA in schema(s): {warning_list}."
+
     print("!!! DANGER ZONE !!!")
-    print("This script will DESTROY ALL DATA in columns: public, dev, staging, backup.")
+    print(warning_msg)
     print("This cannot be undone.")
-    confirmation = input("Are you absolutely sure you want to proceed? Type 'delete everything' to continue: ")
     
-    if confirmation != 'delete everything':
+    # Confirmation must match the requested instances for safety
+    # We join by comma to make it look like the command arg (normalized)
+    joined_instances = ",".join(requested_instances)
+    expected_input = f"delete {joined_instances}"
+    confirmation = input(f"Are you absolutely sure? Type '{expected_input}' to continue: ")
+    
+    if confirmation != expected_input:
         print("Aborted.")
         return
 
     cur = conn.cursor()
     
-    schemas = ['public', 'dev', 'staging', 'backup']
+    print("WARNING: Dropping schemas: ", target_schemas)
     
-    print("WARNING: This will DROP all data in schemas: ", schemas)
-    
-    for s in schemas:
+    for s in target_schemas:
         print(f"Dropping schema {s}...")
         cur.execute(f"DROP SCHEMA IF EXISTS {s} CASCADE;")
     
-    # Recreate public because it's standard
-    print("Recreating empty public schema...")
-    cur.execute("CREATE SCHEMA public;")
-    cur.execute("GRANT ALL ON SCHEMA public TO postgres;") 
-    cur.execute("GRANT ALL ON SCHEMA public TO public;")
-    
-    # PostGIS (Safe create in public)
-    try:
-        print("Enabling PostGIS in public...")
-        cur.execute("CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;")
-    except Exception as e:
-        print(f"Warning: Could not enable PostGIS: {e}")
+    # Special handling for public/prod
+    if 'public' in target_schemas:
+        print("Recreating empty public schema...")
+        cur.execute("CREATE SCHEMA public;")
+        cur.execute("GRANT ALL ON SCHEMA public TO postgres;") 
+        cur.execute("GRANT ALL ON SCHEMA public TO public;")
+        
+        # PostGIS (Safe create in public)
+        try:
+            print("Enabling PostGIS in public...")
+            cur.execute("CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;")
+        except Exception as e:
+            print(f"Warning: Could not enable PostGIS: {e}")
 
-    print("Deep Clean Complete.")
+    print("Clean Complete.")
     cur.close()
     conn.close()
 
 if __name__ == "__main__":
     clean_slate()
+
