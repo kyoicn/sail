@@ -349,9 +349,32 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
       }
 
 
-      // --- A. Draw Ticks ---
+      // --- A. Draw Ticks & Grid ---
       const ticks = generateTicks(currentViewRange.min, currentViewRange.max, width);
 
+      // 1. Draw Grid Lines (Subtle)
+      ctx.beginPath();
+      ticks.forEach(tick => {
+        const percent = (tick.value - currentViewRange.min) / span;
+        const x = TRACK_PAD + percent * DRAW_W;
+
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+      });
+
+      // Horizontal
+      const hSteps = 4;
+      for (let i = 1; i < hSteps; i++) {
+        const y = top + (bottom - top) * (i / hSteps);
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+      }
+
+      ctx.strokeStyle = 'rgba(15, 23, 42, 0.06)'; // Very light slate
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // 2. Draw Ticks (Bottom Labels)
       ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
@@ -361,7 +384,7 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
         const percent = (tick.value - currentViewRange.min) / span;
         const x = TRACK_PAD + percent * DRAW_W;
 
-        // Tick Line
+        // Tick Mark
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(15, 23, 42, 0.15)'; // slate-800/15
         ctx.lineWidth = 1;
