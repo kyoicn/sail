@@ -91,6 +91,36 @@ export const HEATMAP_STYLES: Record<string, HeatmapStyleConfig> = {
 };
 
 // --- Dot Styles Configuration ---
+export type DotShape = 'circle' | 'square' | 'diamond' | 'ring' | 'pulse';
+export type DotEffect = 'none' | 'glow' | 'shadow' | 'soft';
+
+export interface ShapeStyle {
+  borderRadius: string;
+  transform?: string;
+  className?: string;
+  isHollow?: boolean;
+  hasOuterWhiteBorder?: boolean;
+}
+
+export const SHAPE_CONFIGS: Record<DotShape, ShapeStyle> = {
+  'circle': { borderRadius: '50%' },
+  'square': { borderRadius: '4px' },
+  'diamond': { borderRadius: '2px', transform: 'rotate(45deg)' },
+  'ring': { borderRadius: '50%', isHollow: true, hasOuterWhiteBorder: true },
+  'pulse': { borderRadius: '50%', className: 'animate-pulse-slow' }
+};
+
+export interface EffectStyle {
+  getBoxShadow: (color: string) => string;
+}
+
+export const EFFECT_CONFIGS: Record<DotEffect, EffectStyle> = {
+  'none': { getBoxShadow: () => 'none' },
+  'glow': { getBoxShadow: (color) => `0 0 10px ${color}, 0 0 20px ${color}44` },
+  'shadow': { getBoxShadow: () => '2px 4px 8px rgba(0,0,0,0.5)' },
+  'soft': { getBoxShadow: () => '0 4px 12px rgba(0,0,0,0.15)' }
+};
+
 export interface DotStyleConfig {
   label: string;
   colors: {
@@ -98,15 +128,27 @@ export interface DotStyleConfig {
     mid: [number, number, number];
     end: [number, number, number];
   };
-  shape: 'circle' | 'square' | 'diamond' | 'ring' | 'pulse';
-  effect: 'none' | 'glow' | 'shadow' | 'soft';
+  shape: DotShape;
+  effect: DotEffect;
   sizeMultiplier: number;
   borderWidth: number;
 }
 
 export const DOT_STYLES: Record<string, DotStyleConfig> = {
   'classic': {
-    label: 'Classic (Cyan/Blue)',
+    label: 'Standard (Hollow Blue)',
+    colors: {
+      start: [34, 211, 238],
+      mid: [59, 130, 246],
+      end: [49, 46, 129]
+    },
+    shape: 'ring',
+    effect: 'soft',
+    sizeMultiplier: 1.0,
+    borderWidth: 4
+  },
+  'volcano': {
+    label: 'Container (Solid Blue)',
     colors: {
       start: [34, 211, 238],
       mid: [59, 130, 246],
@@ -114,18 +156,6 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
     },
     shape: 'circle',
     effect: 'soft',
-    sizeMultiplier: 1.0,
-    borderWidth: 2
-  },
-  'volcano': {
-    label: 'Volcano (Yellow/Red)',
-    colors: {
-      start: [253, 224, 71], // yellow-300
-      mid: [249, 115, 22],  // orange-500
-      end: [153, 27, 27]   // red-800
-    },
-    shape: 'pulse',
-    effect: 'glow',
     sizeMultiplier: 1.1,
     borderWidth: 1
   },

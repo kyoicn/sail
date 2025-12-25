@@ -1,43 +1,34 @@
 import { EventData } from '@sail/shared';
 import { formatEventDateRange } from '../../lib/time-engine';
 import { getLocationString } from '../../lib/utils';
-import { DotStyleConfig } from '../../lib/constants';
+import { DotStyleConfig, SHAPE_CONFIGS, EFFECT_CONFIGS } from '../../lib/constants';
 
 export const getDotHtml = (dotColor: string, size: number, style: DotStyleConfig): string => {
-    const finalSize = size * style.sizeMultiplier;
+    const finalSize = size;
 
-    let borderRadius = '50%';
-    let transform = '';
+    const shapeConfig = SHAPE_CONFIGS[style.shape] || SHAPE_CONFIGS['circle'];
+    const effectConfig = EFFECT_CONFIGS[style.effect] || EFFECT_CONFIGS['none'];
 
-    if (style.shape === 'square') {
-        borderRadius = '4px';
-    } else if (style.shape === 'diamond') {
-        borderRadius = '2px';
-        transform += 'rotate(45deg)';
-    }
+    const borderRadius = shapeConfig.borderRadius;
+    const transform = shapeConfig.transform || '';
+    const pulseClass = shapeConfig.className || '';
+    const boxShadow = style.effect === 'none' ? '0 2px 4px rgba(0,0,0,0.3)' : effectConfig.getBoxShadow(dotColor);
 
-    let boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
-    if (style.effect === 'glow') {
-        boxShadow = `0 0 10px ${dotColor}, 0 0 20px ${dotColor}44`;
-    } else if (style.effect === 'shadow') {
-        boxShadow = '2px 4px 8px rgba(0,0,0,0.5)';
-    } else if (style.effect === 'soft') {
-        boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-    }
-
-    const borderStyle = `${style.borderWidth}px solid white`;
-    const isRing = style.shape === 'ring';
-    const background = isRing ? 'transparent' : dotColor;
-    const ringBorder = isRing ? `${style.borderWidth + 1}px solid ${dotColor}` : borderStyle;
-
-    const pulseClass = style.shape === 'pulse' ? 'animate-pulse-slow' : '';
+    // [CENTRALIZED LOGIC] Consume properties from config
+    const background = shapeConfig.isHollow ? 'transparent' : dotColor;
+    const border = shapeConfig.isHollow
+        ? `${style.borderWidth + 1}px solid ${dotColor}`
+        : `${style.borderWidth}px solid white`;
+    const outline = shapeConfig.hasOuterWhiteBorder ? '1px solid white' : 'none';
 
     return `
         <div class="map-dot ${pulseClass}" style="
             width: ${finalSize}px; 
             height: ${finalSize}px; 
             background: ${background}; 
-            border: ${ringBorder}; 
+            border: ${border}; 
+            outline: ${outline};
+            outline-offset: -1px;
             border-radius: ${borderRadius}; 
             box-shadow: ${boxShadow};
             transform: ${transform};

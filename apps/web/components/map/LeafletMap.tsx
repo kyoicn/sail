@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { EventData, MapBounds } from '@sail/shared';
-import { PREDEFINED_REGIONS, HEATMAP_STYLES, DOT_STYLES } from '../../lib/constants';
+import { PREDEFINED_REGIONS, HEATMAP_STYLES, DOT_STYLES, DotStyleConfig } from '../../lib/constants';
 import { calculateSmartLayout } from '../../lib/layout-engine';
 import { toSliderValue, getAstroYear } from '../../lib/time-engine';
 import { getDotHtml, getLineHtml, getCardHtml } from './MarkerTemplates';
@@ -71,13 +71,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const prevVisualState = useRef({ zoom: initialZoom, span: 0, dotStyle: dotStyle });
 
   // Dynamic Color Interpolator
-  const getDotColor = (importance: number) => {
+  const getDotColor = (importance: number, style: DotStyleConfig) => {
     // Clamp 1-10
     const val = Math.max(1, Math.min(10, importance));
     // Normalize to 0-1
     const t = (val - 1) / 9;
 
-    const style = DOT_STYLES[dotStyle] || DOT_STYLES['classic'];
     const { start, mid, end } = style.colors;
 
     let r, g, b;
@@ -310,7 +309,21 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       const shouldShowCard = isExpanded || isHovered;
 
       let layers = layersMap.get(event.id);
-      const dotColor = getDotColor(event.importance || 1);
+
+      const isFocused = focusStack.length > 0 && focusStack[focusStack.length - 1] === event.id;
+      const isContainer = (event.children?.length ?? 0) > 0;
+
+      let styleKey = dotStyle; // Current global theme as fallback
+      if (isFocused) {
+        styleKey = 'sunset';
+      } else if (isContainer) {
+        styleKey = 'volcano';
+      } else {
+        styleKey = 'classic';
+      }
+
+      const style = DOT_STYLES[styleKey] || DOT_STYLES['classic'];
+      const dotColor = getDotColor(event.importance || 1, style);
 
       const span = viewRange.max - viewRange.min;
       const tTime = Math.max(0, Math.min(1, (span - 50) / (500 - 50)));
@@ -326,14 +339,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       const normalizedImp = (Math.max(1, Math.min(10, imp)) - 1) / 9;
 
       const rawSize = baseMin + (normalizedImp * (baseMax - baseMin));
-      const finalSize = rawSize * timeFactor;
+      // [FIX] Apply multiplier HERE so both visual and anchor use the same size
+      const finalSize = (rawSize * timeFactor) * style.sizeMultiplier;
 
-      const style = DOT_STYLES[dotStyle] || DOT_STYLES['classic'];
       const dotHtml = getDotHtml(dotColor, finalSize, style);
 
       if (!layers) {
-        const dotIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
-        const dotMarker = L.marker([event.location.lat, event.location.lng], { icon: dotIcon, zIndexOffset: 2000 }).addTo(map);
+        const dotIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize], iconAnchor: [finalSize / 2, finalSize / 2] });
+        const dotMarker = L.marker([event.location.lat, event.location.lng], { icon: dotIcon, zIndexOffset: isFocused ? 3000 : 2000 }).addTo(map);
 
         dotMarker.on('click', (e: any) => {
           L.DomEvent.stopPropagation(e);
@@ -348,17 +361,24 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       } else {
         const spanDiff = Math.abs((viewRange.max - viewRange.min) - prevVisualState.current.span);
         const zoomDiff = Math.abs(mapZoom - prevVisualState.current.zoom);
-        const needsVisualUpdate = spanDiff > 0.0001 || zoomDiff > 0.1 || prevVisualState.current.dotStyle !== dotStyle;
+        // Identify if the style key itself changed for this specific marker
+        const prevStyle = (layers.dot as any)._styleKey;
+        const styleChanged = prevStyle !== styleKey;
+        (layers.dot as any)._styleKey = styleKey;
+
+        const needsVisualUpdate = spanDiff > 0.0001 || zoomDiff > 0.1 || styleChanged || prevVisualState.current.dotStyle !== dotStyle;
 
         if (needsVisualUpdate) {
           // [PATCH] Prevent redundant DOM updates if HTML content is identical
           // This fixes micro-flickering during timeline/map slides
           const currentIcon = layers.dot.getIcon();
           if (!currentIcon || currentIcon.options.html !== dotHtml) {
-            const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize] });
+            const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize], iconAnchor: [finalSize / 2, finalSize / 2] });
             layers.dot.setIcon(newIcon);
           }
           layers.dot.setLatLng([event.location.lat, event.location.lng]);
+          if (isFocused) layers.dot.setZIndexOffset(3000);
+          else layers.dot.setZIndexOffset(2000);
         }
       }
 
