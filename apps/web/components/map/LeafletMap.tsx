@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { EventData, MapBounds } from '@sail/shared';
-import { PREDEFINED_REGIONS, HEATMAP_STYLES, DOT_STYLES, DotStyleConfig } from '../../lib/constants';
+import { PREDEFINED_REGIONS, HEATMAP_STYLES, DOT_STYLES, DotStyleConfig, MAP_STYLES } from '../../lib/constants';
 import { calculateSmartLayout } from '../../lib/layout-engine';
 import { toSliderValue, getAstroYear } from '../../lib/time-engine';
 import { getDotHtml, getLineHtml, getCardHtml } from './MarkerTemplates';
@@ -25,6 +25,7 @@ interface LeafletMapProps {
   setHoveredEventId: (id: string | null) => void;
   activeAreaShape?: any | null; // GeoJSON MultiPolygon
   theme: 'light' | 'dark';
+  mapStyle: string; // [NEW] key from MAP_STYLES
   // [NEW] Heatmap Props
   heatmapData: EventData[];
   showHeatmap: boolean;
@@ -53,6 +54,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   setHoveredEventId,
   activeAreaShape,
   theme,
+  mapStyle = 'voyager',
   heatmapData,
   showHeatmap,
   heatmapStyle = 'classic',
@@ -177,12 +179,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           maxBoundsViscosity: 1.0
         }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
 
-        const tileLayer = L.tileLayer(theme === 'dark'
-          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-          : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; CARTO',
-          subdomains: 'abcd',
-          maxZoom: 19,
+        const config = MAP_STYLES[mapStyle] || MAP_STYLES['voyager'];
+        const tileLayer = L.tileLayer(config.url, {
+          attribution: config.attribution,
+          subdomains: config.subdomains || 'abc',
+          maxZoom: config.maxZoom || 19,
           noWrap: true,
           bounds: [[-90, -180], [90, 180]]
         }).addTo(map);
@@ -245,18 +246,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     if (zoomAction.type === 'out') map.zoomOut();
   }, [zoomAction]);
 
+  // Update Tile Layer when mapStyle changes
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
     const map = mapInstanceRef.current;
     const tileLayer = (map as any)._tileLayer;
+    const config = MAP_STYLES[mapStyle] || MAP_STYLES['voyager'];
 
     if (tileLayer) {
-      tileLayer.setUrl(theme === 'dark'
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-      );
+      tileLayer.setUrl(config.url);
     }
-  }, [theme]);
+  }, [mapStyle]);
 
 
   useEffect(() => {

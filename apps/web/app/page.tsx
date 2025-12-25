@@ -5,6 +5,7 @@ import { Map as MapIcon, Layers, Loader2, Plus, Minus, Sun, Moon } from 'lucide-
 
 import { EventData, MapBounds } from '@sail/shared';
 import { LeafletMap } from '../components/map/LeafletMap';
+import { MapStyleSelector } from '../components/map/MapStyleSelector';
 import { Timeline } from '../components/timeline/Timeline';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';
 import { DebugHUD } from '../components/debug/DebugHUD';
@@ -29,9 +30,26 @@ function ChronoMapContent() {
   // ... (rest of imports are fine, just ensuring useEventsByIds is at top)
 
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [mapStyle, setMapStyle] = useState<string>('voyager');
+  const [isStyleSelectorOpen, setIsStyleSelectorOpen] = useState(false);
+  const layersButtonRef = useRef<HTMLButtonElement>(null);
 
+  // [NEW] Intelligent Theme Switching
+  // If user is on a "matching" map style, switch it automatically. 
+  // If they are on a custom one (e.g. Satellite), keep it.
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    setTheme(prev => {
+      const next = prev === 'light' ? 'dark' : 'light';
+
+      // Auto-switch map style if we are on the default for the *previous* theme
+      if (prev === 'light' && mapStyle === 'voyager') {
+        setMapStyle('dark_matter');
+      } else if (prev === 'dark' && mapStyle === 'dark_matter') {
+        setMapStyle('voyager');
+      }
+
+      return next;
+    });
   };
 
   // --- 1. Infrastructure & Config ---
@@ -429,7 +447,12 @@ function ChronoMapContent() {
             >
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
-            <button className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50">
+            <button
+              ref={layersButtonRef}
+              onClick={() => setIsStyleSelectorOpen(!isStyleSelectorOpen)}
+              className={`p-2.5 rounded-full text-slate-600 transition-all shadow-sm border border-white/50
+              ${isStyleSelectorOpen ? 'bg-blue-50 text-blue-600' : 'bg-white/90 backdrop-blur-md hover:text-blue-600 hover:bg-blue-50'}
+              `}>
               <Layers size={20} />
             </button>
             <div className="flex flex-col gap-px bg-white/90 backdrop-blur-md rounded-full shadow-sm border border-white/50 overflow-hidden">
@@ -451,6 +474,17 @@ function ChronoMapContent() {
         </div>
       </header>
 
+      <MapStyleSelector
+        isOpen={isStyleSelectorOpen}
+        onClose={() => setIsStyleSelectorOpen(false)}
+        currentStyle={mapStyle}
+        triggerRef={layersButtonRef}
+        onStyleSelect={(style) => {
+          setMapStyle(style);
+          // Optional: Create a "theme hint" in the map style config if we wanted to auto-switch UI theme too.
+        }}
+      />
+
       <main className="flex-grow relative z-0">
         <LeafletMap
           currentDate={currentDate}
@@ -470,6 +504,7 @@ function ChronoMapContent() {
           setHoveredEventId={setHoveredEventId}
           activeAreaShape={activeAreaShape}
           theme={theme}
+          mapStyle={mapStyle}
           heatmapData={spatiallyFilteredEvents}
           showHeatmap={showHeatmap}
           heatmapStyle={heatmapStyle}
