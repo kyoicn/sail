@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense, useRef } from 'react';
-import { Map as MapIcon, Layers, Loader2, Plus, Minus, Sun, Moon } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 import { EventData, MapBounds } from '@sail/shared';
 import { LeafletMap } from '../components/map/LeafletMap';
-import { MapStyleSelector } from '../components/map/MapStyleSelector';
+import { ChronoMapHeader } from '../components/ChronoMapHeader';
 import { Timeline } from '../components/timeline/Timeline';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';
 import { DebugHUD } from '../components/debug/DebugHUD';
@@ -20,23 +20,17 @@ import { useLOD } from '../hooks/useLOD';
 import { useEventFilter } from '../hooks/useEventFilter';
 import { useAreaShape } from '../hooks/useAreaShape';
 import { useFocus } from '../context/FocusContext';
-import { ZOOM_SCALES } from '../lib/time-engine';
 import { getBoundsForEvents } from '../lib/geo-engine';
 import { useEventsByIds } from '../hooks/useEventsByIds';
+import { usePlaybackEngine } from '../hooks/usePlaybackEngine';
 
 function ChronoMapContent() {
   const GLOBAL_MIN = -3000;
   const GLOBAL_MAX = 2024;
-  // ... (rest of imports are fine, just ensuring useEventsByIds is at top)
 
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [mapStyle, setMapStyle] = useState<string>('voyager');
-  const [isStyleSelectorOpen, setIsStyleSelectorOpen] = useState(false);
-  const layersButtonRef = useRef<HTMLButtonElement>(null);
 
-  // [NEW] Intelligent Theme Switching
-  // If user is on a "matching" map style, switch it automatically. 
-  // If they are on a custom one (e.g. Satellite), keep it.
   const toggleTheme = () => {
     setTheme(prev => {
       const next = prev === 'light' ? 'dark' : 'light';
@@ -100,8 +94,6 @@ function ChronoMapContent() {
   // [NEW] Playback State
   const [isPlaying, setIsPlaying] = useState(initialState.playing || false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const playbackRef = useRef<number | null>(null);
-  const lastTickRef = useRef<number>(0);
 
   // [NEW] Visual Layer Toggles
   const [showHeatmap, setShowHeatmap] = useState(true);
@@ -149,8 +141,6 @@ function ChronoMapContent() {
 
   // --- 3. Logic Pipelines ---
 
-
-
   // Unified Focus-Aware Data Fetching
   const activeFocusedEventId = focusStack.length > 0 ? focusStack[focusStack.length - 1] : null;
 
@@ -175,116 +165,31 @@ function ChronoMapContent() {
   const lodThreshold = useLOD(viewRange, mapViewport.zoom);
 
   // Filtering Pipeline
-  const { spatiallyFilteredEvents, renderableEvents: baseRenderableEvents } = useEventFilter(
+  const { spatiallyFilteredEvents, renderableEvents } = useEventFilter(
     allLoadedEvents, // [FIX] Use the merged list (Base + Forced), not just Base.
     mapBounds,
     lodThreshold,
     selectedEvent?.id,
-    focusedEvent
+    focusedEvent,
+    interactionMode,
+    currentDate,
+    viewRange,
+    expandedEventIds,
+    playedEventIds
   );
 
-  // [NEW] Playback Filtering: Only show events that have "happened" (start <= currentDate)
-  // But strictly filtering `renderableEvents` might cause popping.
-  const renderableEvents = useMemo(() => {
-    // Base set from LOD
-    let result = baseRenderableEvents;
-
-    // [FIX] Ensure Expanded OR Played Events are ALWAYS rendered (bypass LOD)
-    if (expandedEventIds.size > 0 || playedEventIds.size > 0) {
-      const missing = spatiallyFilteredEvents.filter(
-        e => (expandedEventIds.has(e.id) || playedEventIds.has(e.id)) && !result.some(r => r.id === e.id)
-      );
-      if (missing.length > 0) {
-        result = [...result, ...missing];
-      }
-    }
-
-    if (interactionMode === 'playback') {
-      // Playback Mode: Persistent Dots (Curtain Effect)
-      return result.filter(e => e.start.year <= currentDate && e.start.year >= viewRange.min);
-    }
-
-    if (interactionMode === 'investigation') {
-      // Investigation Mode: Transient Dots (Only visible when thumb is near)
-      const span = viewRange.max - viewRange.min;
-      const threshold = span * 0.01; // 1% tolerance
-      return result.filter(e => Math.abs(currentDate - e.start.year) <= threshold);
-    }
-
-    return result;
-  }, [baseRenderableEvents, isPlaying, currentDate, interactionMode, viewRange.min, viewRange.max, expandedEventIds, spatiallyFilteredEvents, playedEventIds]);
-
-  // [NEW] Manual Stepper Logic
-  const handleManualStep = React.useCallback(() => {
-    // Step aligned with Time Engine Zoom Scales
-    const span = viewRange.max - viewRange.min;
-    let stepSize = ZOOM_SCALES.MONTH;
-
-    if (span >= ZOOM_SCALES.MILLENNIUM * 2) stepSize = ZOOM_SCALES.CENTURY;
-    else if (span >= ZOOM_SCALES.CENTURY * 2) stepSize = ZOOM_SCALES.DECADE;
-    else if (span >= ZOOM_SCALES.DECADE * 2) stepSize = ZOOM_SCALES.YEAR;
-
-    setCurrentDate((prev: number) => {
-      const nextDate = prev + stepSize;
-
-      if (nextDate > viewRange.max) {
-        setIsPlaying(false);
-        return viewRange.max;
-      }
-
-      // Event Activation Logic
-      // [FIX] Scan spatiallyFilteredEvents (includes low importance) so we activate even small events
-      const newActiveEvents = spatiallyFilteredEvents.filter(e =>
-        e.start.year > prev && e.start.year <= nextDate
-      );
-
-      if (newActiveEvents.length > 0) {
-        setExpandedEventIds((prevSet: Set<string>) => {
-          const next = new Set(prevSet);
-          newActiveEvents.forEach(e => next.add(e.id));
-          return next;
-        });
-
-        // [FIX] Add to Played Events (Persistent Dots)
-        setPlayedEventIds(prevSet => {
-          const next = new Set(prevSet);
-          newActiveEvents.forEach(e => next.add(e.id));
-          return next;
-        });
-
-        // Schedule Auto-Close for events without end date (2 seconds)
-        newActiveEvents.forEach(event => {
-          const hasDuration = event.end && event.end.year > event.start.year;
-          if (!hasDuration) {
-            setTimeout(() => {
-              setExpandedEventIds(current => {
-                const next = new Set(current);
-                next.delete(event.id);
-                return next;
-              });
-            }, 2000);
-          }
-        });
-      }
-
-      // Collapse Events with End Dates that have passed
-      setExpandedEventIds(prevSet => {
-        const next = new Set(prevSet);
-        let changed = false;
-        prevSet.forEach(id => {
-          const event = baseRenderableEvents.find(e => e.id === id);
-          if (event && event.end && event.end.year <= nextDate) {
-            next.delete(id);
-            changed = true;
-          }
-        });
-        return changed ? next : prevSet;
-      });
-
-      return nextDate;
-    });
-
-  }, [viewRange, spatiallyFilteredEvents, baseRenderableEvents]);
+  // Playback Engine
+  const { handleManualStep } = usePlaybackEngine({
+    setCurrentDate,
+    viewRange,
+    isPlaying,
+    setIsPlaying,
+    playbackSpeed,
+    interactionMode,
+    spatiallyFilteredEvents,
+    setExpandedEventIds,
+    setPlayedEventIds
+  });
 
   // [NEW] Focus Mode Handlers
   const handleEnterFocusMode = (event: EventData) => {
@@ -333,28 +238,6 @@ function ChronoMapContent() {
       }
     }
   }, [focusedEvent?.id]); // Runs when the identity of the focused event changes
-
-  // [NEW] Auto-Play Loop
-  useEffect(() => {
-    if (interactionMode !== 'playback' || !isPlaying) return;
-
-    const interval = setInterval(() => {
-      handleManualStep();
-    }, 1000 / playbackSpeed);
-
-    return () => clearInterval(interval);
-  }, [interactionMode, isPlaying, handleManualStep, playbackSpeed]);
-
-  // Interaction Interrupts Play Mode
-  useEffect(() => {
-    if (isPlaying) {
-      setIsPlaying(false);
-    }
-  }, [mapViewport, viewRange]);
-
-
-
-
 
   // [NEW] Logic to determine which event's shape to render
   // Priority: Selected Event (Side Panel) -> Expanded Event (Card)
@@ -435,79 +318,14 @@ function ChronoMapContent() {
         dataset={dataset}
       />
 
-      <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
-        <div className="w-full flex justify-between items-start">
-          <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 pointer-events-auto border border-white/50 flex items-center gap-3">
-            <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
-              <MapIcon className="text-blue-600 w-6 h-6" />
-              Sail
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
-            </h1>
-
-
-
-            {isLoading && (
-              <div className="flex items-center gap-2 px-2 border-l border-slate-200">
-                <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
-                <span className="text-xs text-slate-500 font-medium">Updating...</span>
-              </div>
-            )}
-
-            {dataset !== 'prod' && (
-              <span className={`text-[10px] font-mono px-1 rounded border uppercase tracking-wider
-                ${dataset === 'staging'
-                  ? 'text-blue-600 bg-blue-100 border-blue-200'
-                  : 'text-orange-600 bg-orange-100 border-orange-200'
-                }
-              `}>
-                DATA: {dataset.toUpperCase()}
-              </span>
-            )}
-          </div>
-          <div className="pointer-events-auto flex flex-col gap-2">
-            <button
-              onClick={toggleTheme}
-              className="bg-white/90 backdrop-blur-md p-2.5 rounded-full text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm border border-white/50"
-              title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-            >
-              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
-            <button
-              ref={layersButtonRef}
-              onClick={() => setIsStyleSelectorOpen(!isStyleSelectorOpen)}
-              className={`p-2.5 rounded-full text-slate-600 transition-all shadow-sm border border-white/50
-              ${isStyleSelectorOpen ? 'bg-blue-50 text-blue-600' : 'bg-white/90 backdrop-blur-md hover:text-blue-600 hover:bg-blue-50'}
-              `}>
-              <Layers size={20} />
-            </button>
-            <div className="flex flex-col gap-px bg-white/90 backdrop-blur-md rounded-full shadow-sm border border-white/50 overflow-hidden">
-              <button
-                onClick={() => handleZoomClick('in')}
-                className="p-2.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all"
-              >
-                <Plus size={20} />
-              </button>
-              <div className="h-px bg-slate-200 mx-2" />
-              <button
-                onClick={() => handleZoomClick('out')}
-                className="p-2.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-all"
-              >
-                <Minus size={20} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <MapStyleSelector
-        isOpen={isStyleSelectorOpen}
-        onClose={() => setIsStyleSelectorOpen(false)}
-        currentStyle={mapStyle}
-        triggerRef={layersButtonRef}
-        onStyleSelect={(style) => {
-          setMapStyle(style);
-          // Optional: Create a "theme hint" in the map style config if we wanted to auto-switch UI theme too.
-        }}
+      <ChronoMapHeader
+        dataset={dataset}
+        isLoading={isLoading}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        mapStyle={mapStyle}
+        setMapStyle={setMapStyle}
+        onZoom={handleZoomClick}
       />
 
       <main className="flex-grow relative z-0">
