@@ -123,6 +123,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 /* transform: scale(1.2) !important; REMOVED */
                 z-index: 9999;
             }
+            .leaflet-dot-wrapper {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
             .card-wrapper {
                 will-change: transform;
             }
@@ -356,8 +361,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
       const dotHtml = getDotHtml(dotColor, finalSize, style);
 
+      // [OPTIMIZATION] Use a fixed wrapper size to prevent Leaflet from thrashing the DOM (flickering) when size changes.
+      // We center the dot using flexbox in the wrapper.
+      const WRAPPER_SIZE = 60;
+
       if (!layers) {
-        const dotIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize], iconAnchor: [finalSize / 2, finalSize / 2] });
+        // Initial creation
+        const dotIcon = L.divIcon({
+          className: 'leaflet-dot-wrapper',
+          html: dotHtml,
+          iconSize: [WRAPPER_SIZE, WRAPPER_SIZE],
+          iconAnchor: [WRAPPER_SIZE / 2, WRAPPER_SIZE / 2]
+        });
         const dotMarker = L.marker([event.location.lat, event.location.lng], { icon: dotIcon, zIndexOffset: isFocused ? 3000 : 2000 }).addTo(map);
 
         dotMarker.on('click', (e: any) => {
@@ -373,7 +388,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       } else {
         const spanDiff = Math.abs((viewRange.max - viewRange.min) - prevVisualState.current.span);
         const zoomDiff = Math.abs(mapZoom - prevVisualState.current.zoom);
-        // Identify if the style key itself changed for this specific marker
         const prevStyle = (layers.dot as any)._styleKey;
         const styleChanged = prevStyle !== styleKey;
         (layers.dot as any)._styleKey = styleKey;
@@ -381,17 +395,19 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const needsVisualUpdate = spanDiff > 0.0001 || zoomDiff > 0.1 || styleChanged || prevVisualState.current.dotStyle !== dotStyle;
 
         if (needsVisualUpdate) {
-          // [PATCH] Prevent redundant DOM updates if HTML content is identical
-          // This fixes micro-flickering during timeline/map slides
-          const currentIcon = layers.dot.getIcon();
-          if (!currentIcon || currentIcon.options.html !== dotHtml) {
-            const newIcon = L.divIcon({ className: '', html: dotHtml, iconSize: [finalSize, finalSize], iconAnchor: [finalSize / 2, finalSize / 2] });
-            layers.dot.setIcon(newIcon);
+          // [PATCH] Directly update innerHTML to avoid Leaflet setIcon() flicker
+          const el = layers.dot.getElement();
+          if (el) {
+            // Only update if content changed (though needsVisualUpdate suggests it did)
+            // We can check slightly cheaper strictly on html string if needed, but innerHTML set is fast enough compared to setIcon replacement.
+            if (el.innerHTML !== dotHtml) {
+              el.innerHTML = dotHtml;
+            }
           }
-          layers.dot.setLatLng([event.location.lat, event.location.lng]);
-          if (isFocused) layers.dot.setZIndexOffset(3000);
-          else layers.dot.setZIndexOffset(2000);
         }
+        layers.dot.setLatLng([event.location.lat, event.location.lng]);
+        if (isFocused) layers.dot.setZIndexOffset(3000);
+        else layers.dot.setZIndexOffset(2000);
       }
 
       if (shouldShowCard) {
