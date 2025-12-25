@@ -48,6 +48,23 @@ export const getLineHtml = (length: number, angle: number, color: string): strin
     `;
 };
 
+export const getArrowHtml = (color: string, angle: number): string => {
+    return `
+        <div style="
+            transform: rotate(${angle}deg); 
+            width: 12px; 
+            height: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="${color}" style="opacity: 0.8;">
+                <path d="M0,0 L12,6 L0,12 L2,6 z" />
+            </svg>
+        </div>
+    `;
+};
+
 export const getCardHtml = (
     event: EventData,
     x: number,

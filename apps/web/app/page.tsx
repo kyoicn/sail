@@ -370,6 +370,31 @@ function ChronoMapContent() {
 
   const { shape: activeAreaShape } = useAreaShape(activeEventForShape?.location?.areaId, dataset);
 
+  // [NEW] Sequence Events (Focus Mode)
+  // Get direct children of the focused event for drawing connecting lines, even if off-screen.
+  const sequenceEvents = useMemo(() => {
+    if (!contextFocusedEvent || !contextFocusedEvent.children) return [];
+
+    // We rely on loadedEventsBySource which contains the forced-fetched children from useFocusData.
+    // Note: getAstroYear is needed for sorting.
+    // We can import it or just use simple comparison if years are standard numbers.
+    // But let's assume simple start.year sort for now as top-level layout does.
+    // Actually, let's use a safe sort.
+
+    const children = contextFocusedEvent.children
+      .map(childId => loadedEventsBySource.get(childId))
+      .filter((e): e is EventData => !!e);
+
+    children.sort((a, b) => {
+      // Simple sort by astro year or year
+      const yA = a.start.astro_year ?? a.start.year;
+      const yB = b.start.astro_year ?? b.start.year;
+      return yA - yB;
+    });
+
+    return children;
+  }, [contextFocusedEvent, loadedEventsBySource]);
+
   // Debug Info
   const isGlobalViewGuess = useMemo(() => {
     if (!mapBounds) return false;
@@ -512,6 +537,7 @@ function ChronoMapContent() {
           dotStyle={dotStyle}
           onEnterFocusMode={handleEnterFocusMode}
           focusStack={focusStack}
+          sequenceEvents={sequenceEvents}
         />
       </main>
 

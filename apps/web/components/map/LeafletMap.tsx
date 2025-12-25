@@ -3,7 +3,7 @@ import { EventData, MapBounds } from '@sail/shared';
 import { PREDEFINED_REGIONS, HEATMAP_STYLES, DOT_STYLES, DotStyleConfig, MAP_STYLES } from '../../lib/constants';
 import { calculateSmartLayout } from '../../lib/layout-engine';
 import { toSliderValue, getAstroYear } from '../../lib/time-engine';
-import { getDotHtml, getLineHtml, getCardHtml } from './MarkerTemplates';
+import { getDotHtml, getLineHtml, getCardHtml, getArrowHtml } from './MarkerTemplates';
 
 declare const L: any;
 
@@ -34,6 +34,7 @@ interface LeafletMapProps {
   dotStyle?: string;
   onEnterFocusMode?: (event: EventData) => void;
   focusStack?: string[];
+  sequenceEvents?: EventData[]; // [NEW] Full list for connecting lines
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -61,11 +62,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   showDots,
   dotStyle = 'classic',
   onEnterFocusMode,
-  focusStack = []
+  focusStack = [],
+  sequenceEvents = [] // Default empty
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const layersMapRef = useRef<Map<string, { dot: any, card?: any, line?: any, shape?: any }>>(new Map());
+  const layersMapRef = useRef<Map<string, { dot: any, card?: any, line?: any, shape?: any, sequenceLine?: any, sequenceArrow?: any }>>(new Map());
   const [mapZoom, setMapZoom] = useState(initialZoom);
   const [isHeatLoaded, setIsHeatLoaded] = useState(false); // [NEW] Track lib loading
 
@@ -298,6 +300,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const expandedActiveEvents = eventsToRender.filter(e => expandedEventIds.has(e.id));
     const layoutMap = calculateSmartLayout(expandedActiveEvents, map);
 
+    // [REMOVED] Sort for sequence lines (now handled by sequenceEvents prop)
+
+
     layersMap.forEach((layerGroup, eventId) => {
       const isActive = eventsToRender.find(ae => ae.id === eventId);
       const isExpanded = expandedEventIds.has(eventId);
@@ -309,6 +314,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         if (layerGroup.card) layerGroup.card.remove();
         if (layerGroup.line) layerGroup.line.remove();
         if (layerGroup.shape) layerGroup.shape.remove();
+        if (layerGroup.sequenceLine) { layerGroup.sequenceLine.remove(); delete layerGroup.sequenceLine; }
+        if (layerGroup.sequenceArrow) { layerGroup.sequenceArrow.remove(); delete layerGroup.sequenceArrow; }
         layersMap.delete(eventId);
         return;
       }
@@ -320,7 +327,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     });
 
-    eventsToRender.forEach(event => {
+    // Create a map of index for quick lookup
+    const eventIndexMap = new Map<string, number>();
+    eventsToRender.forEach((e, i) => eventIndexMap.set(e.id, i));
+
+    eventsToRender.forEach((event, index) => {
       const isExpanded = expandedEventIds.has(event.id);
       const isHovered = hoveredEventId === event.id;
       const shouldShowCard = isExpanded || isHovered;
@@ -514,6 +525,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           }
         }
       }
+
+      // [REMOVED] Sequence Lines (Moved to separate effect)
+
     });
 
     prevVisualState.current = {
@@ -523,6 +537,86 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     };
 
   }, [currentDate, events, dynamicThreshold, jumpTargetId, mapZoom, expandedEventIds, interactionMode, viewRange.min, viewRange.max, hoveredEventId, showDots, dotStyle]);
+
+  // [NEW] Separate Effect for Persistent Sequence Lines (Focus Mode)
+  // This draws lines between all children of the focused event, regardless of visibility.
+  const sequenceLayerRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L) return;
+    const map = mapInstanceRef.current;
+    const L = window.L as any;
+
+    // 1. Cleanup old sequence layers
+    sequenceLayerRef.current.forEach(layer => layer.remove());
+    sequenceLayerRef.current = [];
+
+    // 2. Sorting (Safety check, though page.tsx should handle it)
+    // We assume sequenceEvents is already sorted by page.tsx
+
+    // 3. Render Lines
+    if (sequenceEvents.length > 1) {
+      for (let i = 0; i < sequenceEvents.length - 1; i++) {
+        const event = sequenceEvents[i];
+        const nextEvent = sequenceEvents[i + 1];
+
+        const startLatLng = [event.location.lat, event.location.lng];
+        const endLatLng = [nextEvent.location.lat, nextEvent.location.lng];
+        const color = '#3b82f6'; // Fixed blue color for sequence lines or reuse dot style logic?
+
+        // Draw Line
+        const polyline = L.polyline([startLatLng, endLatLng], {
+          color: color,
+          weight: 2,
+          opacity: 0.5,
+          dashArray: '6, 8',
+          pane: 'linesPane'
+        }).addTo(map);
+        sequenceLayerRef.current.push(polyline);
+
+        // Draw Arrow (Midpoint) using Projection
+        const p1Layer = map.latLngToLayerPoint(L.latLng(startLatLng));
+        const p2Layer = map.latLngToLayerPoint(L.latLng(endLatLng));
+        const midPoint = p1Layer.add(p2Layer).divideBy(2);
+        const midLatLng = map.layerPointToLatLng(midPoint);
+
+        // Calculate Angle
+        const p1Container = map.latLngToContainerPoint(L.latLng(startLatLng));
+        const p2Container = map.latLngToContainerPoint(L.latLng(endLatLng));
+        const angle = Math.atan2(p2Container.y - p1Container.y, p2Container.x - p1Container.x) * (180 / Math.PI);
+
+        const arrowHtml = getArrowHtml(color, angle);
+
+        const arrowIcon = L.divIcon({
+          className: '',
+          html: arrowHtml,
+          iconSize: [12, 12],
+          iconAnchor: [6, 6]
+        });
+
+        const arrowMarker = L.marker([midLatLng.lat, midLatLng.lng], {
+          icon: arrowIcon,
+          pane: 'linesPane',
+          zIndexOffset: -100
+        }).addTo(map);
+
+        sequenceLayerRef.current.push(arrowMarker);
+      }
+    }
+
+  }, [sequenceEvents, mapZoom]); // Re-render when zoom changes to update projected midpoints/angles?
+  // Note: midpoints and angles update on zoom/move automatically for markers, 
+  // BUT the angle calculation depends on screen coordinates which change on rotation (if enabled) or projection.
+  // Standard Leaflet markers update position on zoom. 
+  // HOWEVER, we bake the 'angle' into the HTML style. 
+  // Does Leaflet re-render the icon on zoom? No, it just moves it.
+  // So if the map rotates or the angle changes due to projection distortion (Mercator preserves angles locally though),
+  // we might need to update. Mercator makes conformal angles, so angle should be constant?
+  // Actually, on zoom, the screen coordinates change but relative angle stays same in Mercator?
+  // Let's rely on Leaflet moveend to re-calc?
+  // For now, dependency on mapZoom re-triggers full redraw which is safe but expensive.
+  // Ideally we hook into 'viewreset' or 'move' but that's what map re-renders usually do.
+
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.L) return;
