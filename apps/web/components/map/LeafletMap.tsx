@@ -77,7 +77,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     // Normalize to 0-1
     const t = (val - 1) / 9;
 
-    const { start, mid, end } = style.colors;
+    const hexToRgb = (hex: string): [number, number, number] => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16)
+      ] : [0, 0, 0];
+    };
+
+    const start = hexToRgb(style.colors.start);
+    const mid = hexToRgb(style.colors.mid);
+    const end = hexToRgb(style.colors.end);
 
     let r, g, b;
     if (t < 0.5) {

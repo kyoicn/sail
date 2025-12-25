@@ -124,9 +124,9 @@ export const EFFECT_CONFIGS: Record<DotEffect, EffectStyle> = {
 export interface DotStyleConfig {
   label: string;
   colors: {
-    start: [number, number, number];
-    mid: [number, number, number];
-    end: [number, number, number];
+    start: string;
+    mid: string;
+    end: string;
   };
   shape: DotShape;
   effect: DotEffect;
@@ -138,9 +138,9 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
   'classic': {
     label: 'Standard (Hollow Blue)',
     colors: {
-      start: [34, 211, 238],
-      mid: [59, 130, 246],
-      end: [49, 46, 129]
+      start: '#60a5fa', // blue-400 (was cyan-400 #22d3ee)
+      mid: '#2563eb',   // blue-600 (was blue-500 #3b82f6)
+      end: '#1e40af'    // blue-800 (was indigo-900 #312e81)
     },
     shape: 'ring',
     effect: 'soft',
@@ -150,9 +150,9 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
   'volcano': {
     label: 'Container (Solid Blue)',
     colors: {
-      start: [34, 211, 238],
-      mid: [59, 130, 246],
-      end: [49, 46, 129]
+      start: '#60a5fa', // blue-400
+      mid: '#2563eb',   // blue-600
+      end: '#1e40af'    // blue-800
     },
     shape: 'circle',
     effect: 'soft',
@@ -162,9 +162,9 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
   'emerald': {
     label: 'Emerald (Square)',
     colors: {
-      start: [190, 242, 100], // lime-300
-      mid: [20, 184, 166],    // teal-500
-      end: [19, 78, 74]       // teal-900
+      start: '#bef264', // lime-300
+      mid: '#14b8a6',    // teal-500
+      end: '#134e4a'       // teal-900
     },
     shape: 'square',
     effect: 'shadow',
@@ -174,9 +174,9 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
   'sunset': {
     label: 'Sunset (Diamond Glow)',
     colors: {
-      start: [249, 168, 212], // pink-300
-      mid: [168, 85, 247],    // purple-500
-      end: [88, 28, 135]      // purple-900
+      start: '#f9a8d4', // pink-300
+      mid: '#a855f7',    // purple-500
+      end: '#581c87'      // purple-900
     },
     shape: 'diamond',
     effect: 'glow',
@@ -186,9 +186,9 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
   'ghost': {
     label: 'Techno (Outer Ring)',
     colors: {
-      start: [165, 180, 252], // indigo-300
-      mid: [99, 102, 241],    // indigo-500
-      end: [55, 48, 163]      // indigo-900
+      start: '#a5b4fc', // indigo-300
+      mid: '#6366f1',    // indigo-500
+      end: '#3730a3'      // indigo-900
     },
     shape: 'ring',
     effect: 'none',
@@ -198,9 +198,9 @@ export const DOT_STYLES: Record<string, DotStyleConfig> = {
   'slate': {
     label: 'Slate (Muted)',
     colors: {
-      start: [203, 213, 225], // slate-300
-      mid: [71, 85, 105],     // slate-600
-      end: [15, 23, 42]       // slate-900
+      start: '#cbd5e1', // slate-300
+      mid: '#475569',     // slate-600
+      end: '#0f172a'       // slate-900
     },
     shape: 'circle',
     effect: 'none',
