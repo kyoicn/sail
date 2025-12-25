@@ -339,7 +339,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
       const span = viewRange.max - viewRange.min;
       const tTime = Math.max(0, Math.min(1, (span - 50) / (500 - 50)));
-      const timeFactor = 1.5 - (tTime * 0.7);
+      const timeFactor = 1.1 - (tTime * 0.2);
 
       const zoomClamped = Math.max(2, Math.min(12, mapZoom));
       const tZoom = (zoomClamped - 2) / 10;
