@@ -167,3 +167,16 @@ export interface HistoricalPeriod {
   end_astro_year: number;
   importance: number;
 }
+
+export interface EventCore {
+  title: string;
+  summary: string;
+  imageUrl?: string;
+  // Use Partial for flexibility during extraction
+  start_time: Partial<ChronosTime>;
+  end_time?: Partial<ChronosTime>;
+  // Use loose location to allow missing lat/lng if unknown
+  location: Partial<ChronosLocation>;
+  importance: number;
+  sources?: Partial<EventSource>[];
+}

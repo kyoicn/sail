@@ -73,6 +73,7 @@ export default function ExtractorPage() {
   const [provider, setProvider] = useState<'ollama' | 'gemini'>('ollama');
   const [model, setModel] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
@@ -89,17 +90,48 @@ export default function ExtractorPage() {
 
   const handleExtract = async () => {
     setIsProcessing(true);
+    setLogs([]);
     try {
       const res = await fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inputType, content, provider, model }),
       });
+
       if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setEvents(data.events || []);
+      if (!res.body) throw new Error('No response body');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+            if (data.type === 'log') {
+              setLogs(prev => [...prev, data.message]);
+            } else if (data.type === 'result') {
+              setEvents(data.events || []);
+            } else if (data.type === 'error') {
+              throw new Error(data.message);
+            }
+          } catch (e) {
+            console.error('Parse error', line);
+          }
+        }
+      }
     } catch (e: any) {
-      alert(`Extraction Failed: ${e.message}`);
+      console.error(e);
+      setLogs(prev => [...prev, `Error: ${e.message}`]);
     } finally {
       setIsProcessing(false);
     }
@@ -117,7 +149,8 @@ export default function ExtractorPage() {
       const data = await res.json();
       setEvents(data.events || events);
     } catch (e: any) {
-      alert(`Enrichment Failed: ${e.message}`);
+      console.error(e);
+      setLogs(prev => [...prev, `Enrichment Failed: ${e.message}`]);
     } finally {
       setIsProcessing(false);
     }
@@ -134,9 +167,10 @@ export default function ExtractorPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      alert(`Successfully saved ${data.count} events!`);
+      setLogs(prev => [...prev, `Successfully saved ${data.count} events!`]);
     } catch (e: any) {
-      alert(`Submission Failed: ${e.message}`);
+      console.error(e);
+      setLogs(prev => [...prev, `Submission Failed: ${e.message}`]);
     } finally {
       setIsProcessing(false);
     }
@@ -191,7 +225,7 @@ export default function ExtractorPage() {
           <select
             value={provider}
             onChange={e => setProvider(e.target.value as any)}
-            className="border border-gray-300 rounded-md text-sm px-3 py-1.5 focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-300 rounded-md text-sm px-3 py-1.5 focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
           >
             <option value="ollama">Local (Ollama)</option>
             <option value="gemini">API (Gemini)</option>
@@ -201,7 +235,7 @@ export default function ExtractorPage() {
             placeholder="Model (optional)"
             value={model}
             onChange={e => setModel(e.target.value)}
-            className="border border-gray-300 rounded-md text-sm px-3 py-1.5 w-32 focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-300 rounded-md text-sm px-3 py-1.5 w-32 focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
           />
         </div>
       </header>
@@ -233,14 +267,14 @@ export default function ExtractorPage() {
               {inputType === 'url' ? (
                 <input
                   type="url"
-                  className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-white"
                   placeholder="https://en.wikipedia.org/wiki/..."
                   value={content}
                   onChange={e => setContent(e.target.value)}
                 />
               ) : (
                 <textarea
-                  className="flex-1 border border-gray-300 rounded-md px-4 py-2 h-24 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  className="flex-1 border border-gray-300 rounded-md px-4 py-2 h-24 focus:ring-2 focus:ring-blue-500 outline-none resize-none text-gray-900 bg-white"
                   placeholder="Paste historical text here..."
                   value={content}
                   onChange={e => setContent(e.target.value)}
@@ -254,6 +288,15 @@ export default function ExtractorPage() {
                 {isProcessing ? <Loader2 className="animate-spin w-4 h-4" /> : <Wand2 className="w-4 h-4" />}
                 Extract
               </button>
+            </div>
+
+            {/* Processing Logs */}
+            <div className="mt-4 bg-gray-900 rounded-md p-3 font-mono text-xs text-green-400 h-32 overflow-y-auto">
+              {logs.length === 0 && !isProcessing && <div className="text-gray-500 italic">Ready to process...</div>}
+              {logs.map((log, i) => (
+                <div key={i}>{log}</div>
+              ))}
+              {isProcessing && <div className="animate-pulse">_</div>}
             </div>
           </div>
 
@@ -323,7 +366,7 @@ export default function ExtractorPage() {
                           type="number"
                           value={event.start.year}
                           onChange={e => updateEvent(event.id, 'start.year', parseInt(e.target.value))}
-                          className="w-full bg-white border border-gray-200 rounded px-1 text-center"
+                          className="w-full bg-white border border-gray-200 rounded px-1 text-center text-gray-900"
                         />
                       </div>
                       <div>
@@ -331,7 +374,7 @@ export default function ExtractorPage() {
                         <select
                           value={event.start.precision}
                           onChange={e => updateEvent(event.id, 'start.precision', e.target.value)}
-                          className="w-full bg-white border border-gray-200 rounded px-1 text-[10px]"
+                          className="w-full bg-white border border-gray-200 rounded px-1 text-[10px] text-gray-900"
                         >
                           {['millennium', 'century', 'decade', 'year', 'month', 'day', 'hour', 'minute'].map(p => (
                             <option key={p} value={p}>{p}</option>
@@ -351,7 +394,7 @@ export default function ExtractorPage() {
                         value={event.location.placeName || ''}
                         onChange={e => updateEvent(event.id, 'location.placeName', e.target.value)}
                         placeholder="Place Name"
-                        className="w-full bg-white border border-gray-200 rounded px-1 text-xs mb-1"
+                        className="w-full bg-white border border-gray-200 rounded px-1 text-xs mb-1 text-gray-900"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -362,7 +405,7 @@ export default function ExtractorPage() {
                           step="0.0001"
                           value={event.location.lat || 0}
                           onChange={e => updateEvent(event.id, 'location.lat', parseFloat(e.target.value))}
-                          className="w-full bg-white border border-gray-200 rounded px-1 text-center text-xs"
+                          className="w-full bg-white border border-gray-200 rounded px-1 text-center text-xs text-gray-900"
                         />
                       </div>
                       <div>
@@ -372,7 +415,7 @@ export default function ExtractorPage() {
                           step="0.0001"
                           value={event.location.lng || 0}
                           onChange={e => updateEvent(event.id, 'location.lng', parseFloat(e.target.value))}
-                          className="w-full bg-white border border-gray-200 rounded px-1 text-center text-xs"
+                          className="w-full bg-white border border-gray-200 rounded px-1 text-center text-xs text-gray-900"
                         />
                       </div>
                     </div>
