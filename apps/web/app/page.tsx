@@ -39,7 +39,7 @@ function ChronoMapContent() {
 
   // --- 2. State & URL Sync ---
   const { getInitialState, updateUrl } = useUrlSync({
-    lat: 48.8566, lng: 2.3522, zoom: 11, year: 2024, start: GLOBAL_MIN, end: GLOBAL_MAX
+    lat: 20.0, lng: 0.0, zoom: 3, year: 2024, start: GLOBAL_MIN, end: GLOBAL_MAX
   });
   const initialState = getInitialState();
 
@@ -294,8 +294,8 @@ function ChronoMapContent() {
         const centerLat = (newBounds.north + newBounds.south) / 2;
         const centerLng = (newBounds.east + newBounds.west) / 2;
         const maxSpan = Math.max(latSpan, lngSpan);
-        // [FIX] If point event (maxSpan=0), keep current zoom if deeper than 11, else zoom to 11.
-        let zoom = Math.max(11, mapViewport.zoom);
+        // [FIX] Respect user's current zoom level. Do not force an arbitrary zoom.
+        let zoom = mapViewport.zoom;
         if (maxSpan > 0) {
           zoom = Math.floor(Math.log2(360 / maxSpan)) + 1;
           zoom = Math.min(Math.max(zoom, 2), 16);
