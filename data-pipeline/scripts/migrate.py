@@ -71,9 +71,7 @@ def get_connection():
 
 def resolve_schema(env_name: str) -> str:
     """Methods mapping environment names to postgres schemas."""
-    if env_name == 'prod':
-        return 'public'
-    if env_name in ['dev', 'staging']:
+    if env_name in ['prod', 'dev', 'staging']:
         return env_name
     raise ValueError(f"Unknown environment: {env_name}")
 

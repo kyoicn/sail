@@ -58,10 +58,7 @@ def clean_slate():
     # Determine targets
     target_schemas = []
     for inst in requested_instances:
-        if inst == 'prod':
-            target_schemas.append('public')
-        else:
-            target_schemas.append(inst)
+        target_schemas.append(inst)
             
     warning_list = ", ".join(target_schemas)
     warning_msg = f"This script will DESTROY ALL DATA in schema(s): {warning_list}."
@@ -88,19 +85,17 @@ def clean_slate():
         print(f"Dropping schema {s}...")
         cur.execute(f"DROP SCHEMA IF EXISTS {s} CASCADE;")
     
-    # Special handling for public/prod
-    if 'public' in target_schemas:
-        print("Recreating empty public schema...")
-        cur.execute("CREATE SCHEMA public;")
-        cur.execute("GRANT ALL ON SCHEMA public TO postgres;") 
-        cur.execute("GRANT ALL ON SCHEMA public TO public;")
-        
-        # PostGIS (Safe create in public)
-        try:
-            print("Enabling PostGIS in public...")
-            cur.execute("CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;")
-        except Exception as e:
-            print(f"Warning: Could not enable PostGIS: {e}")
+    # Always ensure public exists and has PostGIS (never drop public!)
+    print("Ensuring public schema and PostGIS exist...")
+    cur.execute("CREATE SCHEMA IF NOT EXISTS public;")
+    cur.execute("GRANT ALL ON SCHEMA public TO postgres;") 
+    cur.execute("GRANT ALL ON SCHEMA public TO public;")
+    
+    # PostGIS (Safe create in public)
+    try:
+        cur.execute("CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;")
+    except Exception as e:
+        print(f"Warning: Could not enable PostGIS: {e}")
 
     print("Clean Complete.")
     cur.close()

@@ -87,11 +87,8 @@ class BasePopulator(Generic[T]):
         return all_raw_items
 
     def get_table_name(self, instance: str) -> str:
-        if instance == 'prod':
-            schema = 'public'
-        else:
-            schema = instance
-        return f'"{schema}".{self.default_table_name}'
+        # direct mapping: prod -> prod schema
+        return f'"{instance}".{self.default_table_name}'
 
     def run(self):
         args = self.parse_args()
