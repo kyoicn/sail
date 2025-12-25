@@ -39,15 +39,15 @@ function ChronoMapContent() {
 
   // --- 2. State & URL Sync ---
   const { getInitialState, updateUrl } = useUrlSync({
-    lat: 48.8566, lng: 2.3522, zoom: 11, year: 2024, span: GLOBAL_MAX - GLOBAL_MIN
+    lat: 48.8566, lng: 2.3522, zoom: 11, year: 2024, start: GLOBAL_MIN, end: GLOBAL_MAX
   });
   const initialState = getInitialState();
 
   const [currentDate, setCurrentDate] = useState(initialState.year);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [viewRange, setViewRange] = useState({
-    min: Math.max(GLOBAL_MIN, initialState.year - (initialState.span / 2)),
-    max: Math.min(GLOBAL_MAX, initialState.year + (initialState.span / 2))
+    min: initialState.start,
+    max: initialState.end
   });
   const [jumpTargetId, setJumpTargetId] = useState<string | null>(null);
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
@@ -58,7 +58,7 @@ function ChronoMapContent() {
   const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(new Set());
   const [playedEventIds, setPlayedEventIds] = useState<Set<string>>(new Set());
   const [zoomAction, setZoomAction] = useState<{ type: 'in' | 'out', id: number } | null>(null);
-  const [interactionMode, setInteractionMode] = useState<'exploration' | 'investigation' | 'playback'>('exploration');
+  const [interactionMode, setInteractionMode] = useState<'exploration' | 'investigation' | 'playback'>(initialState.mode as any || 'exploration');
   // [NEW] Shared Hover State for Maps and Timeline
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
@@ -80,7 +80,7 @@ function ChronoMapContent() {
   }, []); // Only on mount
 
   // [NEW] Playback State
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(initialState.playing || false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playbackRef = useRef<number | null>(null);
   const lastTickRef = useRef<number>(0);
@@ -120,10 +120,13 @@ function ChronoMapContent() {
       lng: mapViewport.lng,
       zoom: mapViewport.zoom,
       year: currentDate,
-      span: viewRange.max - viewRange.min,
-      focus: activeFocusedEventId
+      start: viewRange.min,
+      end: viewRange.max,
+      focus: activeFocusedEventId,
+      mode: interactionMode,
+      playing: isPlaying
     });
-  }, [currentDate, viewRange, mapViewport, focusStack, updateUrl]);
+  }, [currentDate, viewRange, mapViewport, focusStack, interactionMode, isPlaying, updateUrl]);
 
 
   // --- 3. Logic Pipelines ---

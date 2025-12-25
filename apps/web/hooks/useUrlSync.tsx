@@ -6,13 +6,16 @@ interface UrlState {
   lng: number;
   zoom: number;
   year: number;
-  span: number;
+  start: number;
+  end: number;
   focus?: string | null;
+  mode?: string;
+  playing?: boolean;
 }
 
 export function useUrlSync(
   defaultState: UrlState,
-  delay: number = 1000
+  delay: number = 300
 ) {
   const router = useRouter();
   const pathname = usePathname();
@@ -29,13 +32,27 @@ export function useUrlSync(
 
   const getInitialState = (): UrlState => {
     if (!searchParams) return defaultState;
-    const lat = parseFloat(searchParams.get('lat') || '') || defaultState.lat;
-    const lng = parseFloat(searchParams.get('lng') || '') || defaultState.lng;
-    const zoom = parseInt(searchParams.get('z') || '') || defaultState.zoom;
-    const year = parseFloat(searchParams.get('y') || '') || defaultState.year;
-    const span = parseFloat(searchParams.get('s') || '') || defaultState.span;
-    const focus = searchParams.get('focus') || defaultState.focus || null;
-    return { lat, lng, zoom, year, span, focus };
+
+    const parseParam = (key: string, type: 'float' | 'int' | 'string' | 'bool', defaultValue: any) => {
+      const val = searchParams.get(key);
+      if (val === null || val === '') return defaultValue;
+      if (type === 'float') return parseFloat(val);
+      if (type === 'int') return parseInt(val);
+      if (type === 'bool') return val === '1' || val === 'true';
+      return val;
+    };
+
+    const lat = parseParam('lat', 'float', defaultState.lat);
+    const lng = parseParam('lng', 'float', defaultState.lng);
+    const zoom = parseParam('z', 'int', defaultState.zoom);
+    const year = parseParam('year', 'float', defaultState.year);
+    const start = parseParam('start', 'float', defaultState.start);
+    const end = parseParam('end', 'float', defaultState.end);
+    const focus = parseParam('focus', 'string', defaultState.focus || null);
+    const mode = parseParam('m', 'string', defaultState.mode || 'exploration');
+    const playing = parseParam('play', 'bool', defaultState.playing || false);
+
+    return { lat, lng, zoom, year, start, end, focus, mode, playing };
   };
 
   const updateUrl = useCallback((newState: UrlState) => {
@@ -51,13 +68,26 @@ export function useUrlSync(
       newParams.set('lat', newState.lat.toFixed(4));
       newParams.set('lng', newState.lng.toFixed(4));
       newParams.set('z', newState.zoom.toString());
-      newParams.set('y', newState.year.toFixed(1));
-      newParams.set('s', newState.span.toFixed(0));
+      newParams.set('year', newState.year.toFixed(1));
+      newParams.set('start', newState.start.toFixed(1));
+      newParams.set('end', newState.end.toFixed(1));
 
       if (newState.focus) {
         newParams.set('focus', newState.focus);
       } else {
         newParams.delete('focus');
+      }
+
+      if (newState.mode && newState.mode !== 'exploration') {
+        newParams.set('m', newState.mode);
+      } else {
+        newParams.delete('m');
+      }
+
+      if (newState.playing) {
+        newParams.set('play', '1');
+      } else {
+        newParams.delete('play');
       }
 
       // 2. [CRITICAL FIX] Dirty Check: Compare strings to avoid redundant updates
