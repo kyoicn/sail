@@ -75,6 +75,10 @@ export const getCardHtml = (
     const isAlreadyInStack = focusStack.includes(event.id);
     const showFocusTab = hasChildren && !isAlreadyInStack;
 
+    // [STYLE UPDATE] Use drop-shadow on wrapper for unified shape, remove individual box-shadows
+    // Adjust border-radius of main card to be flat on right if focus tab is shown.
+    const mainRadius = showFocusTab ? '12px 0 0 12px' : '12px';
+
     return `
        <div class="card-wrapper" style="
            position: absolute; left: 0; top: 0; 
@@ -84,12 +88,15 @@ export const getCardHtml = (
            cursor: default; 
            pointer-events: none; /* Let children handle pointer events */
            overflow: visible !important; /* Ensure no clipping */
+           filter: drop-shadow(0 8px 25px rgba(0,0,0,0.25)); /* Consolidated Shadow */
        ">
           <!-- Main Card -->
           <div style="
               pointer-events: auto;
-              background: white; border-radius: 8px; box-shadow: 0 8px 25px rgba(0,0,0,0.25); 
-              overflow: hidden; font-family: system-ui; position: relative; z-index: 10; /* High z-index */
+              background: white; 
+              border-radius: ${mainRadius}; 
+              /* box-shadow removed in favor of wrapper drop-shadow */
+              overflow: hidden; font-family: system-ui; position: relative; z-index: 10;
           ">
               
               <!-- Close Button -->
@@ -111,9 +118,9 @@ export const getCardHtml = (
 
               ${event.imageUrl ? `<div style="height: 120px; width: 100%; background-image: url('${event.imageUrl}'); background-size: cover; background-position: center;"></div>` : ''}
               <div class="card-body" style="padding: 12px; cursor: pointer;">
-                  <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px;">
+                  <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px; padding-right: 20px;">
                     ${event.title} 
-                    <span style="font-size: 10px; color: red;">${hasChildren ? `[C: ${event.children?.length}]` : '[No Kids]'}</span>
+                    ${hasChildren ? `<span style="font-size: 10px; color: #64748b; font-weight: 500;">[${event.children?.length}]</span>` : ''}
                   </div>
                   <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
                       <span style="font-size: 10px; font-weight: 600; background: #e0f2fe; color: #0284c7; padding: 2px 6px; rounded: 4px;">${formatEventDateRange(event)}</span>
@@ -129,19 +136,18 @@ export const getCardHtml = (
                 position: absolute; 
                 top: 0; 
                 bottom: 0;
-                right: -48px; 
-                width: 48px;
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(8px);
+                right: -40px; 
+                width: 40px;
+                background: #f8fafc; /* Slightly darker than white to distinguish area */
                 border-radius: 0 12px 12px 0;
-                box-shadow: 4px 8px 25px rgba(0,0,0,0.15);
-                border-left: 1px solid rgba(0,0,0,0.05);
+                /* box-shadow removed */
+                border-left: 1px solid #e2e8f0; /* Subtle divider */
                 cursor: pointer;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                z-index: 1;
+                z-index: 9; /* Behind main card visually? No, adjacent */
                 transition: background 0.2s;
             ">
                 <div style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #3b82f6; margin-bottom: 4px;">
