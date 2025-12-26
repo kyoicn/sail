@@ -42,8 +42,8 @@ def get_connection():
     return psycopg2.connect(DATABASE_URL)
 
 def promote_staging():
-    print("🚀 Starting Promotion: Staging (Schema) -> Prod (Public)")
-    print("   Strategy: Move current Public tables to 'backup' schema.")
+    print("🚀 Starting Promotion: Staging (Schema) -> Prod (prod)")
+    print("   Strategy: Move current Prod tables to 'backup' schema.")
     
     conn = get_connection()
     cur = conn.cursor()
@@ -57,42 +57,7 @@ def promote_staging():
         # We must swap types because tables reference them by OID.
         types = ['granularity_type', 'certainty_type']
 
-        # ---------------------------------------------------------
-        # C. Function Auto-Redeploy (The "Code" Phase)
-        # ---------------------------------------------------------
-        # We generally DO NOT swap functions because they bind to OIDs.
-        # Instead, we re-apply their definitions from the source code (migrations).
-        # This ensures they always bind to the *current* Public tables.
-        
-        print("  - Auto-Redeploying Functions from Migrations...")
-        
-        migrations_dir = data_pipeline_root / 'migrations'
-        # Get all .sql files, sorted
-        sql_files = sorted([f for f in migrations_dir.glob('*.sql')])
-        
-        # We perform a scan to find files that define functions.
-        # This is a heuristic: if it contains "CREATE OR REPLACE FUNCTION", we run it.
-        # This avoids maintaining a manual list.
-        
-        functions_redefined = 0
-        cur.execute("SET search_path TO public;")
-        
-        for sql_file in sql_files:
-            with open(sql_file, 'r') as f:
-                content = f.read()
-                
-            if "CREATE OR REPLACE FUNCTION" in content.upper():
-                # print(f"    Processing {sql_file.name}...")
-                # We execute the whole file. 
-                # Ideally, migration files should be idempotent (CREATE OR REPLACE).
-                try:
-                    cur.execute(content)
-                    functions_redefined += 1
-                except Exception as e:
-                    print(f"    ⚠ Warning: Failed to re-apply {sql_file.name}: {e}")
-                    pass
-
-        print(f"    ✔ Re-defined functions from {functions_redefined} migration files.")
+        # (Function Auto-Redeploy moved to after Atomic Swap)
 
         # ---------------------------------------------------------
         # D. User Data Protection (Future Proofing)
@@ -115,33 +80,33 @@ def promote_staging():
         
         cur.execute("CREATE SCHEMA IF NOT EXISTS backup;")
 
-        # A. Backup Current Prod (Public -> Backup)
-        print("  - Backing up current Public assets to 'backup'...")
+        # A. Backup Current Prod (Prod -> Backup)
+        print("  - Backing up current Prod assets to 'backup'...")
         
-        # A1. Move Types (Public -> Backup)
+        # A1. Move Types (Prod -> Backup)
         for t in types:
-            cur.execute(f"SELECT to_regtype('public.{t}');")
+            cur.execute(f"SELECT to_regtype('prod.{t}');")
             if cur.fetchone()[0]:
                 cur.execute(f"DROP TYPE IF EXISTS backup.{t} CASCADE;")
-                cur.execute(f'ALTER TYPE public."{t}" SET SCHEMA backup;')
+                cur.execute(f'ALTER TYPE prod."{t}" SET SCHEMA backup;')
         
-        # A2. Move Tables (Public -> Backup)
+        # A2. Move Tables (Prod -> Backup)
         for t in tables:
-            cur.execute(f"SELECT to_regclass('public.{t}');")
+            cur.execute(f"SELECT to_regclass('prod.{t}');")
             if cur.fetchone()[0]:
                 cur.execute(f"DROP TABLE IF EXISTS backup.{t} CASCADE;")
-                cur.execute(f'ALTER TABLE public."{t}" SET SCHEMA backup;')
+                cur.execute(f'ALTER TABLE prod."{t}" SET SCHEMA backup;')
 
-        # B. Promote Staging (Staging -> Public)
-        print("  - Moving Staging assets to Public...")
+        # B. Promote Staging (Staging -> Prod)
+        print("  - Moving Staging assets to Prod...")
         
-        # B1. Move Types (Staging -> Public)
+        # B1. Move Types (Staging -> Prod)
         for t in types:
-            cur.execute(f'ALTER TYPE staging."{t}" SET SCHEMA public;')
+            cur.execute(f'ALTER TYPE staging."{t}" SET SCHEMA prod;')
             
-        # B2. Move Tables (Staging -> Public)
+        # B2. Move Tables (Staging -> Prod)
         for t in tables:
-            cur.execute(f'ALTER TABLE staging."{t}" SET SCHEMA public;')
+            cur.execute(f'ALTER TABLE staging."{t}" SET SCHEMA prod;')
         
         # COMMIT the Atomic Swap now.
         conn.commit()
@@ -160,6 +125,38 @@ def promote_staging():
         except subprocess.CalledProcessError as e:
             raise Exception(f"Failed to run production migrations: {e}")
 
+        # ---------------------------------------------------------
+        # B3. Function Auto-Redeploy (The "Code" Phase) - MOVED HERE
+        # ---------------------------------------------------------
+        # We re-apply their definitions NOW, after tables are in Public.
+        # This ensures they bind to the NEW Public tables.
+        
+        print("  - Auto-Redeploying Functions from Migrations...")
+        
+        # Re-get cursor just in case
+        cur = conn.cursor()
+        
+        migrations_dir = data_pipeline_root / 'migrations'
+        sql_files = sorted([f for f in migrations_dir.glob('*.sql')])
+        
+        functions_redefined = 0
+        cur.execute("SET search_path TO prod;")
+        
+        for sql_file in sql_files:
+            with open(sql_file, 'r') as f:
+                content = f.read()
+                
+            if "CREATE OR REPLACE FUNCTION" in content.upper():
+                try:
+                    cur.execute(content)
+                    functions_redefined += 1
+                except Exception as e:
+                    print(f"    ⚠ Warning: Failed to re-apply {sql_file.name}: {e}")
+                    pass
+
+        print(f"    ✔ Re-defined functions from {functions_redefined} migration files.")
+        conn.commit()
+
         # C. Re-create Staging (Fresh Schema via Migrate)
         # Since we moved the tables out, 'staging' schema is now empty (or contains leftovers).
         print("  - Re-building Staging environment...")
@@ -170,7 +167,7 @@ def promote_staging():
             raise Exception(f"Failed to rebuild staging: {e}")
 
         # D. Sync Back: Prod -> Staging (Persistent Staging)
-        print("  - Syncing data back: Public -> Staging...")
+        print("  - Syncing data back: Prod -> Staging...")
         
         cur = conn.cursor() # Reuse connection
         
@@ -182,7 +179,7 @@ def promote_staging():
             if t not in tables: continue
             
             print(f"    - Syncing {t}...")
-            source = f'public."{t}"'
+            source = f'prod."{t}"'
             dest = f'staging."{t}"'
             
             # Simple Insert Select
@@ -194,7 +191,7 @@ def promote_staging():
             cur.execute("""
                 SELECT column_name 
                 FROM information_schema.columns 
-                WHERE table_schema = 'public' 
+                WHERE table_schema = 'prod' 
                   AND table_name = %s 
                   AND is_generated = 'NEVER';
             """, (t,))
@@ -226,6 +223,11 @@ def promote_staging():
             print(f"      ✔ Copied {cnt} rows.")
  
         conn.commit()
+        # Final Step: Notify PostgREST to reload schema cache
+        print("  - Notifying PostgREST to reload schema...")
+        cur.execute("NOTIFY pgrst, 'reload schema';")
+        conn.commit()
+        
         print("✅ Promotion & Persistence Sync Successful!")
         
     except Exception as e:
