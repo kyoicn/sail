@@ -176,7 +176,7 @@ export default function ExtractorPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
 
   // Layout state
   const [mapHeightPercent, setMapHeightPercent] = useState(70);
@@ -185,12 +185,29 @@ export default function ExtractorPage() {
   // Scroll to card when map marker clicked
   const cardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const handleScrollToCard = (id: string) => {
-    setSelectedEventId(id);
+  const handleMarkerClick = (id: string) => {
+    // When clicking a marker on the map, select only that event and scroll to it
+    setSelectedEventIds(new Set([id]));
     const el = cardRefs.current[id];
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+  };
+
+  const handleCardClick = (e: React.MouseEvent, id: string) => {
+    // Prevent selection toggle if interacting with form elements
+    const target = e.target as HTMLElement;
+    if (['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT', 'A', 'svg', 'path'].includes(target.tagName) || target.closest('button') || target.closest('a')) {
+      return;
+    }
+
+    // Toggle selection (always multi-select behavior)
+    setSelectedEventIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // Resize Handlers
@@ -270,15 +287,21 @@ export default function ExtractorPage() {
             setLogs(prev => [...prev, data.message]);
           } else if (data.type === 'result') {
             let fetchedEvents = data.events || [];
-            // If extracted from URL, add it as a source
+            // If extracted from URL, add it as a source, avoiding duplicates
             if (inputType === 'url' && content.trim()) {
-              fetchedEvents = fetchedEvents.map((e: EventData) => ({
-                ...e,
-                sources: [
-                  ...(e.sources || []),
-                  { label: 'Source web page', url: content.trim() }
-                ]
-              }));
+              const urlToAdd = content.trim();
+              fetchedEvents = fetchedEvents.map((e: EventData) => {
+                const existingSources = e.sources || [];
+                // Remove any source that matches the URL we are about to add
+                const filteredSources = existingSources.filter(s => s.url.trim() !== urlToAdd);
+                return {
+                  ...e,
+                  sources: [
+                    ...filteredSources,
+                    { label: 'Source web page', url: urlToAdd }
+                  ]
+                };
+              });
             }
             setEvents(fetchedEvents);
           } else if (data.type === 'error') {
@@ -298,8 +321,8 @@ export default function ExtractorPage() {
   const handleEnrich = async (specificEventId?: string, fields?: string[]) => {
     const targetEvents = specificEventId
       ? events.filter(e => e.id === specificEventId) :
-      selectedEventId
-        ? events.filter(e => e.id === selectedEventId)
+      selectedEventIds.size > 0
+        ? events.filter(e => selectedEventIds.has(e.id))
         : events;
 
     if (targetEvents.length === 0) return;
@@ -362,8 +385,8 @@ export default function ExtractorPage() {
 
 
   const handleDownload = () => {
-    const targetEvents = selectedEventId
-      ? events.filter(e => e.id === selectedEventId)
+    const targetEvents = selectedEventIds.size > 0
+      ? events.filter(e => selectedEventIds.has(e.id))
       : events;
 
     if (targetEvents.length === 0) return;
@@ -401,6 +424,13 @@ export default function ExtractorPage() {
 
   const removeEvent = (id: string) => {
     setEvents(prev => prev.filter(e => e.id !== id));
+    if (selectedEventIds.has(id)) {
+      setSelectedEventIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const toEventSchema = (e: EventData) => {
@@ -549,8 +579,8 @@ export default function ExtractorPage() {
               <div
                 key={event.id}
                 ref={el => { cardRefs.current[event.id] = el }}
-                className={`bg-white rounded-lg shadow-sm border p-3 transition-all ${selectedEventId === event.id ? 'ring-2 ring-blue-500 border-blue-500 shadow-md' : 'border-gray-200 hover:border-gray-300'}`}
-                onClick={() => setSelectedEventId(event.id)}
+                className={`bg-white rounded-lg shadow-sm border p-3 transition-all ${selectedEventIds.has(event.id) ? 'ring-2 ring-blue-500 border-blue-500 shadow-md' : 'border-gray-200 hover:border-gray-300'}`}
+                onClick={(e) => handleCardClick(e, event.id)}
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1 mr-2">
@@ -787,8 +817,8 @@ export default function ExtractorPage() {
           {/* Top: Map */}
           <div style={{ height: `${mapHeightPercent}%` }} className="relative bg-white w-full">
             <MapWithNoSSR
-              events={events}
-              onMarkerClick={handleScrollToCard}
+              events={selectedEventIds.size > 0 ? events.filter(e => selectedEventIds.has(e.id)) : events}
+              onMarkerClick={handleMarkerClick}
               onMarkerDragEnd={(id, lat, lng) => {
                 updateEvent(id, 'location.lat', lat);
                 updateEvent(id, 'location.lng', lng);

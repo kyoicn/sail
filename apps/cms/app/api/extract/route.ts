@@ -211,7 +211,7 @@ export async function POST(request: Request) {
             sources: e.sources ? e.sources.map((s: any) => ({
               label: s.label || 'Source',
               url: s.url || sourceUrl,
-            })) : (inputType === 'url' ? [{ label: 'Source', url: sourceUrl }] : [])
+            })) : []
           };
         });
 
