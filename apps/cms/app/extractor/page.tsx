@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { EventData, ChronosTime, ChronosLocation } from '@sail/shared';
 import Link from 'next/link';
-import { Download, Save, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus } from 'lucide-react';
+import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon } from 'lucide-react';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -50,18 +50,19 @@ const MapWithNoSSR = dynamic(
       shadowSize: [41, 41]
     });
 
-    return ({ events, onMarkerClick }: { events: EventData[], onMarkerClick: (id: string) => void }) => {
-      // Helper to fit bounds
-      const BoundsController = ({ markers }: { markers: EventData[] }) => {
-        const map = useMap();
-        useEffect(() => {
-          if (markers.length > 0) {
-            const bounds = L.latLngBounds(markers.map(e => [e.location.lat, e.location.lng]));
-            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
-          }
-        }, [markers, map]);
-        return null;
-      };
+    // Helper to fit bounds - component defined outside render loop to prevent unmount/remount
+    const BoundsController = ({ markers }: { markers: EventData[] }) => {
+      const map = useMap();
+      useEffect(() => {
+        if (markers.length > 0) {
+          const bounds = L.latLngBounds(markers.map(e => [e.location.lat, e.location.lng]));
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+        }
+      }, [markers.length, map]);
+      return null;
+    };
+
+    return ({ events, onMarkerClick, onMarkerDragEnd }: { events: EventData[], onMarkerClick: (id: string) => void, onMarkerDragEnd: (id: string, lat: number, lng: number) => void }) => {
 
       return (
         <MapContainer center={[20, 0]} zoom={2} style={{ height: '100%', width: '100%', zIndex: 0 }}>
@@ -75,7 +76,14 @@ const MapWithNoSSR = dynamic(
                 key={event.id}
                 position={[event.location.lat, event.location.lng]}
                 icon={DefaultIcon}
-                eventHandlers={{ click: () => onMarkerClick(event.id) }}
+                draggable={true}
+                eventHandlers={{
+                  click: () => onMarkerClick(event.id),
+                  dragend: (e) => {
+                    const { lat, lng } = e.target.getLatLng();
+                    onMarkerDragEnd(event.id, lat, lng);
+                  }
+                }}
               >
                 <Popup>
                   <strong>{event.title}</strong><br />
@@ -90,6 +98,74 @@ const MapWithNoSSR = dynamic(
     };
   }),
   { ssr: false, loading: () => <div className="h-full w-full bg-gray-100 animate-pulse flex items-center justify-center">Loading Map...</div> }
+);
+
+interface TimeInputProps {
+  label: string;
+  time: ChronosTime;
+  onChange: (field: string, value: any) => void;
+  onRemove?: () => void;
+}
+
+const TimeInput = ({ label, time, onChange, onRemove }: TimeInputProps) => (
+  <div className="mb-2 last:mb-0">
+    <div className="flex justify-between items-center mb-1">
+      <span className="text-[10px] font-semibold text-gray-400 uppercase">{label}</span>
+      {onRemove && (
+        <button onClick={onRemove} className="text-gray-400 hover:text-red-500" title="Remove End Time">
+          <Trash2 className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+    <div className="flex flex-col gap-1">
+      <div className="flex gap-1">
+        <div className="w-2/3 relative">
+          <input
+            type="number"
+            value={Math.abs(time.year)}
+            onChange={e => {
+              const val = parseInt(e.target.value);
+              const year = isNaN(val) ? 0 : val;
+              const isBce = time.year < 0;
+              onChange('year', year * (isBce ? -1 : 1));
+            }}
+            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-center text-gray-900 font-mono no-spin text-xs"
+            placeholder="Year"
+          />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange('year', time.year * -1);
+            }}
+            className="absolute right-1 top-1 text-[10px] text-gray-500 hover:text-blue-600 cursor-pointer font-bold bg-transparent border-0 p-0"
+            title="Toggle Era"
+          >
+            {time.year < 0 ? 'BCE' : 'CE'}
+          </button>
+        </div>
+        <select
+          value={time.precision}
+          onChange={e => onChange('precision', e.target.value)}
+          className="w-1/3 bg-white border border-gray-200 rounded px-1 py-1 text-xs text-gray-900"
+        >
+          {['millennium', 'century', 'decade', 'year', 'month', 'day', 'hour', 'minute', 'second'].map(p => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-3 gap-1">
+        <input type="number" placeholder="M" title="Month" value={time.month || ''} onChange={e => onChange('month', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+        <input type="number" placeholder="D" title="Day" value={time.day || ''} onChange={e => onChange('day', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+        <input type="number" placeholder="H" title="Hour" value={time.hour || ''} onChange={e => onChange('hour', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        <input type="number" placeholder="m" title="Minute" value={time.minute || ''} onChange={e => onChange('minute', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+        <input type="number" placeholder="s" title="Second" value={time.second || ''} onChange={e => onChange('second', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+        <input type="number" placeholder="ms" title="Millisecond" value={time.millisecond || ''} onChange={e => onChange('millisecond', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+      </div>
+    </div>
+  </div>
 );
 
 export default function ExtractorPage() {
@@ -208,10 +284,12 @@ export default function ExtractorPage() {
     }
   };
 
-  const handleEnrich = async () => {
-    const targetEvents = selectedEventId
-      ? events.filter(e => e.id === selectedEventId)
-      : events;
+  const handleEnrich = async (specificEventId?: string, fields?: string[]) => {
+    const targetEvents = specificEventId
+      ? events.filter(e => e.id === specificEventId) :
+      selectedEventId
+        ? events.filter(e => e.id === selectedEventId)
+        : events;
 
     if (targetEvents.length === 0) return;
 
@@ -220,7 +298,7 @@ export default function ExtractorPage() {
       const res = await fetch('/api/enrich', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: targetEvents, provider, model, context: content }),
+        body: JSON.stringify({ events: targetEvents, provider, model, context: content, fields }),
       });
 
       if (!res.ok) throw new Error(await res.text());
@@ -270,31 +348,7 @@ export default function ExtractorPage() {
     }
   };
 
-  const handleSubmit = async () => {
-    const targetEvents = selectedEventId
-      ? events.filter(e => e.id === selectedEventId)
-      : events;
 
-    if (targetEvents.length === 0) return;
-
-    if (!confirm(`Submit ${targetEvents.length} events to the database?`)) return;
-    setIsProcessing(true);
-    try {
-      const res = await fetch('/api/events/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: targetEvents, dataset: 'dev' }), // Defaulting to dev
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setLogs(prev => [...prev, `Successfully saved ${data.count} events!`]);
-    } catch (e: any) {
-      console.error(e);
-      setLogs(prev => [...prev, `Submission Failed: ${e.message}`]);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handleDownload = () => {
     const targetEvents = selectedEventId
@@ -303,7 +357,9 @@ export default function ExtractorPage() {
 
     if (targetEvents.length === 0) return;
 
-    const jsonString = JSON.stringify({ events: targetEvents }, null, 2);
+    const formattedEvents = targetEvents.map(toEventSchema);
+
+    const jsonString = JSON.stringify({ events: formattedEvents }, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -334,6 +390,40 @@ export default function ExtractorPage() {
 
   const removeEvent = (id: string) => {
     setEvents(prev => prev.filter(e => e.id !== id));
+  };
+
+  const toEventSchema = (e: EventData) => {
+    const formatTime = (t: any) => {
+      if (!t) return undefined;
+      const { astro_year, millisecond, ...rest } = t;
+      const res = { ...rest };
+      if (millisecond && millisecond !== 0) {
+        res.millisecond = millisecond;
+      }
+      return res;
+    };
+
+    return {
+      source_id: e.source_id,
+      title: e.title,
+      summary: e.summary,
+      importance: e.importance,
+      start_time: formatTime(e.start),
+      end_time: formatTime(e.end),
+      location: {
+        latitude: e.location.lat,
+        longitude: e.location.lng,
+        location_name: e.location.placeName,
+        precision: e.location.granularity,
+        certainty: e.location.certainty
+      },
+      sources: e.sources,
+      images: e.imageUrl ? [{ label: 'Image', url: e.imageUrl }] : undefined,
+    };
+  };
+
+  const handleShowJson = (event: EventData) => {
+    setLogs(prev => [...prev, `JSON for "${event.title}":`, JSON.stringify(toEventSchema(event), null, 2)]);
   };
 
   return (
@@ -434,15 +524,11 @@ export default function ExtractorPage() {
           <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white gap-2">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{events.length} Events</div>
             <div className="flex gap-1">
-              <button onClick={handleEnrich} disabled={isProcessing || events.length === 0} title="Enrich" className="p-2 border border-purple-200 text-purple-700 bg-purple-50 rounded hover:bg-purple-100 disabled:opacity-50">
-                <Wand2 className="w-4 h-4" />
-              </button>
+
               <button onClick={handleDownload} disabled={events.length === 0} title="Download JSON" className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50">
                 <Download className="w-4 h-4" />
               </button>
-              <button onClick={handleSubmit} disabled={isProcessing || events.length === 0} title="Save to DB" className="p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50">
-                <Save className="w-4 h-4" />
-              </button>
+
             </div>
           </div>
 
@@ -463,12 +549,43 @@ export default function ExtractorPage() {
                       className="w-full font-semibold text-sm text-gray-900 border-b border-transparent focus:border-blue-500 outline-none bg-transparent"
                       placeholder="Event Title"
                     />
+                    <input
+                      value={event.source_id || ''}
+                      onChange={e => updateEvent(event.id, 'source_id', e.target.value)}
+                      className="w-full text-[10px] text-gray-500 border-b border-transparent focus:border-blue-500 outline-none bg-transparent font-mono mt-0.5"
+                      placeholder="Source ID"
+                    />
                   </div>
-                  <button onClick={() => removeEvent(event.id)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShowJson(event);
+                      }}
+                      title="Show JSON"
+                      className="text-gray-400 hover:text-blue-500 transition-colors"
+                    >
+                      <FileJson className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => removeEvent(event.id)} className="text-gray-400 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
+                <div className="flex items-center justify-between mb-1 mt-2">
+                  <span className="text-[10px] font-bold text-gray-500 flex items-center gap-1">
+                    <Type className="w-3 h-3" /> SUMMARY
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleEnrich(event.id, ['summary']); }}
+                    disabled={isProcessing}
+                    className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                    title="Enrich Summary"
+                  >
+                    <Wand2 className="w-3 h-3" />
+                  </button>
+                </div>
                 <textarea
                   value={event.summary}
                   onChange={e => updateEvent(event.id, 'summary', e.target.value)}
@@ -477,53 +594,118 @@ export default function ExtractorPage() {
                 />
 
                 {/* Details Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                   <div className="bg-gray-50 p-1.5 rounded border border-gray-100">
-                    <div className="flex items-center gap-1 text-gray-500 mb-1">
-                      <Calendar className="w-3 h-3" /> <span className="text-[10px] font-bold">TIME</span>
-                    </div>
-                    <div className="flex gap-1">
-                      <input
-                        type="number"
-                        value={event.start.year}
-                        onChange={e => updateEvent(event.id, 'start.year', parseInt(e.target.value))}
-                        className="w-1/2 bg-white border border-gray-200 rounded px-1 text-center text-gray-900"
-                        placeholder="Year"
-                      />
-                      <select
-                        value={event.start.precision}
-                        onChange={e => updateEvent(event.id, 'start.precision', e.target.value)}
-                        className="w-1/2 bg-white border border-gray-200 rounded px-1 text-[9px] text-gray-900"
+                    <div className="flex items-center justify-between gap-1 text-gray-500 mb-1">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> <span className="text-[10px] font-bold">TIME</span>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleEnrich(event.id, ['time']); }}
+                        disabled={isProcessing}
+                        className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                        title="Enrich Time"
                       >
-                        {['year', 'month', 'day'].map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
+                        <Wand2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <TimeInput
+                        label="Start"
+                        time={event.start}
+                        onChange={(field, value) => updateEvent(event.id, `start.${field}`, value)}
+                      />
+
+                      {event.end ? (
+                        <TimeInput
+                          label="End"
+                          time={event.end}
+                          onChange={(field, value) => updateEvent(event.id, `end.${field}`, value)}
+                          onRemove={() => updateEvent(event.id, 'end', undefined)}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => updateEvent(event.id, 'end', { ...event.start, precision: event.start.precision })}
+                          className="w-full py-1 text-[10px] text-blue-500 border border-dashed border-blue-200 hover:bg-blue-50 rounded flex items-center justify-center gap-1 mt-1"
+                        >
+                          <Plus className="w-3 h-3" /> Add End Time
+                        </button>
+                      )}
                     </div>
                   </div>
 
                   <div className="bg-gray-50 p-1.5 rounded border border-gray-100">
-                    <div className="flex items-center gap-1 text-gray-500 mb-1">
-                      <MapPin className="w-3 h-3" /> <span className="text-[10px] font-bold">LOC</span>
+                    <div className="flex items-center justify-between gap-1 text-gray-500 mb-1">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> <span className="text-[10px] font-bold">LOC</span>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleEnrich(event.id, ['location']); }}
+                        disabled={isProcessing}
+                        className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                        title="Enrich Location"
+                      >
+                        <Wand2 className="w-3 h-3" />
+                      </button>
                     </div>
                     <input
                       value={event.location.placeName || ''}
                       onChange={e => updateEvent(event.id, 'location.placeName', e.target.value)}
                       placeholder="Place"
-                      className="w-full bg-white border border-gray-200 rounded px-1 mb-1 text-gray-900 truncate"
+                      className="w-full bg-white border border-gray-200 rounded px-2 py-1 mb-1 text-gray-900 truncate text-xs"
                     />
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 mb-1">
                       <input
                         value={event.location.lat ? event.location.lat.toFixed(2) : ''}
                         readOnly
-                        className="w-1/2 bg-gray-100 border border-transparent rounded px-1 text-center text-gray-500"
+                        className="w-1/2 bg-gray-100 border border-transparent rounded px-2 py-1 text-center text-gray-500 text-xs"
                       />
                       <input
                         value={event.location.lng ? event.location.lng.toFixed(2) : ''}
                         readOnly
-                        className="w-1/2 bg-gray-100 border border-transparent rounded px-1 text-center text-gray-500"
+                        className="w-1/2 bg-gray-100 border border-transparent rounded px-2 py-1 text-center text-gray-500 text-xs"
                       />
                     </div>
+                    <div className="flex gap-1">
+                      <select
+                        value={event.location.granularity || 'unknown'}
+                        onChange={e => updateEvent(event.id, 'location.granularity', e.target.value)}
+                        className="w-1/2 bg-white border border-gray-200 rounded px-1 py-1 text-xs text-gray-900"
+                      >
+                        {['spot', 'area', 'unknown'].map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={event.location.certainty || 'unknown'}
+                        onChange={e => updateEvent(event.id, 'location.certainty', e.target.value)}
+                        className="w-1/2 bg-white border border-gray-200 rounded px-1 py-1 text-xs text-gray-900"
+                      >
+                        {['definite', 'approximate', 'unknown'].map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Images Section */}
+                <div className="bg-gray-50 p-1.5 rounded border border-gray-100 text-xs">
+                  <div className="flex items-center justify-between gap-1 text-gray-500 mb-1">
+                    <div className="flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3" /> <span className="text-[10px] font-bold">IMAGES</span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleEnrich(event.id, ['image']); }}
+                      disabled={isProcessing}
+                      className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                      title="Find Images"
+                    >
+                      <Wand2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="text-[10px] text-gray-400 italic text-center py-2">
+                    No images found.
                   </div>
                 </div>
               </div>
@@ -543,7 +725,14 @@ export default function ExtractorPage() {
 
           {/* Top: Map */}
           <div style={{ height: `${mapHeightPercent}%` }} className="relative bg-white w-full">
-            <MapWithNoSSR events={events} onMarkerClick={handleScrollToCard} />
+            <MapWithNoSSR
+              events={events}
+              onMarkerClick={handleScrollToCard}
+              onMarkerDragEnd={(id, lat, lng) => {
+                updateEvent(id, 'location.lat', lat);
+                updateEvent(id, 'location.lng', lng);
+              }}
+            />
 
             {/* Simple Map Legend */}
             <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded shadow-sm text-[10px] z-[1000] border border-gray-200">

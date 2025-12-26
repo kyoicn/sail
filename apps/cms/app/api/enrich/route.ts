@@ -71,6 +71,28 @@ You must strictly adhere to the allowed values below. **Any value outside these 
 \`\`\`
 `;
 
+const SYSTEM_PROMPT_SUMMARY = `
+You are an expert Historical Editor.
+Your goal is to enrich the **SUMMARY** of a list of historical events.
+
+### INPUT DATA:
+Input is a JSON list of events.
+
+### INSTRUCTIONS:
+1. **Analyze:** Read the event title and context.
+2. **Enrich:** Write a concise, engaging 1-3 sentence summary for the event. It should explain the significance.
+3. **Output:** Return the list of events with updated summary field.
+
+### RESPONSE FORMAT:
+\`\`\`json
+{
+  "events": [
+     { "id": "...", "summary": "..." }
+  ]
+}
+\`\`\`
+`;
+
 export async function POST(request: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -85,7 +107,13 @@ export async function POST(request: Request) {
 
       try {
         const body = await request.json();
-        const { events, provider, model, context: sourceText } = body as { events: EventData[], provider: string, model?: string, context?: string };
+        const { events, provider, model, context: sourceText, fields } = body as {
+          events: EventData[],
+          provider: string,
+          model?: string,
+          context?: string,
+          fields?: string[]
+        };
 
         if (!events || events.length === 0) {
           controller.enqueue(encoder.encode(JSON.stringify({ type: 'result', events: [] }) + '\n'));
@@ -105,12 +133,27 @@ export async function POST(request: Request) {
         let enrichedEvents = [...events];
 
         // Helper to strip markdown code blocks
+        // Helper to strip markdown code blocks and extract JSON
         const cleanJson = (text: string) => {
-          return text.replace(/```json\n?|\n?```/g, '').trim();
+          // First try to find a markdown block
+          const markdownMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+          if (markdownMatch && markdownMatch[1]) {
+            return markdownMatch[1].trim();
+          }
+
+          // Fallback: find the first '{' and the last '}'
+          const firstOpen = text.indexOf('{');
+          const lastClose = text.lastIndexOf('}');
+          if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+            return text.substring(firstOpen, lastClose + 1);
+          }
+
+          return text.trim();
         };
 
         // Generic LLM Call Helper
         const callLLM = async (systemPrompt: string, userContent: string) => {
+          sendLog(`Using API: ${provider.toUpperCase()} | Model: ${model}`);
           if (provider === 'gemini') {
             const apiKey = process.env.GOOGLE_API_KEY;
             if (!apiKey) throw new Error('GOOGLE_API_KEY missing');
@@ -161,49 +204,86 @@ export async function POST(request: Request) {
         };
 
         // --- STAGE 1: LOCATION ENRICHMENT ---
-        try {
-          sendLog('Enriching Locations...');
-          const locationJsonStr = await callLLM(SYSTEM_PROMPT_LOCATION, eventsContext);
-          const locationData = JSON.parse(locationJsonStr);
-          const locationEventsMap = new Map((locationData.events || []).map((e: any) => [e.id || e.title, e]));
+        if (!fields || fields.includes('location')) {
+          try {
+            sendLog('Enriching Locations...');
+            const locationJsonStr = await callLLM(SYSTEM_PROMPT_LOCATION, eventsContext);
+            const locationData = JSON.parse(locationJsonStr);
+            const locationEventsMap = new Map((locationData.events || []).map((e: any) => [e.id || e.title, e]));
 
-          enrichedEvents = enrichedEvents.map(orig => {
-            const fresh = locationEventsMap.get(orig.id) || locationEventsMap.get(orig.title);
-            const freshAny = fresh as any;
-            if (freshAny && freshAny.location) {
-              return { ...orig, location: { ...orig.location, ...freshAny.location } };
-            }
-            return orig;
-          });
-          sendLog('Location enrichment complete.');
-        } catch (e: any) {
-          console.error('Location enrichment failed:', e);
-          sendLog(`Location enrichment failed: ${e.message}`);
+            enrichedEvents = enrichedEvents.map(orig => {
+              const fresh = locationEventsMap.get(orig.id) || locationEventsMap.get(orig.title);
+              const freshAny = fresh as any;
+              if (freshAny && freshAny.location) {
+                return { ...orig, location: { ...orig.location, ...freshAny.location } };
+              }
+              return orig;
+            });
+            sendLog('Location enrichment complete.');
+          } catch (e: any) {
+            console.error('Location enrichment failed:', e);
+            sendLog(`Location enrichment failed: ${e.message}`);
+          }
         }
 
         // --- STAGE 2: TIME ENRICHMENT ---
-        try {
-          sendLog('Enriching Time...');
-          const timeJsonStr = await callLLM(SYSTEM_PROMPT_TIME, eventsContext);
-          const timeData = JSON.parse(timeJsonStr);
-          const timeEventsMap = new Map((timeData.events || []).map((e: any) => [e.id || e.title, e]));
+        if (!fields || fields.includes('time')) {
+          try {
+            sendLog('Enriching Time...');
+            const timeJsonStr = await callLLM(SYSTEM_PROMPT_TIME, eventsContext);
+            const timeData = JSON.parse(timeJsonStr);
+            const timeEventsMap = new Map((timeData.events || []).map((e: any) => [e.id || e.title, e]));
 
-          enrichedEvents = enrichedEvents.map(orig => {
-            const fresh = timeEventsMap.get(orig.id) || timeEventsMap.get(orig.title);
-            if (fresh) {
-              const freshAny = fresh as any;
-              return {
-                ...orig,
-                start: freshAny.start ? { ...orig.start, ...freshAny.start } : orig.start,
-                end: freshAny.end ? { ...orig.end, ...freshAny.end } : orig.end
-              };
-            }
-            return orig;
-          });
-          sendLog('Time enrichment complete.');
-        } catch (e: any) {
-          console.error('Time enrichment failed:', e);
-          sendLog(`Time enrichment failed: ${e.message}`);
+            enrichedEvents = enrichedEvents.map(orig => {
+              const fresh = timeEventsMap.get(orig.id) || timeEventsMap.get(orig.title);
+              if (fresh) {
+                const freshAny = fresh as any;
+                return {
+                  ...orig,
+                  start: freshAny.start ? { ...orig.start, ...freshAny.start } : orig.start,
+                  end: freshAny.end ? { ...orig.end, ...freshAny.end } : orig.end
+                };
+              }
+              return orig;
+            });
+            sendLog('Time enrichment complete.');
+          } catch (e: any) {
+            console.error('Time enrichment failed:', e);
+            sendLog(`Time enrichment failed: ${e.message}`);
+          }
+        }
+
+        // --- STAGE 3: SUMMARY ENRICHMENT ---
+        if (!fields || fields.includes('summary')) {
+          try {
+            sendLog('Enriching Summary...');
+            // Minify context for summary generation to save tokens, only need title/current summary
+            const summaryContext = JSON.stringify(events.map(e => ({
+              id: e.id,
+              title: e.title,
+              current_summary: e.summary,
+            })), null, 2);
+
+            const summaryJsonStr = await callLLM(SYSTEM_PROMPT_SUMMARY, summaryContext);
+            const summaryData = JSON.parse(summaryJsonStr);
+            const summaryEventsMap = new Map((summaryData.events || []).map((e: any) => [e.id || e.title, e]));
+
+            enrichedEvents = enrichedEvents.map(orig => {
+              const fresh = summaryEventsMap.get(orig.id) || summaryEventsMap.get(orig.title);
+              if (fresh) {
+                const freshAny = fresh as any;
+                return {
+                  ...orig,
+                  summary: freshAny.summary || orig.summary
+                };
+              }
+              return orig;
+            });
+            sendLog('Summary enrichment complete.');
+          } catch (e: any) {
+            console.error('Summary enrichment failed:', e);
+            sendLog(`Summary enrichment failed: ${e.message}`);
+          }
         }
 
         // Send final result
@@ -219,7 +299,8 @@ export async function POST(request: Request) {
             const causeStr = error.cause instanceof Error ? error.cause.toString() : JSON.stringify(error.cause);
             errorMessage += ` [cause]: ${causeStr}`;
           } catch (e) {
-            errorMessage += ` [cause]: ${String(error.cause)}`;
+            errorMessage += ` [cause]: ${String(error.cause)
+              } `;
           }
         }
 

@@ -203,6 +203,7 @@ export async function POST(request: Request) {
           return {
             id: crypto.randomUUID(),
             title: e.title,
+            source_id: ((inputType === 'url' ? content.replace(/https?:\/\//, '').replace(/[^a-z0-9]+/gi, '_') : 'manual_input') + ':' + e.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')).replace(/_+/g, '_'),
             summary: e.summary,
             imageUrl: e.imageUrl,
             importance: e.importance,
@@ -231,7 +232,7 @@ export async function POST(request: Request) {
             sources: e.sources ? e.sources.map(s => ({
               label: s.label || 'Source',
               url: s.url || sourceUrl,
-            })) : [{ label: 'Source', url: sourceUrl }]
+            })) : (inputType === 'url' ? [{ label: 'Source', url: sourceUrl }] : [])
           };
         });
 
