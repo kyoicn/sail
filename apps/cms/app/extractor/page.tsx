@@ -269,7 +269,18 @@ export default function ExtractorPage() {
           if (data.type === 'log') {
             setLogs(prev => [...prev, data.message]);
           } else if (data.type === 'result') {
-            setEvents(data.events || []);
+            let fetchedEvents = data.events || [];
+            // If extracted from URL, add it as a source
+            if (inputType === 'url' && content.trim()) {
+              fetchedEvents = fetchedEvents.map((e: EventData) => ({
+                ...e,
+                sources: [
+                  ...(e.sources || []),
+                  { label: 'Source web page', url: content.trim() }
+                ]
+              }));
+            }
+            setEvents(fetchedEvents);
           } else if (data.type === 'error') {
             // Explicit error from server - bubble up to main catch block
             throw new Error(data.message);
