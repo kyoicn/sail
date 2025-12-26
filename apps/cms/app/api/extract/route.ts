@@ -231,8 +231,7 @@ export async function POST(request: Request) {
             sources: e.sources ? e.sources.map(s => ({
               label: s.label || 'Source',
               url: s.url || sourceUrl,
-              provider: 'ai'
-            })) : [{ label: 'Source', url: sourceUrl, provider: 'ai' }]
+            })) : [{ label: 'Source', url: sourceUrl }]
           };
         });
 

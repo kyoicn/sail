@@ -58,11 +58,6 @@ export interface ChronosLocation {
   lat: number;
   lng: number;
 
-  // 2. Geometric Shape (Optional - For Future M3 Feature)
-  // GeoJSON Polygon/MultiPolygon for rendering borders or territories.
-  // This allows highlighting "The Roman Empire" boundaries when hovered.
-  geoJson?: object;
-
   placeName?: string;
   granularity: 'spot' | 'area' | 'unknown';
   certainty: 'definite' | 'approximate' | 'unknown';
@@ -77,9 +72,7 @@ export interface ChronosLocation {
 export interface EventSource {
   label: string;
   url: string;
-  // Tracks data provenance for the pipeline
-  provider?: 'wikidata' | 'gdelt' | 'manual' | 'ai';
-  providerId?: string;
+
 }
 
 // --- Event Entity ---
@@ -116,12 +109,7 @@ export interface EventData {
   // Pointer back to parent source_id (optional)
   parentId?: string;
 
-  // Pipeline Metadata (Internal Use)
-  pipeline?: {
-    fetchedAt: string; // ISO Date of extraction
-    version: number;   // Schema version
-    tags?: string[];   // e.g. ["war", "science"]
-  };
+
 }
 
 // --- Map State & Layout ---

@@ -25,7 +25,6 @@ export interface ChronosTime {
 export interface ChronosLocation {
     lat: number;
     lng: number;
-    geoJson?: object;
     placeName?: string;
     granularity: 'spot' | 'area' | 'unknown';
     certainty: 'definite' | 'approximate' | 'unknown';
@@ -36,8 +35,6 @@ export interface ChronosLocation {
 export interface EventSource {
     label: string;
     url: string;
-    provider?: 'wikidata' | 'gdelt' | 'manual' | 'ai';
-    providerId?: string;
 }
 export interface EventData {
     id: string;
@@ -52,11 +49,7 @@ export interface EventData {
     collections?: string[];
     sources?: EventSource[];
     children?: string[];
-    pipeline?: {
-        fetchedAt: string;
-        version: number;
-        tags?: string[];
-    };
+    parentId?: string;
 }
 export interface MapBounds {
     north: number;
@@ -92,5 +85,15 @@ export interface HistoricalPeriod {
     start_astro_year: number;
     end_astro_year: number;
     importance: number;
+}
+export interface EventCore {
+    title: string;
+    summary: string;
+    imageUrl?: string;
+    start_time: Partial<ChronosTime>;
+    end_time?: Partial<ChronosTime>;
+    location: Partial<ChronosLocation>;
+    importance: number;
+    sources?: Partial<EventSource>[];
 }
 //# sourceMappingURL=types.d.ts.map
