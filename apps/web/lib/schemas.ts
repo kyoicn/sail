@@ -34,7 +34,6 @@ export const ChronosLocationSchema = z.object({
   granularity: z.enum(['spot', 'area', 'unknown']).default('spot'),
   certainty: z.enum(['definite', 'approximate', 'unknown']).default('definite'),
   customRadius: z.number().optional(),
-  regionId: z.string().optional(),
   areaId: z.string().optional(),
 });
 

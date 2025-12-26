@@ -29,7 +29,6 @@ export interface ChronosLocation {
     granularity: 'spot' | 'area' | 'unknown';
     certainty: 'definite' | 'approximate' | 'unknown';
     customRadius?: number;
-    regionId?: string;
     areaId?: string;
 }
 export interface EventSource {

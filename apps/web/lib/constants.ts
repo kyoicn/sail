@@ -1,7 +1,7 @@
 import { EventData } from '@sail/shared';
 
 // --- Mock Data (Migrated) ---
-export { PREDEFINED_REGIONS, MOCK_EVENTS } from './mock_data';
+export { PREDEFINED_AREAS, MOCK_EVENTS } from './mock_data';
 
 // --- Heatmap Configuration ---
 export interface HeatmapStyleConfig {

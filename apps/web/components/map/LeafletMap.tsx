@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { EventData, MapBounds } from '@sail/shared';
-import { PREDEFINED_REGIONS, HEATMAP_STYLES, DOT_STYLES, DotStyleConfig, MAP_STYLES } from '../../lib/constants';
+import { PREDEFINED_AREAS, HEATMAP_STYLES, DOT_STYLES, DotStyleConfig, MAP_STYLES } from '../../lib/constants';
 import { calculateSmartLayout } from '../../lib/layout-engine';
 import { toSliderValue, getAstroYear } from '../../lib/time-engine';
 import { getDotHtml, getLineHtml, getCardHtml, getArrowHtml } from './MarkerTemplates';
@@ -495,12 +495,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           layers.card = cardMarker;
 
           if (event.location.granularity !== 'spot') {
-            if (event.location.regionId && PREDEFINED_REGIONS[event.location.regionId]) {
-              const latLngs = PREDEFINED_REGIONS[event.location.regionId];
+            // Check for predefined area polygon (legacy regionId replacement)
+            if (event.location.areaId && PREDEFINED_AREAS[event.location.areaId]) {
+              const latLngs = PREDEFINED_AREAS[event.location.areaId];
               const polygon = L.polygon(latLngs, { color: dotColor, fillColor: dotColor, fillOpacity: 0.1, weight: 2, opacity: 0.6 }).addTo(map);
               polygon.bringToBack();
               layers.shape = polygon;
             } else {
+              // specific radius or default
               const circle = L.circle([event.location.lat, event.location.lng], { color: dotColor, radius: event.location.customRadius || 10000, fillOpacity: 0.1 }).addTo(map);
               circle.bringToBack();
               layers.shape = circle;

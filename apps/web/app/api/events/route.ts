@@ -301,7 +301,6 @@ function mapAndReturnEvents(data: any[]) {
         placeName: sanitized(row.place_name),
         granularity: sanitized(row.granularity),
         certainty: sanitized(row.certainty),
-        regionId: sanitized(row.geo_shape_id),
         areaId: sanitized(row.area_id),
       },
       // ... (rest is same)
