@@ -4,7 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { EventData, ChronosTime, ChronosLocation } from '@sail/shared';
 import Link from 'next/link';
-import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X } from 'lucide-react';
+import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare } from 'lucide-react';
+
+// CheckSquare import added below
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -55,7 +57,7 @@ const MapWithNoSSR = dynamic(
       const map = useMap();
       useEffect(() => {
         if (markers.length > 0) {
-          const bounds = L.latLngBounds(markers.map(e => [e.location.lat, e.location.lng]));
+          const bounds = L.latLngBounds(markers.map((e: EventData) => [e.location.lat, e.location.lng]));
           map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
         }
       }, [markers.length, map]);
@@ -255,7 +257,7 @@ export default function ExtractorPage() {
       });
 
       // Note: Streaming responses return 200 OK immediately when the connection is established.
-      // Errors occurring mid-stream (like LLM failure) are sent as { type: 'error' } JSON chunks.
+      // Errors occurring mid-stream (like LLM failure) are sent as {type: 'error' } JSON chunks.
       if (!res.ok) throw new Error(await res.text());
       if (!res.body) throw new Error('No response body');
 
@@ -383,6 +385,20 @@ export default function ExtractorPage() {
   };
 
 
+
+
+  const handleSelectAll = () => {
+    if (events.length === 0) return;
+
+    // specific behavior: if all selected -> deselect all. Otherwise -> select all
+    const allSelected = events.every(e => selectedEventIds.has(e.id));
+
+    if (allSelected) {
+      setSelectedEventIds(new Set());
+    } else {
+      setSelectedEventIds(new Set(events.map(e => e.id)));
+    }
+  };
 
   const handleDownload = () => {
     const targetEvents = selectedEventIds.size > 0
@@ -565,6 +581,16 @@ export default function ExtractorPage() {
           <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white gap-2">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{events.length} Events</div>
             <div className="flex gap-1">
+
+
+              <button
+                onClick={handleSelectAll}
+                disabled={events.length === 0}
+                title={events.length > 0 && events.every(e => selectedEventIds.has(e.id)) ? "Deselect All" : "Select All"}
+                className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                <CheckSquare className="w-4 h-4" />
+              </button>
 
               <button onClick={handleDownload} disabled={events.length === 0} title="Download JSON" className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50">
                 <Download className="w-4 h-4" />
@@ -817,7 +843,7 @@ export default function ExtractorPage() {
           {/* Top: Map */}
           <div style={{ height: `${mapHeightPercent}%` }} className="relative bg-white w-full">
             <MapWithNoSSR
-              events={selectedEventIds.size > 0 ? events.filter(e => selectedEventIds.has(e.id)) : events}
+              events={selectedEventIds.size > 0 ? events.filter(e => selectedEventIds.has(e.id)) : []}
               onMarkerClick={handleMarkerClick}
               onMarkerDragEnd={(id, lat, lng) => {
                 updateEvent(id, 'location.lat', lat);
