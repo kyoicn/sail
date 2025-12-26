@@ -209,6 +209,13 @@ def main():
         else:
             print(f"Done. Applied {new_migrations_count} migrations.")
 
+        # Notify PostgREST to reload schema cache
+        # This is critical for RPCs to be found after migration.
+        # We assume the user running this has permission to notify (usually owner/superuser).
+        print("Notifying PostgREST to reload schema...")
+        cur.execute("NOTIFY pgrst, 'reload schema';")
+        conn.commit()
+
         cur.close()
         conn.close()
 
