@@ -15,6 +15,7 @@ const getPrompt = (fileName: string) => {
 const SYSTEM_PROMPT_LOCATION = getPrompt('enrichment.location.md');
 const SYSTEM_PROMPT_TIME = getPrompt('enrichment.time.md');
 const SYSTEM_PROMPT_SUMMARY = getPrompt('enrichment.summary.md');
+const SYSTEM_PROMPT_IMAGE = getPrompt('enrichment.image.md');
 
 export async function POST(request: Request) {
   const encoder = new TextEncoder();
@@ -220,6 +221,32 @@ export async function POST(request: Request) {
           } catch (e: any) {
             console.error('Summary enrichment failed:', e);
             sendLog(`Summary enrichment failed: ${e.message}`);
+          }
+        }
+
+        // --- STAGE 4: IMAGE ENRICHMENT ---
+        if (!fields || fields.includes('image')) {
+          try {
+            sendLog('Finding Images...');
+            const imageJsonStr = await callLLM(SYSTEM_PROMPT_IMAGE, eventsContext);
+            const imageData = JSON.parse(imageJsonStr);
+            const imageEventsMap = new Map((imageData.events || []).map((e: any) => [e.id || e.title, e]));
+
+            enrichedEvents = enrichedEvents.map(orig => {
+              const fresh = imageEventsMap.get(orig.id) || imageEventsMap.get(orig.title);
+              if (fresh) {
+                const freshAny = fresh as any;
+                return {
+                  ...orig,
+                  imageUrl: freshAny.imageUrl || orig.imageUrl
+                };
+              }
+              return orig;
+            });
+            sendLog('Image enrichment complete.');
+          } catch (e: any) {
+            console.error('Image enrichment failed:', e);
+            sendLog(`Image enrichment failed: ${e.message}`);
           }
         }
 

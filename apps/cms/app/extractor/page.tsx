@@ -824,9 +824,37 @@ export default function ExtractorPage() {
                       <Wand2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <div className="text-[10px] text-gray-400 italic text-center py-2">
-                    No images found.
-                  </div>
+
+                  {event.imageUrl ? (
+                    <div className="space-y-2">
+                      <div className="relative group/img aspect-video rounded overflow-hidden border border-gray-200 bg-white">
+                        <img
+                          src={event.imageUrl}
+                          alt={event.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://placehold.co/400x225?text=Invalid+Image+URL';
+                          }}
+                        />
+                        <button
+                          onClick={() => updateEvent(event.id, 'imageUrl', undefined)}
+                          className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover/img:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <input
+                        value={event.imageUrl}
+                        onChange={e => updateEvent(event.id, 'imageUrl', e.target.value)}
+                        placeholder="Image URL"
+                        className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-gray-900 text-[10px] truncate"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-gray-400 italic text-center py-2 border border-dashed border-gray-200 rounded">
+                      No images found.
+                    </div>
+                  )}
                 </div>
 
                 {/* Sources Section */}
