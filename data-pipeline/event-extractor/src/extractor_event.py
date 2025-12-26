@@ -31,45 +31,14 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
 
-SYSTEM_PROMPT = """
-You are an expert Event Extractor. Your task is to extract historical or significant events from the provided text.
-
-Output must be a JSON object containing a list of events under the key "events".
-Each event must adhere to the following structure (JSON Schema):
-
-{
-  "title": "string (REQUIRED)",
-  "summary": "string (REQUIRED, summary of the event)",
-  "start_time": {
-    "year": int (REQUIRED),
-    "month": int (optional),
-    "day": int (optional),
-    "hour": int (optional),
-    "minute": int (optional),
-    "second": int (optional),
-    "precision": "string (one of: millennium, century, decade, year, month, day, hour, minute, second)"
-  },
-  "location": {
-    "latitude": float (REQUIRED if known, otherwise omit),
-    "longitude": float (REQUIRED if known, otherwise omit),
-    "location_name": "string (optional)",
-    "precision": "string (one of: spot, area)",
-    "certainty": "string (one of: definite, approximate)"
-  },
-  "importance": float (0.0 to 10.0),
-  "sources": [
-    {"label": "string", "url": "string"}
-  ]
-}
-
-# Rules:
-1. Extract ALL relevant events mentioned in the text.
-2. If exact coordinates are not mentioned, omit latitude/longitude in the extraction (Enrichment step will fix this).
-3. If year is not mentioned, you may try to infer from context if unambiguous, otherwise omit the event or time.
-4. 'title' and 'summary' are MANDATORY.
-5. Output valid JSON only. No markdown formatting.
-6. **Time Format**: For years in BCE/BC, use NEGATIVE integers (e.g. 1700 BCE -> -1700). For AD/CE, use positive integers.
-"""
+# Load System Prompt from file
+try:
+    prompt_path = data_pipeline_root.parent / "prompts" / "extraction.system.md"
+    with open(prompt_path, "r", encoding="utf-8") as f:
+        SYSTEM_PROMPT = f.read()
+except Exception as e:
+    logging.error(f"Failed to read system prompt from {prompt_path if 'prompt_path' in locals() else 'unknown'}: {e}")
+    raise
 
 def extract_events(clean_text: str, model_name: str, timeout: int, collection: str = None, chunk_size: int = 60000) -> List[EventSchema]:
     """

@@ -1,97 +1,20 @@
 import { NextResponse } from 'next/server';
 import { EventData } from '@sail/shared';
+import fs from 'fs';
+import path from 'path';
 
-const SYSTEM_PROMPT_LOCATION = `
-You are an expert Historical Geographer.
-Your goal is to enrich the **LOCATION** information of a list of historical events based on context and your knowledge.
+const getPrompt = (fileName: string) => {
+  try {
+    return fs.readFileSync(path.join(process.cwd(), '../../prompts', fileName), 'utf-8');
+  } catch (e) {
+    console.error(`Failed to read ${fileName}`, e);
+    return '';
+  }
+};
 
-### INPUT DATA:
-Input is a JSON list of events.
-
-### CRITICAL SCHEMA RULES (READ CAREFULLY)
-You must strictly adhere to the allowed values below. **Any value outside these lists makes the JSON invalid.**
-
-**1. Location coordinates** (\`location.lat\`, \`location.lng\`)
-   - ALLOWED VALUES: Decimal degrees (-90.0 to 90.0 for latitude, -180.0 to 180.0 for longitude)
-   - Try your best to figure out the coordinates based on the location name aligned with the time period.
-
-**2. Location Precision** (\`location.granularity\`)
-   - ALLOWED VALUES: "spot", "area", "unknown"
-   - *Note: "spot" = specific coordinate/building; "area" = city/region/country.*
-
-**3. Location Certainty** (\`location.certainty\`)
-   - ALLOWED VALUES: "definite", "approximate", "unknown"
-
-### INSTRUCTIONS:
-1. **Analyze:** Check if the event has missing location info (coordinates, name, precision, certainty).
-2. **Enrich:** Use your internal knowledge and the source text to fill gaps.
-3. **Validate:** Check \`granularity\` and \`certainty\` against allowed values.
-4. **Output:** Return the list of events with updated location fields.
-
-### RESPONSE FORMAT:
-\`\`\`json
-{
-  "events": [
-    { ...event with enriched location... }
-  ]
-}
-\`\`\`
-`;
-
-const SYSTEM_PROMPT_TIME = `
-You are an expert Historical Chronologist.
-Your goal is to enrich the **TIME** information (start and end) of a list of historical events.
-
-### INPUT DATA:
-Input is a JSON list of events.
-
-### CRITICAL SCHEMA RULES (READ CAREFULLY)
-You must strictly adhere to the allowed values below. **Any value outside these lists makes the JSON invalid.**
-
-**1. Time Precision** (\`start.precision\`, \`end.precision\`)
-   - ALLOWED VALUES: "millennium", "century", "decade", "year", "month", "day", "hour", "minute", "second", "unknown"
-   - *Note: Do NOT use "definite" or "exact" here.*
-
-**2. Time Format**
-   - For years in BCE/BC, use NEGATIVE integers (e.g. 1700 BCE -> -1700). For AD/CE, use positive integers.
-
-### INSTRUCTIONS:
-1. **Analyze:** Check \`start\` and \`end\`. Are fields like month/day/year missing?
-2. **Enrich:** Use your internal knowledge and source text to fill gaps (e.g. finding exact dates).
-3. **Validate:** Check \`precision\` against allowed values.
-4. **Output:** Return the list of events with updated time fields.
-
-### RESPONSE FORMAT:
-\`\`\`json
-{
-  "events": [
-     { ...event with enriched time... }
-  ]
-}
-\`\`\`
-`;
-
-const SYSTEM_PROMPT_SUMMARY = `
-You are an expert Historical Editor.
-Your goal is to enrich the **SUMMARY** of a list of historical events.
-
-### INPUT DATA:
-Input is a JSON list of events.
-
-### INSTRUCTIONS:
-1. **Analyze:** Read the event title and context.
-2. **Enrich:** Write a concise, engaging 1-3 sentence summary for the event. It should explain the significance.
-3. **Output:** Return the list of events with updated summary field.
-
-### RESPONSE FORMAT:
-\`\`\`json
-{
-  "events": [
-     { "id": "...", "summary": "..." }
-  ]
-}
-\`\`\`
-`;
+const SYSTEM_PROMPT_LOCATION = getPrompt('enrichment.location.md');
+const SYSTEM_PROMPT_TIME = getPrompt('enrichment.time.md');
+const SYSTEM_PROMPT_SUMMARY = getPrompt('enrichment.summary.md');
 
 export async function POST(request: Request) {
   const encoder = new TextEncoder();
@@ -238,10 +161,24 @@ export async function POST(request: Request) {
               const fresh = timeEventsMap.get(orig.id) || timeEventsMap.get(orig.title);
               if (fresh) {
                 const freshAny = fresh as any;
+                const mergedStart = freshAny.start ? { ...orig.start, ...freshAny.start } : orig.start;
+                let mergedEnd = freshAny.end ? { ...orig.end, ...freshAny.end } : orig.end;
+
+                // Compare start and end to see if identical
+                if (mergedEnd &&
+                  mergedStart.year === mergedEnd.year &&
+                  mergedStart.month === mergedEnd.month &&
+                  mergedStart.day === mergedEnd.day &&
+                  mergedStart.hour === mergedEnd.hour &&
+                  mergedStart.minute === mergedEnd.minute &&
+                  mergedStart.second === mergedEnd.second) {
+                  mergedEnd = undefined;
+                }
+
                 return {
                   ...orig,
-                  start: freshAny.start ? { ...orig.start, ...freshAny.start } : orig.start,
-                  end: freshAny.end ? { ...orig.end, ...freshAny.end } : orig.end
+                  start: mergedStart,
+                  end: mergedEnd
                 };
               }
               return orig;

@@ -4,51 +4,22 @@ import { Readability } from '@mozilla/readability';
 // Google Generative AI integration is handled via REST API to avoid Node SDK issues.
 
 import { EventData, ChronosTime, ChronosLocation, EventSource, EventCore } from '@sail/shared';
+import fs from 'fs';
+import path from 'path';
 
 // We need a local interface for the LLM response which might be slightly looser before mapping
 
-const SYSTEM_PROMPT = `
-You are an expert Event Extractor. Your task is to extract historical or significant events from the provided text.
-
-Output must be a JSON object containing a list of events under the key "events".
-Each event must adhere to the following structure:
-
-{
-  "title": "string (REQUIRED)",
-  "summary": "string (REQUIRED, summary of the event)",
-  "start_time": {
-    "year": int (REQUIRED),
-    "month": int (optional),
-    "day": int (optional),
-    "hour": int (optional),
-    "minute": int (optional),
-    "second": int (optional),
-    "precision": "string (one of: millennium, century, decade, year, month, day, hour, minute, second, unknown)"
-  },
-  "end_time": {
-    "year": int (optional),
-    "month": int (optional),
-    "day": int (optional),
-    "hour": int (optional),
-    "minute": int (optional),
-    "second": int (optional),
-    "precision": "string (one of: millennium, century, decade, year, month, day, hour, minute, second, unknown)"
-  },
-  "location": {
-    "lat": float (optional, latitude),
-    "lng": float (optional, longitude),
-    "placeName": "string (optional)",
-    "granularity": "string (one of: spot, area, unknown)",
-    "certainty": "string (one of: definite, approximate, unknown)"
-  },
-}
-
-Rules:
-1. Extract ALL relevant events.
-2. If exact coordinates are not mentioned, omit lat/lng.
-3. Use negative integers for BC years.
-4. Output valid JSON only.
-`;
+const getSystemPrompt = () => {
+  try {
+    const promptPath = path.join(process.cwd(), '../../prompts/extraction.system.md');
+    return fs.readFileSync(promptPath, 'utf-8');
+  } catch (e) {
+    console.error('Failed to read system prompt:', e);
+    // Fallback?
+    throw new Error('System prompt missing');
+  }
+};
+const SYSTEM_PROMPT = getSystemPrompt();
 
 export async function POST(request: Request) {
   const encoder = new TextEncoder();
@@ -194,7 +165,8 @@ export async function POST(request: Request) {
         sendLog(`Extracted ${extractedEvents.length} events. Mapping to schema...`);
 
         // 3. Map to EventData (Canonical Schema)
-        const mappedEvents: Partial<EventData>[] = extractedEvents.map((e, idx) => {
+        const mappedEvents: Partial<EventData>[] = extractedEvents.map((eVal, idx) => {
+          const e = eVal as any;
           // Helper to calculate astro_year
           const calcAstro = (year: number) => {
             return year > 0 ? year : year + 1; // Simplified 1 BC = 0.0
@@ -215,7 +187,14 @@ export async function POST(request: Request) {
               precision: e.start_time.precision as any || 'year',
               millisecond: 0
             },
-            end: e.end_time ? {
+            end: (e.end_time && !(
+              e.end_time.year === e.start_time.year &&
+              e.end_time.month === e.start_time.month &&
+              e.end_time.day === e.start_time.day &&
+              e.end_time.hour === e.start_time.hour &&
+              e.end_time.minute === e.start_time.minute &&
+              e.end_time.second === e.start_time.second
+            )) ? {
               year: e.end_time.year || 0,
               ...e.end_time,
               astro_year: calcAstro(e.end_time.year || 0),
@@ -223,13 +202,13 @@ export async function POST(request: Request) {
               millisecond: 0
             } : undefined,
             location: {
-              lat: e.location.lat || 0,
-              lng: e.location.lng || 0,
-              placeName: e.location.placeName,
-              granularity: e.location.granularity || 'spot', // Updated Prompt outputs granularity
+              lat: e.location.latitude || e.location.lat || 0, // prompt asks for latitude/longitude now, but keep back compat just in case
+              lng: e.location.longitude || e.location.lng || 0,
+              placeName: e.location.location_name || e.location.placeName, // prompt asks for location_name
+              granularity: e.location.precision || e.location.granularity || 'spot', // prompt asks for precision (matches EventSchema)
               certainty: e.location.certainty || 'unknown'
             },
-            sources: e.sources ? e.sources.map(s => ({
+            sources: e.sources ? e.sources.map((s: any) => ({
               label: s.label || 'Source',
               url: s.url || sourceUrl,
             })) : (inputType === 'url' ? [{ label: 'Source', url: sourceUrl }] : [])

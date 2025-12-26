@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { EventData, ChronosTime, ChronosLocation } from '@sail/shared';
 import Link from 'next/link';
-import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon } from 'lucide-react';
+import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X } from 'lucide-react';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -706,6 +706,56 @@ export default function ExtractorPage() {
                   </div>
                   <div className="text-[10px] text-gray-400 italic text-center py-2">
                     No images found.
+                  </div>
+                </div>
+
+                {/* Sources Section */}
+                <div className="bg-gray-50 p-1.5 rounded border border-gray-100 text-xs mt-2">
+                  <div className="flex items-center justify-between gap-1 text-gray-500 mb-1">
+                    <div className="flex items-center gap-1">
+                      <LinkIcon className="w-3 h-3" /> <span className="text-[10px] font-bold">SOURCES</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {(event.sources || []).map((source, idx) => (
+                      <div key={idx} className="flex gap-1 items-center">
+                        <input
+                          value={source.label || ''}
+                          onChange={e => {
+                            const newSources = [...(event.sources || [])];
+                            newSources[idx] = { ...newSources[idx], label: e.target.value };
+                            updateEvent(event.id, 'sources', newSources);
+                          }}
+                          className="w-1/3 bg-white border border-gray-200 rounded px-1.5 py-1 text-gray-900 text-xs"
+                          placeholder="Label"
+                        />
+                        <input
+                          value={source.url || ''}
+                          onChange={e => {
+                            const newSources = [...(event.sources || [])];
+                            newSources[idx] = { ...newSources[idx], url: e.target.value };
+                            updateEvent(event.id, 'sources', newSources);
+                          }}
+                          className="flex-1 bg-white border border-gray-200 rounded px-1.5 py-1 text-gray-900 text-xs text-blue-500 underline"
+                          placeholder="URL"
+                        />
+                        <button
+                          onClick={() => {
+                            const newSources = (event.sources || []).filter((_, i) => i !== idx);
+                            updateEvent(event.id, 'sources', newSources);
+                          }}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => updateEvent(event.id, 'sources', [...(event.sources || []), { label: '', url: '' }])}
+                      className="w-full py-1 text-[10px] text-blue-500 border border-dashed border-blue-200 hover:bg-blue-50 rounded flex items-center justify-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Add Source
+                    </button>
                   </div>
                 </div>
               </div>
