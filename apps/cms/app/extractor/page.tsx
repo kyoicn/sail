@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { EventData, ChronosTime, ChronosLocation } from '@sail/shared';
 import Link from 'next/link';
-import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare } from 'lucide-react';
+import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare, ChevronRight } from 'lucide-react';
 
 // CheckSquare import added below
 
@@ -179,6 +179,7 @@ export default function ExtractorPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
+  const [isEventListExpanded, setIsEventListExpanded] = useState(false);
 
   // Layout state
   const [mapHeightPercent, setMapHeightPercent] = useState(70);
@@ -578,25 +579,77 @@ export default function ExtractorPage() {
           </div>
 
           {/* Action Buttons Row */}
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white gap-2">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{events.length} Events</div>
-            <div className="flex gap-1">
-
-
+          <div className="border-b border-gray-200 bg-white">
+            <div className="px-4 py-3 flex items-center justify-between gap-2">
               <button
-                onClick={handleSelectAll}
-                disabled={events.length === 0}
-                title={events.length > 0 && events.every(e => selectedEventIds.has(e.id)) ? "Deselect All" : "Select All"}
-                className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                onClick={() => setIsEventListExpanded(!isEventListExpanded)}
+                className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition-colors"
               >
-                <CheckSquare className="w-4 h-4" />
+                <ChevronRight className={`w-3 h-3 transition-transform ${isEventListExpanded ? 'rotate-90' : ''}`} />
+                {events.length} Events
               </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={handleSelectAll}
+                  disabled={events.length === 0}
+                  title={events.length > 0 && events.every(e => selectedEventIds.has(e.id)) ? "Deselect All" : "Select All"}
+                  className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                </button>
 
-              <button onClick={handleDownload} disabled={events.length === 0} title="Download JSON" className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50">
-                <Download className="w-4 h-4" />
-              </button>
-
+                <button onClick={handleDownload} disabled={events.length === 0} title="Download JSON" className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50">
+                  <Download className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+
+            {/* Expandable Mini List */}
+            {isEventListExpanded && events.length > 0 && (
+              <div className="max-h-48 overflow-y-auto border-t border-gray-100 bg-gray-50/50">
+                {events.map(event => (
+                  <div
+                    key={event.id}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey) {
+                        handleCardClick(e, event.id);
+                      } else {
+                        handleMarkerClick(event.id);
+                      }
+                    }}
+                    className={`px-4 py-1.5 text-xs text-gray-600 hover:bg-blue-50 cursor-pointer flex items-center justify-between gap-2 group ${selectedEventIds.has(event.id) ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className={`w-1.5 h-1.5 shrink-0 rounded-full ${selectedEventIds.has(event.id) ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                      <span className="truncate">{event.title || 'Untitled Event'}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleShowJson(event);
+                        }}
+                        title="Show JSON"
+                        className="p-1 text-gray-400 hover:text-blue-500 hover:bg-white rounded transition-colors"
+                      >
+                        <FileJson className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeEvent(event.id);
+                        }}
+                        title="Delete Event"
+                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-white rounded transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Event List */}
