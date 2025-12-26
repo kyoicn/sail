@@ -48,7 +48,7 @@ export const MapStyleSelector: React.FC<MapStyleSelectorProps> = ({
   };
 
   return (
-    <div ref={ref} className="absolute top-20 right-20 z-30 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 p-2 w-64 animate-in fade-in zoom-in-95 duration-200">
+    <div ref={ref} className="pointer-events-auto absolute top-20 right-20 z-30 bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 p-2 w-64 animate-in fade-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between px-2 py-1 mb-2 border-b border-slate-200/50">
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Map Style</span>
       </div>
