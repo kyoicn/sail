@@ -10,20 +10,44 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
+const AVAILABLE_MODELS = {
+  ollama: [
+    'deepseek-r1:8b',
+    'deepseek-r1:70b',
+    'deepseek-r1:7b',
+    'deepseek-r1:1.5b',
+    'qwen3:8b',
+  ],
+  gemini: [
+    'gemma-3-27b-it',
+    'gemma-3-12b-it',
+    'gemma-3-4b-it',
+    'gemma-3-1b-it',
+    'gemini-3-flash-preview',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+  ],
+};
+
 // Dynamically import Map to avoid SSR issues with Leaflet
 const MapWithNoSSR = dynamic(
   () => import('react-leaflet').then((mod) => {
     // We need to return a component that renders the map
     const { MapContainer, TileLayer, Marker, Popup, useMap } = mod;
 
-    // Fix for default marker icons
-    // CSS imported globally in globals.css now
+    // Explicitly create an icon instance to avoid "iconUrl not set" errors
     const L = require('leaflet');
-    delete L.Icon.Default.prototype._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: markerIcon2x.src,
-      iconUrl: markerIcon.src,
-      shadowUrl: markerShadow.src,
+
+    // Define custom icon using CDN assets to avoid bundler issues
+    const DefaultIcon = L.icon({
+      iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
     });
 
     return ({ events, onMarkerClick }: { events: EventData[], onMarkerClick: (id: string) => void }) => {
@@ -50,6 +74,7 @@ const MapWithNoSSR = dynamic(
               <Marker
                 key={event.id}
                 position={[event.location.lat, event.location.lng]}
+                icon={DefaultIcon}
                 eventHandlers={{ click: () => onMarkerClick(event.id) }}
               >
                 <Popup>
@@ -70,8 +95,8 @@ const MapWithNoSSR = dynamic(
 export default function ExtractorPage() {
   const [inputType, setInputType] = useState<'url' | 'text'>('url');
   const [content, setContent] = useState('');
-  const [provider, setProvider] = useState<'ollama' | 'gemini'>('ollama');
-  const [model, setModel] = useState('');
+  const [provider, setProvider] = useState<'ollama' | 'gemini'>('gemini');
+  const [model, setModel] = useState(AVAILABLE_MODELS.gemini[0]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
@@ -155,21 +180,23 @@ export default function ExtractorPage() {
 
         for (const line of lines) {
           if (!line.trim()) continue;
+
+          let data;
           try {
-            const data = JSON.parse(line);
-            if (data.type === 'log') {
-              setLogs(prev => [...prev, data.message]);
-            } else if (data.type === 'result') {
-              setEvents(data.events || []);
-            } else if (data.type === 'error') {
-              throw new Error(data.message);
-            }
-          } catch (e: any) {
-            // If the error was thrown above, re-throw it to fail the process
-            if (typeof e.message === 'string' && (e.message.includes('Error:') || e.message.includes('failed'))) {
-              throw e;
-            }
-            console.error('Parse error', line);
+            data = JSON.parse(line);
+          } catch (parseErr) {
+            console.error('Frontend failed to parse NDJSON line:', line, parseErr);
+            // Don't kill the stream for a single bad line, just log it
+            continue;
+          }
+
+          if (data.type === 'log') {
+            setLogs(prev => [...prev, data.message]);
+          } else if (data.type === 'result') {
+            setEvents(data.events || []);
+          } else if (data.type === 'error') {
+            // Explicit error from server - bubble up to main catch block
+            throw new Error(data.message);
           }
         }
       }
@@ -182,16 +209,59 @@ export default function ExtractorPage() {
   };
 
   const handleEnrich = async () => {
+    const targetEvents = selectedEventId
+      ? events.filter(e => e.id === selectedEventId)
+      : events;
+
+    if (targetEvents.length === 0) return;
+
     setIsProcessing(true);
     try {
       const res = await fetch('/api/enrich', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events, provider, model }),
+        body: JSON.stringify({ events: targetEvents, provider, model, context: content }),
       });
+
       if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setEvents(data.events || events);
+      if (!res.body) throw new Error('No response body');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          let data;
+          try {
+            data = JSON.parse(line);
+          } catch (parseErr) {
+            console.error('Frontend failed to parse NDJSON line:', line, parseErr);
+            continue;
+          }
+
+          if (data.type === 'log') {
+            setLogs(prev => [...prev, data.message]);
+          } else if (data.type === 'result') {
+            // Merge enriched events back
+            const newEvents = data.events as EventData[];
+            const enrichedMap = new Map((newEvents || []).map((e) => [e.id, e]));
+            setEvents(prev => prev.map(e => enrichedMap.get(e.id) || e));
+            setLogs(prev => [...prev, `Enriched ${newEvents.length} events successfully.`]);
+          } else if (data.type === 'error') {
+            throw new Error(data.message);
+          }
+        }
+      }
     } catch (e: any) {
       console.error(e);
       setLogs(prev => [...prev, `Enrichment Failed: ${e.message}`]);
@@ -201,13 +271,19 @@ export default function ExtractorPage() {
   };
 
   const handleSubmit = async () => {
-    if (!confirm(`Submit ${events.length} events to the database?`)) return;
+    const targetEvents = selectedEventId
+      ? events.filter(e => e.id === selectedEventId)
+      : events;
+
+    if (targetEvents.length === 0) return;
+
+    if (!confirm(`Submit ${targetEvents.length} events to the database?`)) return;
     setIsProcessing(true);
     try {
       const res = await fetch('/api/events/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events, dataset: 'dev' }), // Defaulting to dev
+        body: JSON.stringify({ events: targetEvents, dataset: 'dev' }), // Defaulting to dev
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -221,12 +297,18 @@ export default function ExtractorPage() {
   };
 
   const handleDownload = () => {
-    const jsonString = JSON.stringify({ events }, null, 2);
+    const targetEvents = selectedEventId
+      ? events.filter(e => e.id === selectedEventId)
+      : events;
+
+    if (targetEvents.length === 0) return;
+
+    const jsonString = JSON.stringify({ events: targetEvents }, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `extracted_events_${new Date().toISOString()}.json`;
+    link.download = `extracted_events_${targetEvents.length}_${new Date().toISOString()}.json`;
     link.click();
   };
 
@@ -295,19 +377,26 @@ export default function ExtractorPage() {
               <div className="flex items-center gap-2 flex-1 justify-end">
                 <select
                   value={provider}
-                  onChange={e => setProvider(e.target.value as any)}
+                  onChange={e => {
+                    const newProvider = e.target.value as 'ollama' | 'gemini';
+                    setProvider(newProvider);
+                    // Reset model or set default when provider changes
+                    setModel(AVAILABLE_MODELS[newProvider][0]);
+                  }}
                   className="border border-gray-300 rounded-md text-xs px-2 py-1.5 focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white max-w-[100px]"
                 >
                   <option value="ollama">Ollama</option>
                   <option value="gemini">Gemini</option>
                 </select>
-                <input
-                  type="text"
-                  placeholder="Model"
+                <select
                   value={model}
                   onChange={e => setModel(e.target.value)}
-                  className="border border-gray-300 rounded-md text-xs px-2 py-1.5 w-20 focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                />
+                  className="border border-gray-300 rounded-md text-xs px-2 py-1.5 focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white max-w-[150px]"
+                >
+                  {AVAILABLE_MODELS[provider].map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

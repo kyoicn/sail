@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frosted Glass Player Demo</title>
+  <style>
+    /* 1. THE BACKGROUND */
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: white;
+      transition: background 2s ease;
+      /* Smooth transition for AI color changes */
+    }
+
+    @keyframes gradientBG {
+      0% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+
+    /* 2. THE GLASS COMPONENT */
+    .glass-player {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 15px 30px;
+      width: 600px;
+      height: 60px;
+      border-radius: 50px;
+      background: rgba(20, 20, 20, 0.25);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    /* Loading State Pulse */
+    .glass-player.loading {
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+      animation: pulse-border 1.5s infinite;
+    }
+
+    @keyframes pulse-border {
+      0% {
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+
+      50% {
+        border-color: rgba(255, 255, 255, 0.8);
+      }
+
+      100% {
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+    }
+
+    /* 3. INNER ELEMENTS STYLING */
+
+    /* Play Button */
+    .play-btn {
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #333;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .play-btn:hover {
+      transform: scale(1.05);
+      background: white;
+    }
+
+    .play-icon {
+      width: 0;
+      height: 0;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      border-left: 12px solid #333;
+      margin-left: 4px;
+    }
+
+    /* Text Section */
+    .track-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 160px;
+      transition: opacity 0.3s;
+    }
+
+    .track-title {
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    .track-artist {
+      font-size: 11px;
+      opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 2px;
+    }
+
+    /* Visualizer */
+    .visualizer {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex-grow: 1;
+      height: 30px;
+      mask-image: linear-gradient(90deg, transparent, white 20%, white 80%, transparent);
+      -webkit-mask-image: linear-gradient(90deg, transparent, white 20%, white 80%, transparent);
+    }
+
+    .bar {
+      width: 3px;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 2px;
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 15px;
+    }
+
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: white;
+      opacity: 0.7;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-btn:hover {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+
+    .icon-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      animation: none;
+    }
+
+    /* AI Input Overlay */
+    .ai-input-container {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(30, 30, 30, 0.95);
+      border-radius: 50px;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      box-sizing: border-box;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.95);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(10px);
+    }
+
+    .ai-input-container.active {
+      opacity: 1;
+      pointer-events: all;
+      transform: scale(1);
+    }
+
+    .ai-input {
+      flex-grow: 1;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 16px;
+      font-family: inherit;
+      margin: 0 15px;
+      outline: none;
+    }
+
+    .ai-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .close-btn {
+      background: rgba(255, 255, 255, 0.1);
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    /* Sparkle Animation for AI button */
+    @keyframes sparkle {
+      0% {
+        filter: hue-rotate(0deg);
+      }
+
+      100% {
+        filter: hue-rotate(360deg);
+      }
+    }
+
+    .magic-btn:hover {
+      animation: sparkle 2s linear infinite;
+      text-shadow: 0 0 5px gold;
+    }
+
+    @keyframes bounce {
+
+      0%,
+      100% {
+        height: 20%;
+      }
+
+      50% {
+        height: 100%;
+      }
+    }
+
+    .bar:nth-child(odd) {
+      animation-duration: 0.8s;
+    }
+
+    .bar:nth-child(2n) {
+      animation-duration: 1.1s;
+    }
+
+    .bar:nth-child(3n) {
+      animation-duration: 1.3s;
+    }
+
+    .bar:nth-child(4n) {
+      animation-duration: 0.9s;
+    }
+
+    /* Notification Toast */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(8px);
+      padding: 10px 20px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transform: translateY(100px);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      font-size: 14px;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="glass-player" id="player">
+    <!-- Play Button -->
+    <button class="play-btn" id="playBtn">
+      <div class="play-icon"></div>
+    </button>
+
+    <!-- Track Info -->
+    <div class="track-info" id="trackInfo">
+      <span class="track-title" id="trackTitle">1600 AD — 1700 AD</span>
+      <span class="track-artist" id="trackArtist">Early Modern Period</span>
+    </div>
+
+    <!-- Simulated Waveform Visualizer -->
+    <div class="visualizer" id="visualizer">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <!-- Magic/Speak Button -->
+      <button class="icon-btn magic-btn" id="speakBtn" title="DJ Commentary">
+        ✨
+      </button>
+      <!-- Search Button -->
+      <button class="icon-btn" id="searchBtn" title="Time Travel">
+        🔍
+      </button>
+    </div>
+
+    <!-- AI Input Overlay -->
+    <div class="ai-input-container" id="aiContainer">
+      <span style="font-size: 18px;">🔮</span>
+      <input type="text" class="ai-input" id="aiInput"
+        placeholder="Where do you want to go? (e.g. 'Cyberpunk 2077', '1950s Jazz')">
+      <button class="icon-btn close-btn" id="closeAiBtn">✕</button>
+    </div>
+  </div>
+
+  <!-- Hidden audio element for TTS -->
+  <audio id="ttsAudio" style="display:none;"></audio>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast">DJ is thinking...</div>
+
+  <script>
+    // --- CONFIGURATION ---
+    const apiKey = ""; // API key injected at runtime
+
+    // --- DOM ELEMENTS ---
+    const player = document.getElementById('player');
+    const searchBtn = document.getElementById('searchBtn');
+    const speakBtn = document.getElementById('speakBtn');
+    const aiContainer = document.getElementById('aiContainer');
+    const aiInput = document.getElementById('aiInput');
+    const closeAiBtn = document.getElementById('closeAiBtn');
+    const trackTitle = document.getElementById('trackTitle');
+    const trackArtist = document.getElementById('trackArtist');
+    const toast = document.getElementById('toast');
+    const ttsAudio = document.getElementById('ttsAudio');
+
+    let currentFact = "The Early Modern period saw the rise of the scientific method.";
+
+    // --- EVENT LISTENERS ---
+    searchBtn.addEventListener('click', () => {
+      aiContainer.classList.add('active');
+      aiInput.focus();
+    });
+
+    closeAiBtn.addEventListener('click', () => {
+      aiContainer.classList.remove('active');
+    });
+
+    aiInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const query = aiInput.value;
+        if (query) {
+          generateTrack(query);
+          aiContainer.classList.remove('active');
+          aiInput.value = '';
+        }
+      }
+    });
+
+    speakBtn.addEventListener('click', () => {
+      speakFact();
+    });
+
+    // --- GEMINI API FUNCTIONS ---
+
+    /**
+     * GENERATION: Uses Gemini 2.5 Flash to hallucinate a track/era
+     */
+    async function generateTrack(query) {
+      showToast("Traveling through time...");
+      player.classList.add('loading');
+
+      const systemPrompt = `You are a music player engine. The user gives a mood, era, or genre. 
+            You return a JSON object with:
+            - 'title': A creative track title or Era name.
+            - 'artist': The specific time period, genre, or artist name.
+            - 'color1': A hex color code representing the vibe.
+            - 'color2': A complementary hex color code.
+            - 'fact': A one sentence interesting fact about this era/genre (max 20 words).
+            
+            Example Input: "Cyberpunk"
+            Example Output: {"title": "Neon Rain", "artist": "2077 Night City", "color1": "#0f0c29", "color2": "#302b63", "fact": "In this era, chrome skin is more common than cotton clothing."}`;
+
+      const payload = {
+        contents: [{
+          parts: [{ text: `Generate for: ${query}` }]
+        }],
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      };
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (data.error) throw new Error(data.error.message);
+
+        const result = JSON.parse(data.candidates[0].content.parts[0].text);
+
+        updatePlayer(result);
+        showToast("Arrived!");
+
+      } catch (error) {
+        console.error("AI Error:", error);
+        showToast("Time machine broken. Try again.");
+      } finally {
+        player.classList.remove('loading');
+      }
+    }
+
+    /**
+     * TEXT-TO-SPEECH: Uses Gemini 2.5 TTS to act as a DJ
+     */
+    async function speakFact() {
+      if (!currentFact) return;
+
+      showToast("DJ is speaking...");
+      speakBtn.disabled = true;
+
+      const textToSay = `Now playing ${trackTitle.innerText}. ${currentFact}`;
+
+      const payload = {
+        contents: [{
+          parts: [{ text: textToSay }]
+        }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: "Fenrir" // Deep, DJ-like voice
+              }
+            }
+          }
+        },
+        model: "gemini-2.5-flash-preview-tts"
+      };
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (data.error) throw new Error(data.error.message);
+
+        const audioData = data.candidates[0].content.parts[0].inlineData.data;
+        playAudio(audioData);
+
+      } catch (error) {
+        console.error("TTS Error:", error);
+        showToast("DJ mic is off.");
+        speakBtn.disabled = false;
+      }
+    }
+
+    // --- HELPER FUNCTIONS ---
+
+    function updatePlayer(data) {
+      // Update Text
+      trackTitle.innerText = data.title;
+      trackArtist.innerText = data.artist;
+      currentFact = data.fact;
+
+      // Update Background Gradient
+      document.body.style.background = `linear-gradient(-45deg, ${data.color1}, ${data.color2}, #000000)`;
+      document.body.style.backgroundSize = "400% 400%";
+    }
+
+    function playAudio(base64Audio) {
+      // Convert PCM16 (Gemini default) to WAV for browser playback
+      // Note: Since Gemini returns raw PCM or WAV wrapped in container depending on config,
+      // but the prompt instructions say "PCM16 audio data at ... mimetype audio/L16",
+      // browsers cannot play raw PCM L16 directly without a WAV header.
+      // However, a simpler hack for this demo environment is to assume the browser might handle it
+      // or use a helper. 
+      // *Correction*: The prompt instructions explicitly say "Must convert PCM to WAV".
+      // Let's implement a minimal PCM -> WAV converter.
+
+      const binaryString = window.atob(base64Audio);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const wavBytes = pcmToWav(bytes, 24000); // Gemini TTS usually defaults to 24kHz
+      const blob = new Blob([wavBytes], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+
+      ttsAudio.src = url;
+      ttsAudio.play();
+
+      ttsAudio.onended = () => {
+        speakBtn.disabled = false;
+        showToast("DJ signed off.");
+      };
+    }
+
+    function showToast(msg) {
+      toast.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // Minimal PCM to WAV Header adder
+    function pcmToWav(pcmData, sampleRate) {
+      const header = new ArrayBuffer(44);
+      const view = new DataView(header);
+      const totalDataLen = pcmData.length + 44;
+
+      // RIFF chunk
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + pcmData.length, true);
+      writeString(view, 8, 'WAVE');
+
+      // fmt chunk
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+      view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+      view.setUint16(22, 1, true); // NumChannels (1 mono)
+      view.setUint32(24, sampleRate, true); // SampleRate
+      view.setUint32(28, sampleRate * 2, true); // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
+      view.setUint16(32, 2, true); // BlockAlign (NumChannels * BitsPerSample/8)
+      view.setUint16(34, 16, true); // BitsPerSample
+
+      // data chunk
+      writeString(view, 36, 'data');
+      view.setUint32(40, pcmData.length, true);
+
+      const wav = new Uint8Array(header.byteLength + pcmData.length);
+      wav.set(new Uint8Array(header), 0);
+      wav.set(pcmData, 44);
+      return wav;
+    }
+
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+  </script>
+</body>
+
+</html>

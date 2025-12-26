@@ -120,15 +120,20 @@ export async function POST(request: Request) {
         let extractedEvents: EventCore[] = [];
         sendLog(`Calling LLM (${provider} - ${model || 'default'})...`);
 
+        // Helper to strip markdown code blocks
+        const cleanJson = (text: string) => {
+          return text.replace(/```json\n?|\n?```/g, '').trim();
+        };
+
         if (provider === 'gemini') {
-          const apiKey = process.env.GEMINI_API_KEY;
+          const apiKey = process.env.GOOGLE_API_KEY;
           if (!apiKey) {
-            sendError('GEMINI_API_KEY not configured');
+            sendError('GOOGLE_API_KEY not configured');
             controller.close();
             return;
           }
 
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-1.5-flash'}:generateContent?key=${apiKey}`, {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -136,7 +141,8 @@ export async function POST(request: Request) {
                 parts: [{ text: SYSTEM_PROMPT + "\n\nText to analyze:\n" + cleanText }]
               }],
               generationConfig: {
-                responseMimeType: "application/json"
+                // Gemma models don't support JSON mode yet, so rely on the prompt
+                ...(model && model.startsWith('gemma') ? {} : { responseMimeType: "application/json" })
               }
             })
           });
@@ -150,14 +156,15 @@ export async function POST(request: Request) {
           const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (!textResponse) throw new Error('No content from Gemini');
 
+          sendLog(`Gemini Response:\n${textResponse}`);
           sendLog('Parsing LLM response...');
-          const json = JSON.parse(textResponse);
+          const json = JSON.parse(cleanJson(textResponse));
           extractedEvents = json.events || [];
 
         } else {
           // Ollama
-          const ollamaHost = process.env.OLLAMA_HOST;
-          const response = await fetch(`${ollamaHost}/api/chat`, {
+          const OllamaHost = process.env.OLLAMA_HOST;
+          const response = await fetch(`${OllamaHost}/api/chat`, {
             method: 'POST',
             body: JSON.stringify({
               model: model || 'deepseek-r1:8b',
@@ -173,8 +180,10 @@ export async function POST(request: Request) {
           if (!response.ok) throw new Error('Ollama API failed');
           const data = await response.json();
           try {
+            const content = data.message.content;
+            sendLog(`Ollama Response:\n${content}`);
             sendLog('Parsing LLM response...');
-            const json = JSON.parse(data.message.content);
+            const json = JSON.parse(cleanJson(content));
             extractedEvents = json.events || [];
           } catch (e) {
             console.error("Failed to parse Ollama JSON", data.message.content);
