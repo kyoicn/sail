@@ -8,7 +8,9 @@ from pathlib import Path
 from datetime import datetime
 
 # Load environment variables
-load_dotenv()
+current_file = Path(__file__).resolve()
+data_pipeline_root = current_file.parents[2] # .../data-pipeline
+load_dotenv(data_pipeline_root.parent / '.env')
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
 EXTRACT_EVENTS_TIMEOUT = 600

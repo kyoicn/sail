@@ -33,7 +33,7 @@ import sys
 # Setup
 current_file = Path(__file__).resolve()
 data_pipeline_root = current_file.parents[1]
-load_dotenv(data_pipeline_root / '.env')
+load_dotenv(data_pipeline_root.parent / '.env')
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 

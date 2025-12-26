@@ -22,7 +22,7 @@ class BasePopulator(Generic[T]):
         # Setup Environment
         self.script_path = Path(sys.argv[0]).resolve()
         self.data_pipeline_root = self.script_path.parents[1]
-        load_dotenv(self.data_pipeline_root / '.env')
+        load_dotenv(self.data_pipeline_root.parent / '.env')
         
         self.database_url = os.environ.get("DATABASE_URL")
         if not self.database_url:

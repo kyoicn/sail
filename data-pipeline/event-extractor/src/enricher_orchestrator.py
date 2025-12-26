@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
-load_dotenv()
+load_dotenv(data_pipeline_root.parent / '.env')
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
 
 TOOLS = [

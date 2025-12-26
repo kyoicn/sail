@@ -49,10 +49,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-# Load env from data-pipeline/.env
+# Load env from repo root (../../.env)
 current_file = Path(__file__).resolve()
 data_pipeline_root = current_file.parents[1]
-load_dotenv(data_pipeline_root / '.env')
+# data-pipeline root is parents[1], repo root is parents[2] or data_pipeline_root.parent
+load_dotenv(data_pipeline_root.parent / '.env')
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
