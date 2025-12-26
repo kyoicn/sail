@@ -476,7 +476,7 @@ export default function ExtractorPage() {
         certainty: e.location.certainty
       },
       sources: e.sources,
-      images: e.imageUrl ? [{ label: 'Image', url: e.imageUrl }] : undefined,
+      images: e.images && e.images.length > 0 ? e.images : (e.imageUrl ? [{ label: 'Image', url: e.imageUrl }] : undefined),
     };
   };
 
@@ -811,50 +811,94 @@ export default function ExtractorPage() {
 
                 {/* Images Section */}
                 <div className="bg-gray-50 p-1.5 rounded border border-gray-100 text-xs">
-                  <div className="flex items-center justify-between gap-1 text-gray-500 mb-1">
+                  <div className="flex items-center justify-between gap-1 text-gray-500 mb-2">
                     <div className="flex items-center gap-1">
-                      <ImageIcon className="w-3 h-3" /> <span className="text-[10px] font-bold">IMAGES</span>
+                      <ImageIcon className="w-3 h-3" /> <span className="text-[10px] font-bold">IMAGES ({event.images?.length || (event.imageUrl ? 1 : 0)})</span>
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleEnrich(event.id, ['image']); }}
                       disabled={isProcessing}
                       className="text-purple-600 hover:text-purple-800 disabled:opacity-50"
-                      title="Find Images"
+                      title="Find More Images"
                     >
                       <Wand2 className="w-3 h-3" />
                     </button>
                   </div>
 
-                  {event.imageUrl ? (
-                    <div className="space-y-2">
-                      <div className="relative group/img aspect-video rounded overflow-hidden border border-gray-200 bg-white">
-                        <img
-                          src={event.imageUrl}
-                          alt={event.title}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://placehold.co/400x225?text=Invalid+Image+URL';
-                          }}
-                        />
-                        <button
-                          onClick={() => updateEvent(event.id, 'imageUrl', undefined)}
-                          className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover/img:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                  <div className="space-y-3">
+                    {/* Primary Image Preview (if exists) */}
+                    {(event.images || (event.imageUrl ? [{ label: 'Primary', url: event.imageUrl }] : [])).map((img: any, idx: number) => (
+                      <div key={idx} className="space-y-1">
+                        <div className="relative group/img aspect-video rounded overflow-hidden border border-gray-200 bg-white">
+                          <img
+                            src={img.url}
+                            alt={img.label || event.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://placehold.co/400x225?text=Invalid+Image+URL';
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              const baseImgs = event.images || (event.imageUrl ? [{ label: 'Primary', url: event.imageUrl }] : []);
+                              const newImages = baseImgs.filter((_: any, i: number) => i !== idx);
+                              updateEvent(event.id, 'images', newImages);
+                              // Sync legacy imageUrl if first image changed
+                              if (idx === 0) {
+                                updateEvent(event.id, 'imageUrl', newImages[0]?.url);
+                              }
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover/img:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="flex gap-1">
+                          <input
+                            value={img.label || ''}
+                            onChange={e => {
+                              const baseImgs = event.images || (event.imageUrl ? [{ label: 'Primary', url: event.imageUrl }] : []);
+                              const imgs = [...baseImgs];
+                              imgs[idx] = { ...imgs[idx], label: e.target.value };
+                              updateEvent(event.id, 'images', imgs);
+                            }}
+                            placeholder="Label"
+                            className="w-1/3 bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-900 text-[10px]"
+                          />
+                          <input
+                            value={img.url}
+                            onChange={e => {
+                              const baseImgs = event.images || (event.imageUrl ? [{ label: 'Primary', url: event.imageUrl }] : []);
+                              const imgs = [...baseImgs];
+                              imgs[idx] = { ...imgs[idx], url: e.target.value };
+                              updateEvent(event.id, 'images', imgs);
+                              if (idx === 0) updateEvent(event.id, 'imageUrl', e.target.value);
+                            }}
+                            placeholder="Image URL"
+                            className="flex-1 bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-900 text-[10px] truncate"
+                          />
+                        </div>
                       </div>
-                      <input
-                        value={event.imageUrl}
-                        onChange={e => updateEvent(event.id, 'imageUrl', e.target.value)}
-                        placeholder="Image URL"
-                        className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-gray-900 text-[10px] truncate"
-                      />
-                    </div>
-                  ) : (
-                    <div className="text-[10px] text-gray-400 italic text-center py-2 border border-dashed border-gray-200 rounded">
-                      No images found.
-                    </div>
-                  )}
+                    ))}
+
+                    <button
+                      onClick={() => {
+                        const baseImgs = event.images || (event.imageUrl ? [{ label: 'Primary', url: event.imageUrl }] : []);
+                        const imgs = [...baseImgs];
+                        imgs.push({ label: '', url: '' });
+                        updateEvent(event.id, 'images', imgs);
+                      }}
+                      className="w-full py-1 text-[10px] text-blue-500 border border-dashed border-blue-200 hover:bg-blue-50 rounded flex items-center justify-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Add Image
+                    </button>
+
+                    {!(event.images?.length || event.imageUrl) && (
+                      <div className="text-[10px] text-gray-400 italic text-center py-2 border border-dashed border-gray-200 rounded">
+                        No images found.
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Sources Section */}

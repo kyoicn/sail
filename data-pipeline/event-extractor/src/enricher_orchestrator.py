@@ -17,6 +17,7 @@ if str(data_pipeline_root) not in sys.path:
 
 from shared.models import EventSchema, LocationEntry, TimeEntry, Link
 from src.tool_search import search_web
+from shared.utils import fix_wikimedia_url
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -47,88 +48,20 @@ TOOLS = [
 ]
 
 # --- PROMPTS ---
+def load_prompt(filename: str) -> str:
+    prompt_path = data_pipeline_root.parent / "prompts" / filename
+    try:
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        logger.error(f"Failed to load prompt {filename}: {e}")
+        return ""
 
-SYSTEM_PROMPT_LOCATION = """
-You are an expert Historical Geographer.
-Your goal is to enrich the **LOCATION** information of a historical event based on context and your knowledge.
+SYSTEM_PROMPT_LOCATION = load_prompt("enrichment.location.python.md")
+SYSTEM_PROMPT_TIME = load_prompt("enrichment.time.python.md")
+SYSTEM_PROMPT_IMAGE = load_prompt("enrichment.image.python.md")
 
-### INPUT DATA:
-Event JSON: {event_json}
-Source Text: {source_text}
 
-### CRITICAL SCHEMA RULES (READ CAREFULLY)
-You must strictly adhere to the allowed values below. **Any value outside these lists makes the JSON invalid.**
-
-**1. Location coordinates** (`location.latitude`, `location.longitude`)
-   - ALLOWED VALUES: Decimal degrees (-90.0 to 90.0 for latitude, -180.0 to 180.0 for longitude)
-   - Try your best to figure out the coordinates based on the location name, don't just stick to the source text.
-
-**2. Location Precision** (`location.precision`)
-   - ALLOWED VALUES: "spot", "area", "unknown"
-   - *Note: "spot" = specific coordinate/building; "area" = city/region/country.*
-
-**3. Location Certainty** (`location.certainty`)
-   - ALLOWED VALUES: "definite", "approximate", "unknown"
-
-### INSTRUCTIONS:
-1. **Analyze:** Check if the event has missing location info (coordinates, name, precision, certainty).
-2. **Enrich:** Use your internal knowledge to fill gaps. Use the 'search_web' tool if needed.
-3. **Validate:** Check `precision` and `certainty` against allowed values.
-4. **Fallback:** If you cannot find any new info, return the original `LocationEntry` data.
-
-### RESPONSE FORMAT:
-You must strictly follow this format.
-
-<THOUGHTS>
-(Step-by-step reasoning:
-1. What location info is missing?
-2. Reasoning for precision/certainty...
-3. Final check against allowed values.)
-</THOUGHTS>
-
-```json
-(The final valid JSON object for EventSchema goes here)
-```
-"""
-
-SYSTEM_PROMPT_TIME = """
-You are an expert Historical Chronologist.
-Your goal is to enrich the **TIME** information (start and end) of a historical event.
-
-### INPUT DATA:
-Event JSON: {event_json}
-Source Text: {source_text}
-
-### CRITICAL SCHEMA RULES (READ CAREFULLY)
-You must strictly adhere to the allowed values below. **Any value outside these lists makes the JSON invalid.**
-
-**1. Time Precision** (`start_time.precision`, `end_time.precision`)
-   - ALLOWED VALUES: "millennium", "century", "decade", "year", "month", "day", "hour", "minute", "second", "millisecond", "unknown"
-   - *Note: Do NOT use "definite" or "exact" here.*
-
-**2. Time Format**
-   - For years in BCE/BC, use NEGATIVE integers (e.g. 1700 BCE -> -1700). For AD/CE, use positive integers.
-
-### INSTRUCTIONS:
-1. **Analyze:** Check `start_time` and `end_time`. Are fields like month/day/year missing?
-2. **Enrich:** Use your internal knowledge to fill gaps. Use 'search_web' if needed.
-3. **Validate:** Check `precision` against allowed values.
-4. **Fallback:** If you cannot find any new info, return the original data.
-
-### RESPONSE FORMAT:
-You must strictly follow this format.
-
-<THOUGHTS>
-(Step-by-step reasoning...
-1. What time info is missing?
-2. Reasoning for precision...
-3. Final check against allowed values.)
-</THOUGHTS>
-
-```json
-(The final valid JSON object for EventSchema goes here)
-```
-"""
 
 class LLMOrchestrator:
     def __init__(self, model_name: str, timeout: int):
@@ -157,6 +90,9 @@ class LLMOrchestrator:
         
         # Step 2: Enrich Time
         event = self._enrich_time(event, original_text)
+
+        # Step 3: Enrich Images
+        event = self._enrich_image(event, original_text)
         
         logger.info(f"Successfully enriched event: \033[97;48;5;22m{event.title}\033[0m with:\n\033[97;48;5;22m{json.dumps(event.model_dump(), indent=2)}\033[0m")
         return event
@@ -207,6 +143,35 @@ class LLMOrchestrator:
                 logger.info(f"Updated Time: \033[97;48;5;22mStart={event.start_time}, End={event.end_time}\033[0m")
             except ValidationError as ve:
                 logger.warning(f"Validation failed for TimeEntry: {ve}")
+
+        return event
+
+    def _enrich_image(self, event: EventSchema, original_text: str) -> EventSchema:
+        logger.info("--- Enriching Images ---")
+        prompt = SYSTEM_PROMPT_IMAGE.format(
+            event_json=event.model_dump_json(),
+            source_text=original_text
+        )
+        
+        result_json, thoughts = self._run_enrichment_loop(prompt, "ImageEntry")
+        
+        if result_json:
+            try:
+                # result_json should have an 'images' field
+                image_data = result_json.get("images")
+                if image_data:
+                    # Merge and deduplicate by URL
+                    existing_urls = {img.url for img in (event.images or [])}
+                    new_images = [Link(label=img.get('label', 'Image'), url=fix_wikimedia_url(img.get('url'))) 
+                                  for img in image_data 
+                                  if img.get('url') and fix_wikimedia_url(img.get('url')) not in existing_urls]
+                    
+                    if not event.images:
+                        event.images = []
+                    event.images.extend(new_images)
+                    logger.info(f"Added {len(new_images)} new images.")
+            except ValidationError as ve:
+                logger.warning(f"Validation failed for Image Link: {ve}")
 
         return event
 

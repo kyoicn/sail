@@ -6,6 +6,7 @@ import { Readability } from '@mozilla/readability';
 import { EventData, ChronosTime, ChronosLocation, EventSource, EventCore } from '@sail/shared';
 import fs from 'fs';
 import path from 'path';
+import { fixWikimediaUrl } from '@/lib/utils';
 
 // We need a local interface for the LLM response which might be slightly looser before mapping
 

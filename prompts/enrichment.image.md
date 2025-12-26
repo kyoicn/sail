@@ -6,18 +6,24 @@ Events to enrich: {user_content}
 Source Text: {source_text}
 
 ### INSTRUCTIONS:
-1. **Analyze:** For each event, determine the best visual representation (portraits, battle scenes, maps, photographs).
-2. **Search:** If the source text contains explicit image URLs, prioritize them. 
-3. **Internal Knowledge:** Use your internal knowledge to suggest highly likely public domain image URLs from reliable sources (Wikimedia Commons, museum archives).
-4. **Validation:** Ensure the URLs are direct image links (ending in .jpg, .png, .webp, etc.) if possible.
+1. **Analyze:** For each event, determine the best visual representations (portraits, battle scenes, maps, photographs).
+2. **Search & Suggest:** 
+   - Find at least **3-5 unique image URLs** per event.
+   - Use different domains (Wikimedia Commons, museum archives, university databases).
+   - If the source text contains explicit URLs, include them first.
+3. **Validation & Formatting:**
+   - Ensure the URLs are direct image links (ending in .jpg, .png, .webp, etc.).
 
 ### RESPONSE FORMAT:
-You must return a valid JSON object with the following structure:
+You must return a valid JSON object with the structure below. Each image should have a descriptive label.
 {
   "events": [
     {
       "id": "event_id",
-      "imageUrl": "https://example.com/image.jpg"
+      "images": [
+        { "label": "Battle of Waterloo by William Sadler", "url": "https://example.com/image1.jpg" },
+        { "label": "Duke of Wellington portrait", "url": "https://example.com/image2.jpg" }
+      ]
     }
   ]
 }

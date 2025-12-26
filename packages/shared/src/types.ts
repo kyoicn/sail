@@ -85,7 +85,8 @@ export interface EventData {
 
   title: string;
   summary: string;
-  imageUrl?: string;
+  imageUrl?: string; // Legacy: primary image
+  images?: EventSource[]; // Multi-image support
 
   start: ChronosTime;
   end?: ChronosTime; // Optional: Defines a duration (e.g. War, Dynasty)
@@ -159,6 +160,7 @@ export interface EventCore {
   title: string;
   summary: string;
   imageUrl?: string;
+  images?: EventSource[];
   // Use Partial for flexibility during extraction
   start_time: Partial<ChronosTime>;
   end_time?: Partial<ChronosTime>;

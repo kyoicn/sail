@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { EventData } from '@sail/shared';
 import fs from 'fs';
 import path from 'path';
+import { fixWikimediaUrl } from '@/lib/utils';
 
 const getPrompt = (fileName: string) => {
   try {
@@ -132,6 +133,7 @@ export async function POST(request: Request) {
           try {
             sendLog('Enriching Locations...');
             const locationJsonStr = await callLLM(SYSTEM_PROMPT_LOCATION, eventsContext);
+            sendLog(`Raw Location Response: ${locationJsonStr}`);
             const locationData = JSON.parse(locationJsonStr);
             const locationEventsMap = new Map((locationData.events || []).map((e: any) => [e.id || e.title, e]));
 
@@ -155,6 +157,7 @@ export async function POST(request: Request) {
           try {
             sendLog('Enriching Time...');
             const timeJsonStr = await callLLM(SYSTEM_PROMPT_TIME, eventsContext);
+            sendLog(`Raw Time Response: ${timeJsonStr}`);
             const timeData = JSON.parse(timeJsonStr);
             const timeEventsMap = new Map((timeData.events || []).map((e: any) => [e.id || e.title, e]));
 
@@ -203,6 +206,7 @@ export async function POST(request: Request) {
             })), null, 2);
 
             const summaryJsonStr = await callLLM(SYSTEM_PROMPT_SUMMARY, summaryContext);
+            sendLog(`Raw Summary Response: ${summaryJsonStr}`);
             const summaryData = JSON.parse(summaryJsonStr);
             const summaryEventsMap = new Map((summaryData.events || []).map((e: any) => [e.id || e.title, e]));
 
@@ -229,16 +233,35 @@ export async function POST(request: Request) {
           try {
             sendLog('Finding Images...');
             const imageJsonStr = await callLLM(SYSTEM_PROMPT_IMAGE, eventsContext);
+            sendLog(`Raw Image Response: ${imageJsonStr}`);
             const imageData = JSON.parse(imageJsonStr);
             const imageEventsMap = new Map((imageData.events || []).map((e: any) => [e.id || e.title, e]));
 
             enrichedEvents = enrichedEvents.map(orig => {
-              const fresh = imageEventsMap.get(orig.id) || imageEventsMap.get(orig.title);
-              if (fresh) {
-                const freshAny = fresh as any;
+              const fresh = imageEventsMap.get(orig.id) || imageEventsMap.get(orig.title) as any;
+              if (fresh && (fresh as any).images) {
+                const existingImages = orig.images || [];
+                const newImages = (fresh as any).images as { label: string, url: string }[];
+
+                // Merge and deduplicate by URL
+                const combined = [...existingImages];
+                const seenUrls = new Set(existingImages.map(img => img.url));
+
+                for (const img of newImages) {
+                  const fixedUrl = img.url;
+                  if (!seenUrls.has(fixedUrl)) {
+                    combined.push({ ...img, url: fixedUrl });
+                    seenUrls.add(fixedUrl);
+                  }
+                }
+
+                const finalImageUrl = orig.imageUrl ? orig.imageUrl : (combined.length > 0 ? combined[0].url : undefined);
+
                 return {
                   ...orig,
-                  imageUrl: freshAny.imageUrl || orig.imageUrl
+                  images: combined,
+                  // Also update legacy imageUrl if not set
+                  imageUrl: finalImageUrl
                 };
               }
               return orig;

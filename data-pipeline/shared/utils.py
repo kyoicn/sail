@@ -10,6 +10,29 @@ def slugify(text):
     text = re.sub(r'[^a-z0-9]+', '_', text)
     return text.strip('_')
 
+def fix_wikimedia_url(url: str) -> str:
+    if not url:
+        return url
+    
+    # 1. Wikipedia/Wikimedia File pages
+    # e.g. en.wikipedia.org/wiki/File:..., commons.wikimedia.org/wiki/File:...
+    wiki_file_pattern = r'^(https?://)?([a-z0-9-]+\.)?(wikipedia|wikimedia)\.org/wiki/File:(.+)$'
+    match = re.match(wiki_file_pattern, url, re.IGNORECASE)
+    if match:
+        file_name = match.group(4)
+        return f"https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/{file_name}"
+
+    # 2. upload.wikimedia.org (thumbnails or direct)
+    # e.g. https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Massachusetts_1775_map.jpg/800px-Massachusetts_1775_map.jpg
+    # e.g. https://upload.wikimedia.org/wikipedia/commons/f/f1/Massachusetts_1775_map.jpg
+    upload_pattern = r'^(https?://)?upload\.wikimedia\.org/wikipedia/commons/(thumb/)?(?:[a-f0-9]/[a-f0-9]{2}/)?([^/]+)(/.*)?$'
+    match = re.match(upload_pattern, url, re.IGNORECASE)
+    if match:
+        file_name = match.group(3)
+        return f"https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/{file_name}"
+        
+    return url
+
 def calculate_astro_year(entry: TimeEntry) -> float:
     """
     Calculates float year for indexing.
