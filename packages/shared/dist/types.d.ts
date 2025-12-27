@@ -41,6 +41,7 @@ export interface EventData {
     title: string;
     summary: string;
     imageUrl?: string;
+    images?: EventSource[];
     start: ChronosTime;
     end?: ChronosTime;
     location: ChronosLocation;
@@ -48,7 +49,7 @@ export interface EventData {
     collections?: string[];
     sources?: EventSource[];
     children?: string[];
-    parentId?: string;
+    parent_source_id?: string;
 }
 export interface MapBounds {
     north: number;
@@ -84,15 +85,5 @@ export interface HistoricalPeriod {
     start_astro_year: number;
     end_astro_year: number;
     importance: number;
-}
-export interface EventCore {
-    title: string;
-    summary: string;
-    imageUrl?: string;
-    start_time: Partial<ChronosTime>;
-    end_time?: Partial<ChronosTime>;
-    location: Partial<ChronosLocation>;
-    importance: number;
-    sources?: Partial<EventSource>[];
 }
 //# sourceMappingURL=types.d.ts.map

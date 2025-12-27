@@ -3,9 +3,11 @@
  * Respects GEMINI_API_RPM (Requests Per Minute) and GEMINI_API_TPM (Tokens Per Minute)
  */
 
+import { geminiModels } from '@sail/shared';
+
 class GeminiRateLimiter {
-  private rpmLimit: number;
-  private tpmLimit: number;
+  private rpmLimit: number = 10;
+  private tpmLimit: number = 10000;
 
   private requestHistory: number[] = []; // Timestamps of requests
   private tokenHistory: { timestamp: number; tokens: number }[] = [];
@@ -13,14 +15,31 @@ class GeminiRateLimiter {
   private queue: (() => void)[] = [];
 
   constructor() {
-    this.rpmLimit = parseInt(process.env.GEMINI_API_RPM || '10', 10);
-    this.tpmLimit = parseInt(process.env.GEMINI_API_TPM || '10000', 10);
-
-    console.log(`GeminiRateLimiter initialized with RPM: ${this.rpmLimit}, TPM: ${this.tpmLimit}`);
+    console.log(`GeminiRateLimiter initialized. Default limits: RPM ${this.rpmLimit}, TPM ${this.tpmLimit}`);
   }
 
-  public getRPMLimit(): number { return this.rpmLimit; }
-  public getTPMLimit(): number { return this.tpmLimit; }
+  private setModelLimits(model: string) {
+    const limits = geminiModels[model] || geminiModels['default'];
+    this.rpmLimit = limits.rpm;
+    this.tpmLimit = limits.tpm;
+    console.log(`[GeminiRateLimiter] Model "${model}" selected. Limits updated: RPM ${this.rpmLimit}, TPM ${this.tpmLimit}`);
+  }
+
+  public getRPMLimit(model?: string): number {
+    if (model) {
+      const limits = geminiModels[model] || geminiModels['default'];
+      return limits.rpm;
+    }
+    return this.rpmLimit;
+  }
+
+  public getTPMLimit(model?: string): number {
+    if (model) {
+      const limits = geminiModels[model] || geminiModels['default'];
+      return limits.tpm;
+    }
+    return this.tpmLimit;
+  }
 
   /**
    * Estimates tokens from character count.
@@ -52,15 +71,18 @@ class GeminiRateLimiter {
   /**
    * Returns a string summarizing the current usage vs limits.
    */
-  public getStatusString(estimatedNextTokens: number = 0): string {
-    if (this.rpmLimit <= 0 && this.tpmLimit <= 0) return "No limits";
+  public getStatusString(estimatedNextTokens: number = 0, model?: string): string {
+    const rpmLimit = model ? this.getRPMLimit(model) : this.rpmLimit;
+    const tpmLimit = model ? this.getTPMLimit(model) : this.tpmLimit;
+
+    if (rpmLimit <= 0 && tpmLimit <= 0) return "No limits";
 
     const rpm = this.getCurrentRPM();
     const tpm = this.getCurrentTPM();
 
-    let status = `RPM: ${rpm}/${this.rpmLimit}`;
-    if (this.tpmLimit > 0) {
-      status += `, TPM: ${tpm + estimatedNextTokens}/${this.tpmLimit}`;
+    let status = `RPM: ${rpm}/${rpmLimit}`;
+    if (tpmLimit > 0) {
+      status += `, TPM: ${tpm + estimatedNextTokens}/${tpmLimit}`;
     }
     return status;
   }
@@ -68,7 +90,11 @@ class GeminiRateLimiter {
   /**
    * Acquires permission to make a request. Waits if limits are reached.
    */
-  public async acquire(estimatedTokens: number = 0): Promise<void> {
+  public async acquire(estimatedTokens: number = 0, model?: string): Promise<void> {
+    if (model) {
+      this.setModelLimits(model);
+    }
+
     // If no limits defined, proceed immediately
     if (this.rpmLimit <= 0 && this.tpmLimit <= 0) return;
 

@@ -80,7 +80,6 @@ export async function POST(request: Request) {
         // Generic LLM Call Helper
         const callLLM = async (systemPrompt: string, userContent: string) => {
           if (provider === 'gemini') {
-            sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString()}...`);
             const apiKey = process.env.GOOGLE_API_KEY;
             if (!apiKey) throw new Error('GOOGLE_API_KEY missing');
 
@@ -91,7 +90,8 @@ export async function POST(request: Request) {
             const expectedOutputTokens = 1000; // Conservative baseline for a rich response
             const totalEstimatedTokens = inputTokens + expectedOutputTokens;
 
-            await geminiLimiter.acquire(totalEstimatedTokens);
+            sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString(totalEstimatedTokens, model)}...`);
+            await geminiLimiter.acquire(totalEstimatedTokens, model);
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
               method: 'POST',

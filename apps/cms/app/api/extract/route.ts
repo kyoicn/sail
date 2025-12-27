@@ -129,8 +129,8 @@ export async function POST(request: Request) {
             const expectedOutputTokens = 2000;
             const totalEstimatedTokens = inputTokens + expectedOutputTokens;
 
-            sendLog(`${chunkLogPrefix}Calling Gemini (${model}) | ${geminiLimiter.getStatusString(totalEstimatedTokens)}...`);
-            await geminiLimiter.acquire(totalEstimatedTokens);
+            sendLog(`${chunkLogPrefix}Calling Gemini (${model}) | ${geminiLimiter.getStatusString(totalEstimatedTokens, model)}...`);
+            await geminiLimiter.acquire(totalEstimatedTokens, model);
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
               method: 'POST',

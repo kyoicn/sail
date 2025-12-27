@@ -156,14 +156,27 @@ Your task is to generate a valid GeoJSON FeatureCollection containing a single P
 ```
 """
 
-import time
-import traceback
+# Load Gemini Model Limits from shared package
+GEMINI_MODELS = {}
+try:
+    repo_root = data_pipeline_root.parent
+    shared_json_path = repo_root / "packages" / "shared" / "src" / "gemini-models.json"
+    with open(shared_json_path, 'r') as f:
+        GEMINI_MODELS = json.load(f)
+except Exception as e:
+    print(f"⚠️ Warning: Could not load shared gemini-models.json: {e}")
+    GEMINI_MODELS = {"default": {"rpm": 10, "tpm": 10000}}
 
 class RateLimiter:
     def __init__(self, rpm=0, tpm=0):
         self.rpm = float(rpm)
         self.tpm = float(tpm)
         self.history = [] # List of (timestamp, tokens)
+
+    def set_limits(self, rpm, tpm):
+        self.rpm = float(rpm)
+        self.tpm = float(tpm)
+        print(f"💎 Rate Limiter Updated: RPM={self.rpm}, TPM={self.tpm}")
 
     def wait_if_needed(self, estimated_tokens=0):
         if not self.rpm and not self.tpm:
@@ -207,8 +220,8 @@ class RateLimiter:
 
 # Global Rate Limiter Instance
 gemini_rate_limiter = RateLimiter(
-    rpm=os.environ.get("GEMINI_API_RPM", 0),
-    tpm=os.environ.get("GEMINI_API_TPM", 0)
+    rpm=os.environ.get("GEMINI_API_RPM", GEMINI_MODELS.get("default", {}).get("rpm", 10)),
+    tpm=os.environ.get("GEMINI_API_TPM", GEMINI_MODELS.get("default", {}).get("tpm", 10000))
 )
 
 def generate_with_llm(query, provider, model, api_key=None, timeout=None):
@@ -216,6 +229,10 @@ def generate_with_llm(query, provider, model, api_key=None, timeout=None):
     
     # Rate Limiting for Gemini
     if provider == 'gemini':
+        # Automatically update limits based on model
+        limits = GEMINI_MODELS.get(model, GEMINI_MODELS.get("default"))
+        gemini_rate_limiter.set_limits(limits['rpm'], limits['tpm'])
+        
         # Estimate: Input prompt is roughly ~300 tokens? 
         gemini_rate_limiter.wait_if_needed(estimated_tokens=300)
 

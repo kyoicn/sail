@@ -59,14 +59,14 @@ export async function POST(request: Request) {
         let relationships: { child_id: string, parent_id: string }[] = [];
 
         if (provider === 'gemini') {
-          sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString()}...`);
+          sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString(0, model)}...`);
           const apiKey = process.env.GOOGLE_API_KEY;
           if (!apiKey) throw new Error('GOOGLE_API_KEY missing');
 
           const userContent = `Events to cluster:\n${eventsContext}`;
           const inputTokens = geminiLimiter.estimateTokens(SYSTEM_PROMPT_CLUSTERING + userContent);
           const expectedOutputTokens = 1000;
-          await geminiLimiter.acquire(inputTokens + expectedOutputTokens);
+          await geminiLimiter.acquire(inputTokens + expectedOutputTokens, model);
 
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',

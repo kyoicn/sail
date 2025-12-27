@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { EventData, ChronosTime, ChronosLocation } from '@sail/shared';
+import { EventData, ChronosTime, ChronosLocation, geminiModels } from '@sail/shared';
 import Link from 'next/link';
 import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare, ChevronRight, ChevronDown, GitGraph, Network, RotateCcw, Upload, Trash } from 'lucide-react';
 
@@ -20,16 +20,7 @@ const AVAILABLE_MODELS = {
     'deepseek-r1:1.5b',
     'qwen3:8b',
   ],
-  gemini: [
-    'gemma-3-27b-it',
-    'gemma-3-12b-it',
-    'gemma-3-4b-it',
-    'gemma-3-1b-it',
-    'gemini-3-flash-preview',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-flash',
-    'gemini-2.5-pro',
-  ],
+  gemini: Object.keys(geminiModels).filter(m => m !== 'default'),
 };
 
 // Dynamically import Map to avoid SSR issues with Leaflet
