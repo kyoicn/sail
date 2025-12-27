@@ -90,10 +90,13 @@ export async function POST(request: Request) {
             const expectedOutputTokens = 1000; // Conservative baseline for a rich response
             const totalEstimatedTokens = inputTokens + expectedOutputTokens;
 
-            sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString(totalEstimatedTokens, model)}...`);
+            const useStreaming = process.env.GEMINI_USE_STREAMING !== 'false';
+            const endpoint = useStreaming ? 'streamGenerateContent' : 'generateContent';
+
+            sendLog(`Calling Gemini (${model}) [${useStreaming ? 'STREAMING' : 'STATIC'}] | ${geminiLimiter.getStatusString(totalEstimatedTokens, model)}...`);
             await geminiLimiter.acquire(totalEstimatedTokens, model);
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -111,10 +114,45 @@ export async function POST(request: Request) {
               throw new Error(`Gemini API Error: ${err}`);
             }
 
-            const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!text) throw new Error('No content from Gemini');
-            return cleanJson(text);
+            let textResponse = "";
+
+            if (useStreaming) {
+              // Handle streaming response
+              const reader = response.body?.getReader();
+              if (!reader) throw new Error("Failed to get response reader");
+
+              const decoder = new TextDecoder();
+              let partialChunk = "";
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                partialChunk += chunk;
+
+                // Pulse to keep socket alive
+                sendLog("...");
+              }
+
+              try {
+                const streamData = JSON.parse(partialChunk);
+                if (Array.isArray(streamData)) {
+                  textResponse = streamData.map(d => d.candidates?.[0]?.content?.parts?.[0]?.text || "").join("");
+                } else {
+                  textResponse = streamData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                }
+              } catch (e) {
+                console.warn("Failed to parse stream as single JSON, attempting fallback consolidation", e);
+                textResponse = partialChunk;
+              }
+            } else {
+              const data = await response.json();
+              textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            }
+
+            if (!textResponse) throw new Error('No content from Gemini');
+            return cleanJson(textResponse);
 
           } else {
             // Ollama

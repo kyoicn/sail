@@ -59,7 +59,6 @@ export async function POST(request: Request) {
         let relationships: { child_id: string, parent_id: string }[] = [];
 
         if (provider === 'gemini') {
-          sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString(0, model)}...`);
           const apiKey = process.env.GOOGLE_API_KEY;
           if (!apiKey) throw new Error('GOOGLE_API_KEY missing');
 
@@ -68,7 +67,12 @@ export async function POST(request: Request) {
           const expectedOutputTokens = 1000;
           await geminiLimiter.acquire(inputTokens + expectedOutputTokens, model);
 
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          const useStreaming = process.env.GEMINI_USE_STREAMING !== 'false';
+          const endpoint = useStreaming ? 'streamGenerateContent' : 'generateContent';
+
+          sendLog(`Calling Gemini (${model}) [${useStreaming ? 'STREAMING' : 'STATIC'}] | ${geminiLimiter.getStatusString(0, model)}...`);
+
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -83,31 +87,75 @@ export async function POST(request: Request) {
             throw new Error(`Gemini API failed: ${err}`);
           }
 
-          const data = await response.json();
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!text) throw new Error('Empty response from Gemini');
+          let fullText = "";
+
+          if (useStreaming) {
+            // Handle streaming response
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error("Failed to get response reader");
+
+            const decoder = new TextDecoder();
+            let partialChunk = "";
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const chunk = decoder.decode(value, { stream: true });
+              partialChunk += chunk;
+
+              // Gemini streams JSON segments like [{...},{...}] or objects depending on the exact implementation
+              // The most robust way is to detect if we have valid JSON objects or the start/end markers
+              // For v1beta streamGenerateContent, it returns an array of Candidate objects over time.
+              // However, since we want the text, we can try to parse out the text parts incrementally or wait for blocks.
+
+              // Simplistic heartbeat to keep socket alive
+              sendLog("...");
+            }
+
+            // For v1beta streamGenerateContent, the entire response is a JSON array of response objects
+            try {
+              const streamData = JSON.parse(partialChunk);
+              if (Array.isArray(streamData)) {
+                fullText = streamData.map(d => d.candidates?.[0]?.content?.parts?.[0]?.text || "").join("");
+              } else {
+                fullText = streamData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              }
+            } catch (e) {
+              // If it's not a single valid JSON (sometimes it streams multiple objects without the array wrapper)
+              // we might need to parse it line by line if Gemini uses that format
+              console.warn("Failed to parse stream as single JSON, attempting fallback consolidation", e);
+              fullText = partialChunk; // Fallback
+            }
+          } else {
+            // Standard non-streaming
+            const data = await response.json();
+            fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          }
+
+          if (!fullText) throw new Error('Empty response from Gemini');
 
           // Extract thinking vs JSON
-          const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+          const jsonMatch = fullText.match(/```json\n?([\s\S]*?)\n?```/);
           let jsonStr = "";
           let thought = "";
 
           if (jsonMatch) {
             jsonStr = jsonMatch[1].trim();
-            thought = text.split('```json')[0].trim();
+            thought = fullText.split('```json')[0].trim();
           } else {
             // Fallback: find first { and last }
-            const first = text.indexOf('{');
-            const last = text.lastIndexOf('}');
+            const first = fullText.indexOf('{');
+            const last = fullText.lastIndexOf('}');
             if (first !== -1 && last !== -1) {
-              jsonStr = text.substring(first, last + 1);
-              thought = text.substring(0, first).trim();
+              jsonStr = fullText.substring(first, last + 1);
+              thought = fullText.substring(0, first).trim();
             } else {
-              jsonStr = text;
+              jsonStr = fullText;
             }
           }
 
-          // Clean up <think> tags if present (e.g. from DeepSeek or reasoning models)
+          // Clean up <think> tags if present
           const thinkMatch = thought.match(/<think>([\s\S]*?)<\/think>/i);
           if (thinkMatch) {
             thought = thinkMatch[1].trim();
