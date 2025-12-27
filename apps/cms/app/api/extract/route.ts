@@ -7,6 +7,7 @@ import { EventData, ChronosTime, ChronosLocation, EventSource, EventCore } from 
 import fs from 'fs';
 import path from 'path';
 import { getWikimediaSearchResults, constructWikimediaUrl } from '@/lib/utils';
+import { geminiLimiter } from '@/lib/gemini-limiter';
 
 // We need a local interface for the LLM response which might be slightly looser before mapping
 
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
         };
 
         if (provider === 'gemini') {
+          sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString()}...`);
           const apiKey = process.env.GOOGLE_API_KEY;
           if (!apiKey) {
             sendError('GOOGLE_API_KEY not configured');
@@ -105,12 +107,19 @@ export async function POST(request: Request) {
             return;
           }
 
+          const userContent = SYSTEM_PROMPT + "\n\nText to analyze:\n" + cleanText;
+          const inputTokens = geminiLimiter.estimateTokens(userContent);
+          const expectedOutputTokens = 2000; // Extraction usually produces more data than enrichment
+          const totalEstimatedTokens = inputTokens + expectedOutputTokens;
+
+          await geminiLimiter.acquire(totalEstimatedTokens);
+
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{
-                parts: [{ text: SYSTEM_PROMPT + "\n\nText to analyze:\n" + cleanText }]
+                parts: [{ text: userContent }]
               }],
               generationConfig: {
                 // Gemma models don't support JSON mode yet, so rely on the prompt

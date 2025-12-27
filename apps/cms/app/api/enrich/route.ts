@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { EventData } from '@sail/shared';
+import { geminiLimiter } from '@/lib/gemini-limiter';
 import fs from 'fs';
 import path from 'path';
 import { getWikimediaSearchResults, constructWikimediaUrl } from '@/lib/utils';
@@ -78,17 +79,26 @@ export async function POST(request: Request) {
 
         // Generic LLM Call Helper
         const callLLM = async (systemPrompt: string, userContent: string) => {
-          sendLog(`Using API: ${provider.toUpperCase()} | Model: ${model}`);
           if (provider === 'gemini') {
+            sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString()}...`);
             const apiKey = process.env.GOOGLE_API_KEY;
             if (!apiKey) throw new Error('GOOGLE_API_KEY missing');
+
+            const fullPrompt = systemPrompt + "\n\nSource Text:\n" + (sourceText || "No source text provided") + "\n\nEvents to enrich:\n" + userContent;
+
+            // Estimate tokens (input + baseline for output)
+            const inputTokens = geminiLimiter.estimateTokens(fullPrompt);
+            const expectedOutputTokens = 1000; // Conservative baseline for a rich response
+            const totalEstimatedTokens = inputTokens + expectedOutputTokens;
+
+            await geminiLimiter.acquire(totalEstimatedTokens);
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contents: [{
-                  parts: [{ text: systemPrompt + "\n\nSource Text:\n" + (sourceText || "No source text provided") + "\n\nEvents to enrich:\n" + userContent }]
+                  parts: [{ text: fullPrompt }]
                 }],
                 generationConfig: {
                   ...(model && model.startsWith('gemma') ? {} : { responseMimeType: "application/json" })
@@ -128,47 +138,52 @@ export async function POST(request: Request) {
           }
         };
 
-        // --- STAGE 1: LOCATION ENRICHMENT ---
-        if (!fields || fields.includes('location')) {
-          try {
-            sendLog('Enriching Locations...');
-            const locationJsonStr = await callLLM(SYSTEM_PROMPT_LOCATION, eventsContext);
-            sendLog(`Raw Location Response: ${locationJsonStr}`);
-            const locationData = JSON.parse(locationJsonStr);
-            const locationEventsMap = new Map((locationData.events || []).map((e: any) => [e.id || e.title, e]));
+        // --- SEQUENTIAL EVENT-BY-EVENT ENRICHMENT ---
+        for (let i = 0; i < enrichedEvents.length; i++) {
+          let event = enrichedEvents[i];
+          sendLog(`\nEnriching Event ${i + 1}/${enrichedEvents.length}: "${event.title}"`);
 
-            enrichedEvents = enrichedEvents.map(orig => {
-              const fresh = locationEventsMap.get(orig.id) || locationEventsMap.get(orig.title);
-              const freshAny = fresh as any;
-              if (freshAny && freshAny.location) {
-                return { ...orig, location: { ...orig.location, ...freshAny.location } };
+          const singleEventContext = JSON.stringify([{
+            id: event.id,
+            title: event.title,
+            start: event.start,
+            end: event.end,
+            location: event.location
+          }], null, 2);
+
+          // 1. Summary Enrichment
+          if (!fields || fields.includes('summary')) {
+            try {
+              sendLog(`  [${event.title}] Stage: Summary`);
+              const summaryContext = JSON.stringify([{
+                id: event.id,
+                title: event.title,
+                current_summary: event.summary,
+              }], null, 2);
+
+              const summaryJsonStr = await callLLM(SYSTEM_PROMPT_SUMMARY, summaryContext);
+              const summaryData = JSON.parse(summaryJsonStr);
+              const fresh = (summaryData.events || [])[0];
+              if (fresh && fresh.summary) {
+                event.summary = fresh.summary;
               }
-              return orig;
-            });
-            sendLog('Location enrichment complete.');
-          } catch (e: any) {
-            console.error('Location enrichment failed:', e);
-            sendLog(`Location enrichment failed: ${e.message}`);
+            } catch (e: any) {
+              console.error(`Summary enrichment failed for ${event.title}:`, e);
+              sendLog(`  [${event.title}] Summary failed: ${e.message}`);
+            }
           }
-        }
 
-        // --- STAGE 2: TIME ENRICHMENT ---
-        if (!fields || fields.includes('time')) {
-          try {
-            sendLog('Enriching Time...');
-            const timeJsonStr = await callLLM(SYSTEM_PROMPT_TIME, eventsContext);
-            sendLog(`Raw Time Response: ${timeJsonStr}`);
-            const timeData = JSON.parse(timeJsonStr);
-            const timeEventsMap = new Map((timeData.events || []).map((e: any) => [e.id || e.title, e]));
-
-            enrichedEvents = enrichedEvents.map(orig => {
-              const fresh = timeEventsMap.get(orig.id) || timeEventsMap.get(orig.title);
+          // 2. Time Enrichment
+          if (!fields || fields.includes('time')) {
+            try {
+              sendLog(`  [${event.title}] Stage: Time`);
+              const timeJsonStr = await callLLM(SYSTEM_PROMPT_TIME, singleEventContext);
+              const timeData = JSON.parse(timeJsonStr);
+              const fresh = (timeData.events || [])[0];
               if (fresh) {
-                const freshAny = fresh as any;
-                const mergedStart = freshAny.start ? { ...orig.start, ...freshAny.start } : orig.start;
-                let mergedEnd = freshAny.end ? { ...orig.end, ...freshAny.end } : orig.end;
+                const mergedStart = fresh.start ? { ...event.start, ...fresh.start } : event.start;
+                let mergedEnd = fresh.end ? { ...event.end, ...fresh.end } : event.end;
 
-                // Compare start and end to see if identical
                 if (mergedEnd &&
                   mergedStart.year === mergedEnd.year &&
                   mergedStart.month === mergedEnd.month &&
@@ -178,120 +193,80 @@ export async function POST(request: Request) {
                   mergedStart.second === mergedEnd.second) {
                   mergedEnd = undefined;
                 }
-
-                return {
-                  ...orig,
-                  start: mergedStart,
-                  end: mergedEnd
-                };
+                event.start = mergedStart;
+                event.end = mergedEnd;
               }
-              return orig;
-            });
-            sendLog('Time enrichment complete.');
-          } catch (e: any) {
-            console.error('Time enrichment failed:', e);
-            sendLog(`Time enrichment failed: ${e.message}`);
-          }
-        }
-
-        // --- STAGE 3: SUMMARY ENRICHMENT ---
-        if (!fields || fields.includes('summary')) {
-          try {
-            sendLog('Enriching Summary...');
-            // Minify context for summary generation to save tokens, only need title/current summary
-            const summaryContext = JSON.stringify(events.map(e => ({
-              id: e.id,
-              title: e.title,
-              current_summary: e.summary,
-            })), null, 2);
-
-            const summaryJsonStr = await callLLM(SYSTEM_PROMPT_SUMMARY, summaryContext);
-            sendLog(`Raw Summary Response: ${summaryJsonStr}`);
-            const summaryData = JSON.parse(summaryJsonStr);
-            const summaryEventsMap = new Map((summaryData.events || []).map((e: any) => [e.id || e.title, e]));
-
-            enrichedEvents = enrichedEvents.map(orig => {
-              const fresh = summaryEventsMap.get(orig.id) || summaryEventsMap.get(orig.title);
-              if (fresh) {
-                const freshAny = fresh as any;
-                return {
-                  ...orig,
-                  summary: freshAny.summary || orig.summary
-                };
-              }
-              return orig;
-            });
-            sendLog('Summary enrichment complete.');
-          } catch (e: any) {
-            console.error('Summary enrichment failed:', e);
-            sendLog(`Summary enrichment failed: ${e.message}`);
-          }
-        }
-
-        // --- STAGE 4: IMAGE ENRICHMENT ---
-        if (!fields || fields.includes('image')) {
-          try {
-            sendLog('Finding Images via Wikimedia API...');
-
-            // Image enrichment is now done per-event to provide specific search results
-            for (let i = 0; i < enrichedEvents.length; i++) {
-              const event = enrichedEvents[i];
-              sendLog(`Searching images for: "${event.title}"...`);
-
-              const searchResults = await getWikimediaSearchResults(event.title, 12);
-              if (searchResults.length === 0) {
-                sendLog(`No Wikimedia results found for "${event.title}".`);
-                continue;
-              }
-
-              sendLog(`Found ${searchResults.length} results. Asking LLM to select...`);
-
-              const resultsContext = JSON.stringify(searchResults, null, 2);
-              const eventContext = JSON.stringify({
-                title: event.title,
-                summary: event.summary,
-                id: event.id
-              });
-
-              // Construct prompt with research results
-              const specificPrompt = SYSTEM_PROMPT_IMAGE
-                .replace('{event_json}', eventContext)
-                .replace('{search_results}', resultsContext);
-
-              // callLLM expects (systemPrompt, userContent)
-              // We've baked the content into the system prompt effectively, but we'll follow the signature.
-              const selectionJsonStr = await callLLM(specificPrompt, "Please select images from the provided search results.");
-              sendLog(`Raw selection for "${event.title}": ${selectionJsonStr}`);
-
-              const selectionData = JSON.parse(selectionJsonStr);
-              const selectedImages = selectionData.selected_images || [];
-
-              if (selectedImages.length > 0) {
-                const existingImages = event.images || [];
-                const seenUrls = new Set(existingImages.map(img => img.url));
-                const combined = [...existingImages];
-
-                for (const sel of selectedImages) {
-                  const url = constructWikimediaUrl(sel.filename);
-                  if (url && !seenUrls.has(url)) {
-                    combined.push({ label: sel.label, url });
-                    seenUrls.add(url);
-                  }
-                }
-
-                enrichedEvents[i] = {
-                  ...event,
-                  images: combined,
-                  imageUrl: event.imageUrl || (combined.length > 0 ? combined[0].url : undefined)
-                };
-                sendLog(`Added ${selectedImages.length} images to "${event.title}".`);
-              }
+            } catch (e: any) {
+              console.error(`Time enrichment failed for ${event.title}:`, e);
+              sendLog(`  [${event.title}] Time failed: ${e.message}`);
             }
-            sendLog('Image enrichment complete.');
-          } catch (e: any) {
-            console.error('Image enrichment failed:', e);
-            sendLog(`Image enrichment failed: ${e.message}`);
           }
+
+          // 3. Location Enrichment
+          if (!fields || fields.includes('location')) {
+            try {
+              sendLog(`  [${event.title}] Stage: Location`);
+              const locationJsonStr = await callLLM(SYSTEM_PROMPT_LOCATION, singleEventContext);
+              const locationData = JSON.parse(locationJsonStr);
+              const fresh = (locationData.events || [])[0];
+              if (fresh && fresh.location) {
+                event.location = { ...event.location, ...fresh.location };
+              }
+            } catch (e: any) {
+              console.error(`Location enrichment failed for ${event.title}:`, e);
+              sendLog(`  [${event.title}] Location failed: ${e.message}`);
+            }
+          }
+
+          // 4. Image Enrichment
+          if (!fields || fields.includes('image')) {
+            try {
+              sendLog(`  [${event.title}] Stage: Images (Wikimedia Discovery)`);
+              const searchResults = await getWikimediaSearchResults(event.title, 12);
+
+              if (searchResults.length > 0) {
+                sendLog(`  [${event.title}] Found ${searchResults.length} search results. Selecting...`);
+                const resultsContext = JSON.stringify(searchResults, null, 2);
+                const eventContext = JSON.stringify({
+                  title: event.title,
+                  summary: event.summary,
+                  id: event.id
+                });
+
+                const specificPrompt = SYSTEM_PROMPT_IMAGE
+                  .replace('{event_json}', eventContext)
+                  .replace('{search_results}', resultsContext);
+
+                const selectionJsonStr = await callLLM(specificPrompt, "Select images from results.");
+                const selectionData = JSON.parse(selectionJsonStr);
+                const selectedImages = selectionData.selected_images || [];
+
+                if (selectedImages.length > 0) {
+                  const existingImages = event.images || [];
+                  const seenUrls = new Set(existingImages.map(img => img.url));
+                  const combined = [...existingImages];
+
+                  for (const sel of selectedImages) {
+                    const url = constructWikimediaUrl(sel.filename);
+                    if (url && !seenUrls.has(url)) {
+                      combined.push({ label: sel.label, url });
+                      seenUrls.add(url);
+                    }
+                  }
+                  event.images = combined;
+                  event.imageUrl = event.imageUrl || (combined.length > 0 ? combined[0].url : undefined);
+                  sendLog(`  [${event.title}] Added ${selectedImages.length} images.`);
+                }
+              } else {
+                sendLog(`  [${event.title}] No Wikimedia images found.`);
+              }
+            } catch (e: any) {
+              console.error(`Image enrichment failed for ${event.title}:`, e);
+              sendLog(`  [${event.title}] Images failed: ${e.message}`);
+            }
+          }
+
+          enrichedEvents[i] = event;
         }
 
         // Send final result

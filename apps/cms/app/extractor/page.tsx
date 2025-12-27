@@ -180,6 +180,7 @@ export default function ExtractorPage() {
   const [events, setEvents] = useState<EventData[]>([]);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [isEventListExpanded, setIsEventListExpanded] = useState(false);
+  const [autoEnrich, setAutoEnrich] = useState(true);
 
   // Layout state
   const [mapHeightPercent, setMapHeightPercent] = useState(70);
@@ -250,6 +251,7 @@ export default function ExtractorPage() {
   const handleExtract = async () => {
     setIsProcessing(true);
     setLogs([]);
+    let lastFetchedEvents: EventData[] = [];
     try {
       const res = await fetch('/api/extract', {
         method: 'POST',
@@ -307,11 +309,17 @@ export default function ExtractorPage() {
               });
             }
             setEvents(fetchedEvents);
+            lastFetchedEvents = fetchedEvents;
           } else if (data.type === 'error') {
             // Explicit error from server - bubble up to main catch block
             throw new Error(data.message);
           }
         }
+      }
+
+      if (autoEnrich && lastFetchedEvents.length > 0) {
+        setLogs(prev => [...prev, "--- Automatic Enrichment Started ---"]);
+        await handleEnrich(undefined, undefined, lastFetchedEvents);
       }
     } catch (e: any) {
       console.error(e);
@@ -321,12 +329,16 @@ export default function ExtractorPage() {
     }
   };
 
-  const handleEnrich = async (specificEventId?: string, fields?: string[]) => {
-    const targetEvents = specificEventId
-      ? events.filter(e => e.id === specificEventId) :
-      selectedEventIds.size > 0
-        ? events.filter(e => selectedEventIds.has(e.id))
-        : events;
+  const handleEnrich = async (specificEventId?: string, fields?: string[], manualEvents?: EventData[]) => {
+    let targetEvents = manualEvents;
+
+    if (!targetEvents) {
+      targetEvents = specificEventId
+        ? events.filter(e => e.id === specificEventId) :
+        selectedEventIds.size > 0
+          ? events.filter(e => selectedEventIds.has(e.id))
+          : events;
+    }
 
     if (targetEvents.length === 0) return;
 
@@ -568,14 +580,29 @@ export default function ExtractorPage() {
               )}
             </div>
 
-            <button
-              onClick={handleExtract}
-              disabled={isProcessing || !content}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
-            >
-              {isProcessing ? <Loader2 className="animate-spin w-4 h-4" /> : <Wand2 className="w-4 h-4" />}
-              Extract Events
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExtract}
+                disabled={isProcessing || !content}
+                className="flex-1 bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
+              >
+                {isProcessing ? <Loader2 className="animate-spin w-3.5 h-3.5" /> : <Wand2 className="w-3.5 h-3.5" />}
+                Extract
+              </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  type="checkbox"
+                  id="auto-enrich"
+                  checked={autoEnrich}
+                  onChange={e => setAutoEnrich(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <label htmlFor="auto-enrich" className="text-[11px] font-medium text-gray-600 cursor-pointer select-none whitespace-nowrap">
+                  Auto-Enrich
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons Row */}
