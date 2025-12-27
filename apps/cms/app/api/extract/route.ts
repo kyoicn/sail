@@ -89,93 +89,129 @@ export async function POST(request: Request) {
         // Capture source URL for provenance
         const sourceUrl = inputType === 'url' ? content : 'manual-text';
 
-        // 2. Call LLM
-        let extractedEvents: any[] = [];
-        sendLog(`Calling LLM (${provider} - ${model || 'default'})...`);
+        // 2. Call LLM with Chunking
+        let extractedRawEvents: any[] = [];
+        const tpmLimit = geminiLimiter.getTPMLimit();
+        const charLimitPerChunk = tpmLimit > 0 ? Math.floor(tpmLimit * 4 * 0.7) : 40000; // 70% safety margin
+        const overlapChars = 2000;
+
+        const chunks: string[] = [];
+        if (cleanText.length <= charLimitPerChunk) {
+          chunks.push(cleanText);
+        } else {
+          sendLog(`Large document detected (${cleanText.length} characters). Splitting into chunks...`);
+          let start = 0;
+          while (start < cleanText.length) {
+            let end = Math.min(start + charLimitPerChunk, cleanText.length);
+            chunks.push(cleanText.substring(start, end));
+            if (end >= cleanText.length) break;
+            start = end - overlapChars;
+            if (start < 0) start = 0; // Safety
+          }
+          sendLog(`Split into ${chunks.length} chunks with ${overlapChars} chars overlap.`);
+        }
 
         // Helper to strip markdown code blocks
         const cleanJson = (text: string) => {
           return text.replace(/```json\n?|\n?```/g, '').trim();
         };
 
-        if (provider === 'gemini') {
-          sendLog(`Calling Gemini (${model}) | ${geminiLimiter.getStatusString()}...`);
-          const apiKey = process.env.GOOGLE_API_KEY;
-          if (!apiKey) {
-            sendError('GOOGLE_API_KEY not configured');
-            controller.close();
-            return;
-          }
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          const chunkLogPrefix = chunks.length > 1 ? `[Chunk ${i + 1}/${chunks.length}] ` : '';
 
-          const userContent = SYSTEM_PROMPT + "\n\nText to analyze:\n" + cleanText;
-          const inputTokens = geminiLimiter.estimateTokens(userContent);
-          const expectedOutputTokens = 2000; // Extraction usually produces more data than enrichment
-          const totalEstimatedTokens = inputTokens + expectedOutputTokens;
+          if (provider === 'gemini') {
+            const apiKey = process.env.GOOGLE_API_KEY;
+            if (!apiKey) throw new Error('GOOGLE_API_KEY not configured');
 
-          await geminiLimiter.acquire(totalEstimatedTokens);
+            const userContent = SYSTEM_PROMPT + "\n\nText to analyze:\n" + chunk;
+            const inputTokens = geminiLimiter.estimateTokens(userContent);
+            const expectedOutputTokens = 2000;
+            const totalEstimatedTokens = inputTokens + expectedOutputTokens;
 
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{ text: userContent }]
-              }],
-              generationConfig: {
-                // Gemma models don't support JSON mode yet, so rely on the prompt
-                ...(model && model.startsWith('gemma') ? {} : { responseMimeType: "application/json" })
-              }
-            })
-          });
+            sendLog(`${chunkLogPrefix}Calling Gemini (${model}) | ${geminiLimiter.getStatusString(totalEstimatedTokens)}...`);
+            await geminiLimiter.acquire(totalEstimatedTokens);
 
-          if (!response.ok) {
-            const err = await response.text();
-            throw new Error(`Gemini API Error: ${err}`);
-          }
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [{ text: userContent }]
+                }],
+                generationConfig: {
+                  ...(model && model.startsWith('gemma') ? {} : { responseMimeType: "application/json" })
+                }
+              })
+            });
 
-          const data = await response.json();
-          const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!textResponse) throw new Error('No content from Gemini');
+            if (!response.ok) {
+              const err = await response.text();
+              throw new Error(`Gemini API Error: ${err}`);
+            }
 
-          sendLog(`Gemini Response:\n${textResponse}`);
-          sendLog('Parsing LLM response...');
-          const json = JSON.parse(cleanJson(textResponse));
-          extractedEvents = json.events || [];
+            const data = await response.json();
+            const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!textResponse) throw new Error('No content from Gemini');
 
-        } else {
-          // Ollama
-          const OllamaHost = process.env.OLLAMA_HOST;
-          const response = await fetch(`${OllamaHost}/api/chat`, {
-            method: 'POST',
-            body: JSON.stringify({
-              model: model || 'deepseek-r1:8b',
-              messages: [
-                { role: 'system', content: SYSTEM_PROMPT },
-                { role: 'user', content: cleanText }
-              ],
-              format: 'json',
-              stream: false
-            })
-          });
+            const json = JSON.parse(cleanJson(textResponse));
+            const chunkEvents = json.events || [];
+            extractedRawEvents.push(...chunkEvents);
+            sendLog(`${chunkLogPrefix}Extracted ${chunkEvents.length} events.`);
 
-          if (!response.ok) throw new Error('Ollama API failed');
-          const data = await response.json();
-          try {
+          } else {
+            // Ollama
+            const OllamaHost = process.env.OLLAMA_HOST;
+            sendLog(`${chunkLogPrefix}Calling Ollama (${model || 'default'})...`);
+            const response = await fetch(`${OllamaHost}/api/chat`, {
+              method: 'POST',
+              body: JSON.stringify({
+                model: model || 'deepseek-r1:8b',
+                messages: [
+                  { role: 'system', content: SYSTEM_PROMPT },
+                  { role: 'user', content: chunk }
+                ],
+                format: 'json',
+                stream: false
+              })
+            });
+
+            if (!response.ok) throw new Error('Ollama API failed');
+            const data = await response.json();
             const content = data.message.content;
-            sendLog(`Ollama Response:\n${content}`);
-            sendLog('Parsing LLM response...');
             const json = JSON.parse(cleanJson(content));
-            extractedEvents = json.events || [];
-          } catch (e) {
-            console.error("Failed to parse Ollama JSON", data.message.content);
-            throw new Error('Invalid JSON from Ollama');
+            const chunkEvents = json.events || [];
+            extractedRawEvents.push(...chunkEvents);
+            sendLog(`${chunkLogPrefix}Extracted ${chunkEvents.length} events.`);
           }
         }
 
-        sendLog(`Extracted ${extractedEvents.length} events. Mapping to schema...`);
+        // Deduplication
+        let finalExtractedEvents = extractedRawEvents;
+        if (chunks.length > 1) {
+          sendLog(`Merging results from ${chunks.length} chunks...`);
+          const seen = new Set<string>();
+          finalExtractedEvents = [];
+
+          for (const e of extractedRawEvents) {
+            // Fuzzy key: title + year + location_name (if exists)
+            const titlePart = (e.title || '').toLowerCase().trim();
+            const yearPart = e.start_time?.year || 0;
+            const locPart = (e.location?.location_name || e.location?.placeName || '').toLowerCase().trim();
+            const key = `${titlePart}|${yearPart}|${locPart}`;
+
+            if (titlePart && !seen.has(key)) {
+              seen.add(key);
+              finalExtractedEvents.push(e);
+            }
+          }
+          sendLog(`Total extracted: ${extractedRawEvents.length} events. Deduplicated to ${finalExtractedEvents.length} unique events.`);
+        }
+
+        sendLog(`Mapping ${finalExtractedEvents.length} events to schema...`);
 
         // 3. Map to EventData (Canonical Schema) and fetch initial images
-        const mappedEvents: Partial<EventData>[] = await Promise.all(extractedEvents.map(async (eVal) => {
+        const mappedEvents: Partial<EventData>[] = await Promise.all(finalExtractedEvents.map(async (eVal) => {
           const e = eVal as any;
 
           // Initial search for image if not provided by LLM
@@ -206,10 +242,10 @@ export async function POST(request: Request) {
               astro_year: e.end_time.year ? (e.end_time.year > 0 ? e.end_time.year : e.end_time.year + 1) : 0
             } : undefined,
             location: {
-              lat: e.location.latitude || e.location.lat || 0, // prompt asks for latitude/longitude now, but keep back compat just in case
-              lng: e.location.longitude || e.location.lng || 0,
-              placeName: e.location.location_name || e.location.placeName, // prompt asks for location_name
-              granularity: e.location.precision || e.location.granularity || 'spot', // prompt
+              lat: e.location?.latitude || e.location?.lat || 0,
+              lng: e.location?.longitude || e.location?.lng || 0,
+              placeName: e.location?.location_name || e.location?.placeName || '',
+              granularity: e.location?.precision || e.location?.granularity || 'spot',
               certainty: e.location?.certainty || 'unknown'
             },
             images: canonicalUrl ? [{ label: 'Primary Image', url: canonicalUrl }] : []

@@ -19,6 +19,9 @@ class GeminiRateLimiter {
     console.log(`GeminiRateLimiter initialized with RPM: ${this.rpmLimit}, TPM: ${this.tpmLimit}`);
   }
 
+  public getRPMLimit(): number { return this.rpmLimit; }
+  public getTPMLimit(): number { return this.tpmLimit; }
+
   /**
    * Estimates tokens from character count.
    * Gemini heuristic: ~4 chars per token, so 0.25 tokens per character.
