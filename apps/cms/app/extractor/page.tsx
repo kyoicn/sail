@@ -628,7 +628,7 @@ export default function ExtractorPage() {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const targetEvents = selectedEventIds.size > 0
       ? events.filter(e => selectedEventIds.has(e.id))
       : events;
@@ -636,14 +636,43 @@ export default function ExtractorPage() {
     if (targetEvents.length === 0) return;
 
     const formattedEvents = targetEvents.map(toEventSchema);
-
     const jsonString = JSON.stringify({ events: formattedEvents }, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `extracted_events_${targetEvents.length}_${new Date().toISOString()}.json`;
-    link.click();
+    // Use hyphenated ISO string for valid filename across OSs
+    const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `extracted_events_${targetEvents.length}_${dateStr}.json`;
+
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: 'JSON File',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        setLogs(prev => [...prev, `✓ Events saved to ${handle.name}`]);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('Save File Error:', err);
+          setLogs(prev => [...prev, `Error saving file: ${err.message}`]);
+        }
+      }
+    } else {
+      // Fallback for non-supported browsers
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      setLogs(prev => [...prev, `✓ Download triggered for ${fileName}`]);
+
+      // Cleanup
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    }
   };
 
   const updateEvent = (id: string, field: keyof EventData | string, value: any) => {
