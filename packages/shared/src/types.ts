@@ -107,7 +107,7 @@ export interface EventData {
   // List of child source_ids (e.g. ["gemini:battle_of_waterloo_phase_1"])
   children?: string[];
   // Pointer back to parent source_id (optional)
-  parentId?: string;
+  parent_source_id?: string;
 
 
 }
@@ -154,18 +154,4 @@ export interface HistoricalPeriod {
   start_astro_year: number;
   end_astro_year: number;
   importance: number;
-}
-
-export interface EventCore {
-  title: string;
-  summary: string;
-  imageUrl?: string;
-  images?: EventSource[];
-  // Use Partial for flexibility during extraction
-  start_time: Partial<ChronosTime>;
-  end_time?: Partial<ChronosTime>;
-  // Use loose location to allow missing lat/lng if unknown
-  location: Partial<ChronosLocation>;
-  importance: number;
-  sources?: Partial<EventSource>[];
 }

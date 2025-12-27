@@ -308,7 +308,7 @@ function mapAndReturnEvents(data: any[]) {
       collections: row.collections || [],
       sources: row.links || [],
       children: row.child_source_ids || [],
-      parentId: row.parent_source_id || undefined
+      parent_source_id: row.parent_source_id || undefined
     };
   });
 

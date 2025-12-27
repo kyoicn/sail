@@ -39,7 +39,6 @@ class LocationEntry(BaseModel):
 class EventSchema(BaseModel):
     ## Basic information
     source_id: Optional[str] = None # Explicit ID override
-    parent_source_id: Optional[str] = None # Back-reference to parent
     title: str
     summary: str
     
@@ -66,6 +65,7 @@ class EventSchema(BaseModel):
     # Relationships
     # List of child event source_ids.
     children: Optional[List[str]] = None
+    parent_source_id: Optional[str] = None # Back-reference to parent
     
     # Collections/Tags
     collections: Optional[List[str]] = []

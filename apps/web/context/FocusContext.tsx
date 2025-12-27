@@ -18,7 +18,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
   const [focusStack, setFocusStack] = useState<string[]>([]);
   const [focusedEvent, setFocusedEvent] = useState<EventData | null>(null);
 
-  const canGoUp = focusStack.length > 1 || (focusStack.length === 1 && !!focusedEvent?.parentId);
+  const canGoUp = focusStack.length > 1 || (focusStack.length === 1 && !!focusedEvent?.parent_source_id);
 
   const handleFocus = useCallback((eventId: string) => {
     setFocusStack(prev => {
@@ -46,13 +46,13 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Retroactive Case: If we have no history but we know the parent, jump to parent
-      if (prev.length === 1 && focusedEvent?.parentId) {
-        return [focusedEvent.parentId];
+      if (prev.length === 1 && focusedEvent?.parent_source_id) {
+        return [focusedEvent.parent_source_id];
       }
 
       return [];
     });
-  }, [focusedEvent?.parentId]);
+  }, [focusedEvent?.parent_source_id]);
 
   const handleExit = useCallback(() => {
     setFocusStack([]);

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { EventData, ChronosTime, ChronosLocation } from '@sail/shared';
 import Link from 'next/link';
-import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare, ChevronRight } from 'lucide-react';
+import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare, ChevronRight, ChevronDown, GitGraph, Network } from 'lucide-react';
 
 // CheckSquare import added below
 
@@ -181,6 +181,7 @@ export default function ExtractorPage() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
   const [isEventListExpanded, setIsEventListExpanded] = useState(false);
   const [autoEnrich, setAutoEnrich] = useState(true);
+  const [collapsedParents, setCollapsedParents] = useState<Set<string>>(new Set());
 
   // Layout state
   const [mapHeightPercent, setMapHeightPercent] = useState(70);
@@ -397,6 +398,105 @@ export default function ExtractorPage() {
     }
   };
 
+  const handleCluster = async () => {
+    const targetEvents = selectedEventIds.size > 0
+      ? events.filter(e => selectedEventIds.has(e.id))
+      : events;
+
+    if (targetEvents.length === 0) {
+      setLogs(prev => [...prev, "No events to cluster."]);
+      return;
+    }
+
+    setIsProcessing(true);
+    setLogs(prev => [...prev, "--- Clustering Started ---"]);
+
+    try {
+      const res = await fetch('/api/cluster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: targetEvents, provider, model }),
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let data;
+          try {
+            data = JSON.parse(line);
+          } catch (parseErr) {
+            console.error('Frontend parsing error:', line, parseErr);
+            continue;
+          }
+
+          if (data.type === 'log') {
+            setLogs(prev => [...prev, data.message]);
+          } else if (data.type === 'result') {
+            const relationships = data.relationships as { child_id: string, parent_id: string }[];
+            const relationshipMap = new Map(relationships.map(r => [r.child_id, r.parent_id]));
+
+            setEvents(prev => {
+              const nextEvents = prev.map(e => ({
+                ...e,
+                parent_source_id: undefined as string | undefined,
+                children: [] as string[]
+              }));
+
+              const eventMapLocal = new Map(nextEvents.map(e => [e.id, e]));
+
+              relationships.forEach(r => {
+                const child = eventMapLocal.get(r.child_id);
+                const parent = eventMapLocal.get(r.parent_id);
+
+                if (child && parent) {
+                  child.parent_source_id = parent.id;
+                  parent.children = parent.children || [];
+                  if (!parent.children.includes(child.id)) {
+                    parent.children.push(child.id);
+                  }
+                }
+              });
+
+              return [...nextEvents];
+            });
+            setLogs(prev => [...prev, `Clustered ${relationships.length} relationships.`]);
+          } else if (data.type === 'error') {
+            throw new Error(data.message);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error(e);
+      setLogs(prev => [...prev, `Clustering Failed: ${e.message}`]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const toggleParentCollapse = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCollapsedParents(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
 
 
 
@@ -473,6 +573,8 @@ export default function ExtractorPage() {
       return res;
     };
 
+    const eventMapLocal = new Map(events.map(ev => [ev.id, ev]));
+
     return {
       source_id: e.source_id,
       title: e.title,
@@ -489,6 +591,8 @@ export default function ExtractorPage() {
       },
       sources: e.sources,
       images: e.images && e.images.length > 0 ? e.images : (e.imageUrl ? [{ label: 'Image', url: e.imageUrl }] : undefined),
+      parent_source_id: e.parent_source_id ? (eventMapLocal.get(e.parent_source_id)?.source_id || e.parent_source_id) : undefined,
+      children: e.children?.map(cid => eventMapLocal.get(cid)?.source_id).filter(Boolean) as string[],
     };
   };
 
@@ -615,7 +719,16 @@ export default function ExtractorPage() {
                 <ChevronRight className={`w-3 h-3 transition-transform ${isEventListExpanded ? 'rotate-90' : ''}`} />
                 {events.length} Events
               </button>
-              <div className="flex gap-1">
+              <div className="flex gap-1 items-center">
+                <button
+                  onClick={handleCluster}
+                  disabled={isProcessing || events.length === 0}
+                  title="Cluster Events (Parent-Child)"
+                  className="p-2 border border-purple-200 text-purple-700 rounded hover:bg-purple-50 disabled:opacity-50 transition-colors"
+                >
+                  <Network className="w-4 h-4" />
+                </button>
+
                 <button
                   onClick={handleSelectAll}
                   disabled={events.length === 0}
@@ -633,48 +746,93 @@ export default function ExtractorPage() {
 
             {/* Expandable Mini List */}
             {isEventListExpanded && events.length > 0 && (
-              <div className="max-h-48 overflow-y-auto border-t border-gray-100 bg-gray-50/50">
-                {events.map(event => (
-                  <div
-                    key={event.id}
-                    onClick={(e) => {
-                      if (e.metaKey || e.ctrlKey) {
-                        handleCardClick(e, event.id);
-                      } else {
-                        handleMarkerClick(event.id);
-                      }
-                    }}
-                    className={`px-4 py-1.5 text-xs text-gray-600 hover:bg-blue-50 cursor-pointer flex items-center justify-between gap-2 group ${selectedEventIds.has(event.id) ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <div className={`w-1.5 h-1.5 shrink-0 rounded-full ${selectedEventIds.has(event.id) ? 'bg-blue-500' : 'bg-gray-300'}`} />
-                      <span className="truncate">{event.title || 'Untitled Event'}</span>
-                    </div>
+              <div className="max-h-64 overflow-y-auto border-t border-gray-100 bg-gray-50/50 py-2">
+                {(() => {
+                  const childrenMap = new Map<string, EventData[]>();
+                  const roots: EventData[] = [];
+                  const eventMap = new Map(events.map(e => [e.id, e]));
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleShowJson(event);
-                        }}
-                        title="Show JSON"
-                        className="p-1 text-gray-400 hover:text-blue-500 hover:bg-white rounded transition-colors"
-                      >
-                        <FileJson className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeEvent(event.id);
-                        }}
-                        title="Delete Event"
-                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-white rounded transition-colors"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  events.forEach(e => {
+                    if (e.parent_source_id && eventMap.has(e.parent_source_id)) {
+                      const children = childrenMap.get(e.parent_source_id) || [];
+                      children.push(e);
+                      childrenMap.set(e.parent_source_id, children);
+                    } else {
+                      roots.push(e);
+                    }
+                  });
+
+                  const renderEvent = (event: EventData, depth: number = 0) => {
+                    const children = childrenMap.get(event.id) || [];
+                    const isCollapsed = collapsedParents.has(event.id);
+                    const isSelected = selectedEventIds.has(event.id);
+
+                    return (
+                      <div key={event.id}>
+                        <div
+                          onClick={(e) => {
+                            if (e.metaKey || e.ctrlKey) {
+                              handleCardClick(e, event.id);
+                            } else {
+                              handleMarkerClick(event.id);
+                            }
+                          }}
+                          className={`px-4 py-1.5 text-xs text-gray-600 hover:bg-blue-50 cursor-pointer flex items-center justify-between gap-2 group ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}
+                          style={{ paddingLeft: `${16 + depth * 16}px` }}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {children.length > 0 ? (
+                              <button
+                                onClick={(e) => toggleParentCollapse(event.id, e)}
+                                className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+                              >
+                                {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                            ) : (
+                              <div className="w-4 h-4" />
+                            )}
+                            <div className={`w-1.5 h-1.5 shrink-0 rounded-full ${isSelected ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                            <span className="truncate">{event.title || 'Untitled Event'}</span>
+                            {event.parent_source_id && !eventMap.has(event.parent_source_id) && (
+                              <span className="text-[10px] bg-gray-100 px-1 rounded text-gray-400">Child</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowJson(event);
+                              }}
+                              title="Show JSON"
+                              className="p-1 text-gray-400 hover:text-blue-500 hover:bg-white rounded transition-colors"
+                            >
+                              <FileJson className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeEvent(event.id);
+                              }}
+                              title="Delete Event"
+                              className="p-1 text-gray-400 hover:text-red-500 hover:bg-white rounded transition-colors"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {!isCollapsed && children.length > 0 && (
+                          <div className="border-l border-gray-100">
+                            {children.map(child => renderEvent(child, depth + 1))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  return roots.map(root => renderEvent(root));
+                })()}
               </div>
             )}
           </div>

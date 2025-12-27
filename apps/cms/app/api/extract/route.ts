@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 // Google Generative AI integration is handled via REST API to avoid Node SDK issues.
 
-import { EventData, ChronosTime, ChronosLocation, EventSource, EventCore } from '@sail/shared';
+import { EventData, ChronosTime, ChronosLocation, EventSource } from '@sail/shared';
 import fs from 'fs';
 import path from 'path';
 import { getWikimediaSearchResults, constructWikimediaUrl } from '@/lib/utils';
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
         const sourceUrl = inputType === 'url' ? content : 'manual-text';
 
         // 2. Call LLM
-        let extractedEvents: EventCore[] = [];
+        let extractedEvents: any[] = [];
         sendLog(`Calling LLM (${provider} - ${model || 'default'})...`);
 
         // Helper to strip markdown code blocks
