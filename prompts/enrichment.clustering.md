@@ -36,7 +36,7 @@ You will receive a JSON list of `Candidate Events`. Each contains:
 - `location`: Geo-coordinates and place names.
 
 ### 5. Response Protocol:
-Return **ONLY** a JSON object (no thoughts, no markdown formatting outside the code block).
+Briefly explain your high-level reasoning for the identified clusters, then provide the JSON object in a markdown code block.
 
 ```json
 {

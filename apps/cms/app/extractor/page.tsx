@@ -445,6 +445,8 @@ export default function ExtractorPage() {
 
           if (data.type === 'log') {
             setLogs(prev => [...prev, data.message]);
+          } else if (data.type === 'thought') {
+            setLogs(prev => [...prev, `Thinking: ${data.message}`]);
           } else if (data.type === 'result') {
             const relationships = data.relationships as { child_id: string, parent_id: string }[];
             const relationshipMap = new Map(relationships.map(r => [r.child_id, r.parent_id]));
@@ -1214,7 +1216,10 @@ export default function ExtractorPage() {
               {logs.map((log, i) => (
                 <div
                   key={i}
-                  className={`whitespace-pre-wrap mb-0.5 border-l-2 border-transparent pl-1 ${log.startsWith('Error:') ? 'text-red-400 bg-red-900/10 border-red-500' : 'hover:border-gray-700'}`}
+                  className={`whitespace-pre-wrap mb-0.5 border-l-2 border-transparent pl-1 
+                    ${log.startsWith('Error:') ? 'text-red-400 bg-red-900/10 border-red-500' :
+                      log.startsWith('Thinking:') ? 'text-purple-300 italic opacity-80' :
+                        'hover:border-gray-700'}`}
                 >
                   {log}
                 </div>

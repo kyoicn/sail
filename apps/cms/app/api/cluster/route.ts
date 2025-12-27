@@ -27,6 +27,10 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode(JSON.stringify({ type: 'error', message }) + '\n'));
       };
 
+      const sendThought = (message: string) => {
+        controller.enqueue(encoder.encode(JSON.stringify({ type: 'thought', message }) + '\n'));
+      };
+
       try {
         const body = await request.json();
         const { events, provider, model } = body as {
@@ -83,9 +87,37 @@ export async function POST(request: Request) {
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (!text) throw new Error('Empty response from Gemini');
 
-          // Clean JSON
-          const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/) || [null, text];
-          const clusterData = JSON.parse(jsonMatch[1].trim());
+          // Extract thinking vs JSON
+          const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+          let jsonStr = "";
+          let thought = "";
+
+          if (jsonMatch) {
+            jsonStr = jsonMatch[1].trim();
+            thought = text.split('```json')[0].trim();
+          } else {
+            // Fallback: find first { and last }
+            const first = text.indexOf('{');
+            const last = text.lastIndexOf('}');
+            if (first !== -1 && last !== -1) {
+              jsonStr = text.substring(first, last + 1);
+              thought = text.substring(0, first).trim();
+            } else {
+              jsonStr = text;
+            }
+          }
+
+          // Clean up <think> tags if present (e.g. from DeepSeek or reasoning models)
+          const thinkMatch = thought.match(/<think>([\s\S]*?)<\/think>/i);
+          if (thinkMatch) {
+            thought = thinkMatch[1].trim();
+          }
+
+          if (thought) {
+            sendThought(thought);
+          }
+
+          const clusterData = JSON.parse(jsonStr);
           relationships = clusterData.relationships || [];
         } else {
           // Ollama...
