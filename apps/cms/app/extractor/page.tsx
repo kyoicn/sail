@@ -651,6 +651,7 @@ export default function ExtractorPage() {
     if ('showSaveFilePicker' in window) {
       try {
         const handle = await (window as any).showSaveFilePicker({
+          id: 'extractor-download',
           suggestedName: fileName,
           types: [{
             description: 'JSON File',
