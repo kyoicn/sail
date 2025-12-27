@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { EventData, ChronosTime, ChronosLocation } from '@sail/shared';
 import Link from 'next/link';
-import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare, ChevronRight, ChevronDown, GitGraph, Network } from 'lucide-react';
+import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare, ChevronRight, ChevronDown, GitGraph, Network, RotateCcw } from 'lucide-react';
 
 // CheckSquare import added below
 
@@ -487,6 +487,16 @@ export default function ExtractorPage() {
     }
   };
 
+  const handleClearClusters = () => {
+    setEvents(prev => prev.map(e => ({
+      ...e,
+      parent_source_id: undefined,
+      children: []
+    })));
+    setCollapsedParents(new Set());
+    setLogs(prev => [...prev, "Cleared all clustering relationships."]);
+  };
+
   const toggleParentCollapse = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setCollapsedParents(prev => {
@@ -720,6 +730,15 @@ export default function ExtractorPage() {
                 {events.length} Events
               </button>
               <div className="flex gap-1 items-center">
+                <button
+                  onClick={handleClearClusters}
+                  disabled={isProcessing || events.length === 0}
+                  title="Clear Clustering Results"
+                  className="p-2 border border-gray-200 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+
                 <button
                   onClick={handleCluster}
                   disabled={isProcessing || events.length === 0}
