@@ -358,23 +358,26 @@ export default function ExtractorPage() {
     }
   };
 
-  const handleLoadJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleLoadJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
+    const allNewEvents: EventData[] = [];
+    const loadLogs: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       try {
-        const jsonContent = event.target?.result as string;
+        const jsonContent = await file.text();
         const json = JSON.parse(jsonContent);
         const eventsToLoad = Array.isArray(json) ? json : (json.events || []);
 
         if (!Array.isArray(eventsToLoad)) {
-          throw new Error('Invalid JSON format: expected an array of events or an object with an "events" array.');
+          throw new Error(`Invalid format in ${file.name}: expected an array of events.`);
         }
 
         // Generate new internal IDs and normalize structures for format compatibility
-        const newEvents = eventsToLoad.map((e: any) => {
+        const chunkEvents = eventsToLoad.map((e: any) => {
           // Normalize Location
           const rawLoc = e.location || {};
           const normalizedLoc = {
@@ -416,14 +419,18 @@ export default function ExtractorPage() {
           };
         });
 
-        setEvents(prev => [...prev, ...newEvents]);
-        setLogs(prev => [...prev, `✓ Loaded ${newEvents.length} events from ${file.name}.`]);
+        allNewEvents.push(...chunkEvents);
+        loadLogs.push(`✓ Loaded ${chunkEvents.length} events from ${file.name}.`);
       } catch (err: any) {
-        console.error('Failed to load JSON:', err);
-        setLogs(prev => [...prev, `Error loading JSON: ${err.message}`]);
+        console.error(`Failed to load ${file.name}:`, err);
+        loadLogs.push(`❌ Error loading ${file.name}: ${err.message}`);
       }
-    };
-    reader.readAsText(file);
+    }
+
+    if (allNewEvents.length > 0) {
+      setEvents(prev => [...prev, ...allNewEvents]);
+    }
+    setLogs(prev => [...prev, ...loadLogs]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -907,6 +914,7 @@ export default function ExtractorPage() {
                   ref={fileInputRef}
                   onChange={handleLoadJSON}
                   accept=".json"
+                  multiple
                   className="hidden"
                 />
                 <button
