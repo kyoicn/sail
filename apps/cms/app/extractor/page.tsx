@@ -182,6 +182,7 @@ export default function ExtractorPage() {
   const [isEventListExpanded, setIsEventListExpanded] = useState(false);
   const [autoEnrich, setAutoEnrich] = useState(true);
   const [collapsedParents, setCollapsedParents] = useState<Set<string>>(new Set());
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   // Layout state
   const [mapHeightPercent, setMapHeightPercent] = useState(70);
@@ -243,6 +244,24 @@ export default function ExtractorPage() {
     document.removeEventListener('mouseup', handleMouseUp);
   };
 
+  // Timer logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isProcessing) {
+      setElapsedTime(0);
+      interval = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isProcessing]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Auto-scroll logs
   const logsEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -250,6 +269,7 @@ export default function ExtractorPage() {
   }, [logs]);
 
   const handleExtract = async () => {
+    const startTime = Date.now();
     setIsProcessing(true);
     setLogs([]);
     let lastFetchedEvents: EventData[] = [];
@@ -327,10 +347,13 @@ export default function ExtractorPage() {
       setLogs(prev => [...prev, `Error: ${e.message}`]);
     } finally {
       setIsProcessing(false);
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      setLogs(prev => [...prev, `✓ Extraction completed in ${duration}s.`]);
     }
   };
 
   const handleEnrich = async (specificEventId?: string, fields?: string[], manualEvents?: EventData[]) => {
+    const startTime = Date.now();
     let targetEvents = manualEvents;
 
     if (!targetEvents) {
@@ -395,10 +418,13 @@ export default function ExtractorPage() {
       setLogs(prev => [...prev, `Enrichment Failed: ${e.message}`]);
     } finally {
       setIsProcessing(false);
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      setLogs(prev => [...prev, `✓ Enrichment completed in ${duration}s.`]);
     }
   };
 
   const handleCluster = async () => {
+    const startTime = Date.now();
     const targetEvents = selectedEventIds.size > 0
       ? events.filter(e => selectedEventIds.has(e.id))
       : events;
@@ -486,6 +512,8 @@ export default function ExtractorPage() {
       setLogs(prev => [...prev, `Clustering Failed: ${e.message}`]);
     } finally {
       setIsProcessing(false);
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      setLogs(prev => [...prev, `✓ Clustering completed in ${duration}s.`]);
     }
   };
 
@@ -1209,7 +1237,12 @@ export default function ExtractorPage() {
           <div className="flex-1 bg-gray-900 flex flex-col min-h-0">
             <div className="px-3 py-1 bg-gray-800 border-b border-gray-700 text-[10px] font-mono text-gray-400 uppercase tracking-widest flex justify-between items-center">
               <span>Processing Console</span>
-              {isProcessing && <span className="text-green-400 animate-pulse">Running...</span>}
+              {isProcessing && (
+                <div className="flex items-center gap-2">
+                  <span className="text-green-400 animate-pulse">Running...</span>
+                  <span className="text-blue-400 font-bold drop-shadow-[0_0_8px_rgba(96,165,250,0.3)]">({formatTime(elapsedTime)})</span>
+                </div>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto p-3 font-mono text-xs text-green-400">
               {logs.length === 0 && !isProcessing && <div className="text-gray-600 italic">Ready. Logs will appear here during extraction.</div>}
@@ -1224,7 +1257,12 @@ export default function ExtractorPage() {
                   {log}
                 </div>
               ))}
-              {isProcessing && <div className="animate-pulse">_</div>}
+              {isProcessing && (
+                <div className="flex items-center gap-2">
+                  <span className="animate-pulse">_</span>
+                  <span className="text-gray-600 text-[10px] tracking-tighter">[{formatTime(elapsedTime)}]</span>
+                </div>
+              )}
               <div ref={logsEndRef} />
             </div>
           </div>
