@@ -6,7 +6,7 @@ import { Readability } from '@mozilla/readability';
 import { EventData, ChronosTime, ChronosLocation, EventSource } from '@sail/shared';
 import fs from 'fs';
 import path from 'path';
-import { getWikimediaSearchResults, constructWikimediaUrl } from '@/lib/utils';
+import { getWikimediaSearchResults, constructWikimediaUrl, canonicalizeWikimediaUrl } from '@/lib/utils';
 import { geminiLimiter } from '@/lib/gemini-limiter';
 
 // We need a local interface for the LLM response which might be slightly looser before mapping
@@ -187,12 +187,14 @@ export async function POST(request: Request) {
             }
           }
 
+          const canonicalUrl = imageUrl ? canonicalizeWikimediaUrl(imageUrl) : undefined;
+
           return {
             id: crypto.randomUUID(),
             title: e.title,
             source_id: ((inputType === 'url' ? content.replace(/https?:\/\//, '').replace(/[^a-z0-9]+/gi, '_') : 'manual_input') + ':' + e.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')).replace(/_+/g, '_'),
             summary: e.summary,
-            imageUrl: imageUrl,
+            imageUrl: canonicalUrl,
             importance: e.importance,
             start: {
               year: e.start_time.year || 0,
@@ -210,7 +212,7 @@ export async function POST(request: Request) {
               granularity: e.location.precision || e.location.granularity || 'spot', // prompt
               certainty: e.location?.certainty || 'unknown'
             },
-            images: imageUrl ? [{ label: 'Primary Image', url: imageUrl }] : []
+            images: canonicalUrl ? [{ label: 'Primary Image', url: canonicalUrl }] : []
           };
         }));
 

@@ -3,7 +3,7 @@ import { EventData } from '@sail/shared';
 import { geminiLimiter } from '@/lib/gemini-limiter';
 import fs from 'fs';
 import path from 'path';
-import { getWikimediaSearchResults, constructWikimediaUrl } from '@/lib/utils';
+import { getWikimediaSearchResults, constructWikimediaUrl, canonicalizeWikimediaUrl } from '@/lib/utils';
 
 const getPrompt = (fileName: string) => {
   try {
@@ -243,19 +243,27 @@ export async function POST(request: Request) {
 
                 if (selectedImages.length > 0) {
                   const existingImages = event.images || [];
-                  const seenUrls = new Set(existingImages.map(img => img.url));
+                  const seenUrls = new Set<string>();
+
+                  // Deduplicate against existing images AND the primary imageUrl
+                  if (event.imageUrl) seenUrls.add(canonicalizeWikimediaUrl(event.imageUrl));
+                  existingImages.forEach(img => seenUrls.add(canonicalizeWikimediaUrl(img.url)));
+
                   const combined = [...existingImages];
 
                   for (const sel of selectedImages) {
-                    const url = constructWikimediaUrl(sel.filename);
+                    const url = canonicalizeWikimediaUrl(constructWikimediaUrl(sel.filename));
                     if (url && !seenUrls.has(url)) {
                       combined.push({ label: sel.label, url });
                       seenUrls.add(url);
                     }
                   }
                   event.images = combined;
+                  // Ensure current imageUrl is also canonical if it exists
+                  if (event.imageUrl) event.imageUrl = canonicalizeWikimediaUrl(event.imageUrl);
                   event.imageUrl = event.imageUrl || (combined.length > 0 ? combined[0].url : undefined);
-                  sendLog(`  [${event.title}] Added ${selectedImages.length} images.`);
+
+                  sendLog(`  [${event.title}] Added ${combined.length - existingImages.length} new images.`);
                 }
               } else {
                 sendLog(`  [${event.title}] No Wikimedia images found.`);

@@ -9,8 +9,37 @@
 export function constructWikimediaUrl(filename: string): string {
   if (!filename) return '';
   // Remove "File:" prefix if present
-  const cleanName = filename.replace(/^File:/i, '');
+  const cleanName = filename.replace(/^File:/i, '').replace(/\s+/g, '_');
   return `https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/${cleanName}`;
+}
+
+/**
+ * Normalizes various Wikimedia URL formats into our standard Special:Redirect format.
+ * This ensures that duplicate checks work reliably.
+ */
+export function canonicalizeWikimediaUrl(url: string | undefined): string {
+  if (!url) return '';
+
+  // If it's already a Special:Redirect URL, just ensure underscores
+  if (url.includes('Special:Redirect/file/')) {
+    const filename = url.split('Special:Redirect/file/').pop() || '';
+    return constructWikimediaUrl(filename);
+  }
+
+  // Handle Wikipedia/Commons direct links like /wiki/File:Battle_of_Paris.jpg
+  if (url.includes('/wiki/File:')) {
+    const filename = url.split('/wiki/File:').pop() || '';
+    return constructWikimediaUrl(filename);
+  }
+
+  // Handle upload.wikimedia.org links (extract the filename from the last part)
+  if (url.includes('upload.wikimedia.org')) {
+    const parts = url.split('/');
+    const filename = parts[parts.length - 1];
+    return constructWikimediaUrl(filename);
+  }
+
+  return url;
 }
 
 export interface WikimediaSearchResult {
