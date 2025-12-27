@@ -195,7 +195,7 @@ export default function ExtractorPage() {
     setSelectedEventIds(new Set([id]));
     const el = cardRefs.current[id];
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
