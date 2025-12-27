@@ -6,7 +6,7 @@ import { Readability } from '@mozilla/readability';
 import { EventData, ChronosTime, ChronosLocation, EventSource, EventCore } from '@sail/shared';
 import fs from 'fs';
 import path from 'path';
-import { fixWikimediaUrl } from '@/lib/utils';
+import { getWikimediaSearchResults, constructWikimediaUrl } from '@/lib/utils';
 
 // We need a local interface for the LLM response which might be slightly looser before mapping
 
@@ -165,56 +165,45 @@ export async function POST(request: Request) {
 
         sendLog(`Extracted ${extractedEvents.length} events. Mapping to schema...`);
 
-        // 3. Map to EventData (Canonical Schema)
-        const mappedEvents: Partial<EventData>[] = extractedEvents.map((eVal, idx) => {
+        // 3. Map to EventData (Canonical Schema) and fetch initial images
+        const mappedEvents: Partial<EventData>[] = await Promise.all(extractedEvents.map(async (eVal) => {
           const e = eVal as any;
-          // Helper to calculate astro_year
-          const calcAstro = (year: number) => {
-            return year > 0 ? year : year + 1; // Simplified 1 BC = 0.0
-          };
+
+          // Initial search for image if not provided by LLM
+          let imageUrl = e.imageUrl;
+          if (!imageUrl && e.title) {
+            const results = await getWikimediaSearchResults(e.title, 1);
+            if (results.length > 0) {
+              imageUrl = constructWikimediaUrl(results[0].filename);
+            }
+          }
 
           return {
             id: crypto.randomUUID(),
             title: e.title,
             source_id: ((inputType === 'url' ? content.replace(/https?:\/\//, '').replace(/[^a-z0-9]+/gi, '_') : 'manual_input') + ':' + e.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')).replace(/_+/g, '_'),
             summary: e.summary,
-            imageUrl: e.imageUrl,
+            imageUrl: imageUrl,
             importance: e.importance,
             start: {
-              year: e.start_time.year || 0, // Default to 0 if missing (should be required by prompt)
+              year: e.start_time.year || 0,
               ...e.start_time,
-              astro_year: calcAstro(e.start_time.year || 0),
-              // Ensure precision is valid if LLM hallucinates
-              precision: e.start_time.precision as any || 'year',
-              millisecond: 0
+              astro_year: e.start_time.year ? (e.start_time.year > 0 ? e.start_time.year : e.start_time.year + 1) : 0
             },
-            end: (e.end_time && !(
-              e.end_time.year === e.start_time.year &&
-              e.end_time.month === e.start_time.month &&
-              e.end_time.day === e.start_time.day &&
-              e.end_time.hour === e.start_time.hour &&
-              e.end_time.minute === e.start_time.minute &&
-              e.end_time.second === e.start_time.second
-            )) ? {
-              year: e.end_time.year || 0,
+            end: e.end_time?.year ? {
               ...e.end_time,
-              astro_year: calcAstro(e.end_time.year || 0),
-              precision: e.end_time.precision as any || 'year',
-              millisecond: 0
+              astro_year: e.end_time.year ? (e.end_time.year > 0 ? e.end_time.year : e.end_time.year + 1) : 0
             } : undefined,
             location: {
               lat: e.location.latitude || e.location.lat || 0, // prompt asks for latitude/longitude now, but keep back compat just in case
               lng: e.location.longitude || e.location.lng || 0,
               placeName: e.location.location_name || e.location.placeName, // prompt asks for location_name
-              granularity: e.location.precision || e.location.granularity || 'spot', // prompt asks for precision (matches EventSchema)
-              certainty: e.location.certainty || 'unknown'
+              granularity: e.location.precision || e.location.granularity || 'spot', // prompt
+              certainty: e.location?.certainty || 'unknown'
             },
-            sources: e.sources ? e.sources.map((s: any) => ({
-              label: s.label || 'Source',
-              url: s.url || sourceUrl,
-            })) : []
+            images: imageUrl ? [{ label: 'Primary Image', url: imageUrl }] : []
           };
-        });
+        }));
 
         sendResult(mappedEvents);
         sendLog('Done.');

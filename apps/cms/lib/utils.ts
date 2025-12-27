@@ -6,27 +6,32 @@
  * ->
  * https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/Battle_of_Waterloo_-_Sadler.jpg
  */
-export function fixWikimediaUrl(url: string): string {
-  if (!url) return url;
+export function constructWikimediaUrl(filename: string): string {
+  if (!filename) return '';
+  // Remove "File:" prefix if present
+  const cleanName = filename.replace(/^File:/i, '');
+  return `https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/${cleanName}`;
+}
 
-  // 1. Wikipedia/Wikimedia File pages
-  // e.g. en.wikipedia.org/wiki/File:..., commons.wikimedia.org/wiki/File:...
-  const wikiFilePattern = /^(https?:\/\/)?([a-z0-9-]+\.)?(wikipedia|wikimedia)\.org\/wiki\/File:(.+)$/i;
-  let match = url.match(wikiFilePattern);
-  if (match) {
-    const fileName = match[4];
-    return `https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/${fileName}`;
+export interface WikimediaSearchResult {
+  filename: string;
+  snippet: string;
+}
+
+export async function getWikimediaSearchResults(query: string, limit: number = 10): Promise<WikimediaSearchResult[]> {
+  try {
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srnamespace=6&format=json&origin=*&srlimit=${limit}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Wikimedia API failed');
+    const data = await response.json();
+
+    // Namespace 6 is "File" in MediaWiki
+    return (data.query?.search || []).map((item: any) => ({
+      filename: item.title,
+      snippet: item.snippet.replace(/<\/?[^>]+(>|$)/g, "") // Remove HTML tags
+    }));
+  } catch (error) {
+    console.error('Error searching Wikimedia:', error);
+    return [];
   }
-
-  // 2. upload.wikimedia.org (thumbnails or direct)
-  // e.g. https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Massachusetts_1775_map.jpg/800px-Massachusetts_1775_map.jpg
-  // e.g. https://upload.wikimedia.org/wikipedia/commons/f/f1/Massachusetts_1775_map.jpg
-  const uploadPattern = /^(https?:\/\/)?upload\.wikimedia\.org\/wikipedia\/commons\/(thumb\/)?[a-f0-9]\/[a-f0-9]{2}\/([^\/]+)(\/.*)?$/i;
-  match = url.match(uploadPattern);
-  if (match) {
-    const fileName = match[3];
-    return `https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/${fileName}`;
-  }
-
-  return url;
 }

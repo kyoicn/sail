@@ -17,7 +17,7 @@ if str(data_pipeline_root) not in sys.path:
 
 from shared.models import EventSchema, LocationEntry, TimeEntry, Link
 from src.tool_search import search_web
-from shared.utils import fix_wikimedia_url
+from shared.utils import get_wikimedia_search_results, construct_wikimedia_url
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -147,31 +147,44 @@ class LLMOrchestrator:
         return event
 
     def _enrich_image(self, event: EventSchema, original_text: str) -> EventSchema:
-        logger.info("--- Enriching Images ---")
+        logger.info(f"--- Enriching Images for '{event.title}' via Wikimedia API ---")
+        
+        # 1. Search
+        search_results = get_wikimedia_search_results(event.title, limit=12)
+        if not search_results:
+            logger.info(f"No Wikimedia results for '{event.title}'. Skipped.")
+            return event
+            
+        # 2. Prepare Prompt
         prompt = SYSTEM_PROMPT_IMAGE.format(
             event_json=event.model_dump_json(),
-            source_text=original_text
+            search_results=json.dumps(search_results, indent=2)
         )
         
-        result_json, thoughts = self._run_enrichment_loop(prompt, "ImageEntry")
+        # 3. LLM Selection
+        result_json, thoughts = self._run_enrichment_loop(prompt, f"Image Selection ({event.title})")
         
         if result_json:
-            try:
-                # result_json should have an 'images' field
-                image_data = result_json.get("images")
-                if image_data:
-                    # Merge and deduplicate by URL
-                    existing_urls = {img.url for img in (event.images or [])}
-                    new_images = [Link(label=img.get('label', 'Image'), url=fix_wikimedia_url(img.get('url'))) 
-                                  for img in image_data 
-                                  if img.get('url') and fix_wikimedia_url(img.get('url')) not in existing_urls]
-                    
+            selected_images = result_json.get("selected_images", [])
+            if selected_images:
+                existing_urls = {img.url for img in (event.images or [])}
+                new_image_links = []
+                
+                for sel in selected_images:
+                    url = construct_wikimedia_url(sel.get("filename"))
+                    label = sel.get("label", "Image")
+                    if url and url not in existing_urls:
+                        new_image_links.append(Link(label=label, url=url))
+                        existing_urls.add(url)
+                
+                if new_image_links:
                     if not event.images:
                         event.images = []
-                    event.images.extend(new_images)
-                    logger.info(f"Added {len(new_images)} new images.")
-            except ValidationError as ve:
-                logger.warning(f"Validation failed for Image Link: {ve}")
+                    event.images.extend(new_image_links)
+                    # Update legacy imageUrl if none
+                    if not event.imageUrl and event.images:
+                         event.imageUrl = event.images[0].url
+                    logger.info(f"Added {len(new_image_links)} images to '{event.title}'.")
 
         return event
 

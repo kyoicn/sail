@@ -10,28 +10,47 @@ def slugify(text):
     text = re.sub(r'[^a-z0-9]+', '_', text)
     return text.strip('_')
 
-def fix_wikimedia_url(url: str) -> str:
-    if not url:
-        return url
-    
-    # 1. Wikipedia/Wikimedia File pages
-    # e.g. en.wikipedia.org/wiki/File:..., commons.wikimedia.org/wiki/File:...
-    wiki_file_pattern = r'^(https?://)?([a-z0-9-]+\.)?(wikipedia|wikimedia)\.org/wiki/File:(.+)$'
-    match = re.match(wiki_file_pattern, url, re.IGNORECASE)
-    if match:
-        file_name = match.group(4)
-        return f"https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/{file_name}"
+def construct_wikimedia_url(filename: str) -> str:
+    if not filename:
+        return ""
+    # Remove "File:" prefix if present
+    clean_name = re.sub(r'^File:', '', filename, flags=re.IGNORECASE)
+    # MediaWiki titles often have spaces replaced with underscores
+    clean_name = clean_name.replace(' ', '_')
+    return f"https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/{clean_name}"
 
-    # 2. upload.wikimedia.org (thumbnails or direct)
-    # e.g. https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Massachusetts_1775_map.jpg/800px-Massachusetts_1775_map.jpg
-    # e.g. https://upload.wikimedia.org/wikipedia/commons/f/f1/Massachusetts_1775_map.jpg
-    upload_pattern = r'^(https?://)?upload\.wikimedia\.org/wikipedia/commons/(thumb/)?(?:[a-f0-9]/[a-f0-9]{2}/)?([^/]+)(/.*)?$'
-    match = re.match(upload_pattern, url, re.IGNORECASE)
-    if match:
-        file_name = match.group(3)
-        return f"https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/{file_name}"
+def get_wikimedia_search_results(query: str, limit: int = 10) -> list[dict]:
+    """
+    Search Wikimedia Commons for files.
+    Returns list of {'filename': str, 'snippet': str}
+    """
+    import requests
+    try:
+        url = "https://commons.wikimedia.org/w/api.php"
+        params = {
+            "action": "query",
+            "list": "search",
+            "srsearch": query,
+            "srnamespace": 6, # File
+            "format": "json",
+            "srlimit": limit
+        }
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
         
-    return url
+        results = []
+        for item in data.get("query", {}).get("search", []):
+            # Clean HTML from snippet
+            snippet = re.sub(r'</?[^>]+(>|$)', '', item.get("snippet", ""))
+            results.append({
+                "filename": item.get("title"),
+                "snippet": snippet
+            })
+        return results
+    except Exception as e:
+        print(f"Error searching Wikimedia: {e}")
+        return []
 
 def calculate_astro_year(entry: TimeEntry) -> float:
     """

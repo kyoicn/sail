@@ -19,9 +19,9 @@ if str(data_pipeline_root) not in sys.path:
 
 try:
     from shared.models import EventSchema
-    from shared.utils import fix_wikimedia_url
+    from shared.utils import get_wikimedia_search_results, construct_wikimedia_url
 except ImportError:
-    logging.error("Failed to import EventSchema or fix_wikimedia_url. Ensure shared/ models.py and utils.py are accessible.")
+    logging.error("Failed to import EventSchema or Wikimedia helpers. Ensure shared/ models.py and utils.py are accessible.")
     raise
 
 # Configure logging
@@ -135,9 +135,11 @@ def _process_chunk(text_chunk: str, model_name: str, timeout: int, collection: s
                 # [FIXED] Robust handling for 'start_time'
                 raw_start = event_dict.get("start_time")
                 
-                # Apply Wikimedia URL fix to imageUrl
-                if event_dict.get("imageUrl"):
-                    event_dict["imageUrl"] = fix_wikimedia_url(event_dict["imageUrl"])
+                # Apply Wikimedia search for imageUrl if missing
+                if not event_dict.get("imageUrl") and event_dict.get("title"):
+                    results = get_wikimedia_search_results(event_dict["title"], limit=1)
+                    if results:
+                        event_dict["imageUrl"] = construct_wikimedia_url(results[0]["filename"])
                 if isinstance(raw_start, dict):
                     if raw_start.get("year") == "":
                          raw_start["year"] = None

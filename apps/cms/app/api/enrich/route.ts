@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { EventData } from '@sail/shared';
 import fs from 'fs';
 import path from 'path';
-import { fixWikimediaUrl } from '@/lib/utils';
+import { getWikimediaSearchResults, constructWikimediaUrl } from '@/lib/utils';
 
 const getPrompt = (fileName: string) => {
   try {
@@ -231,41 +231,62 @@ export async function POST(request: Request) {
         // --- STAGE 4: IMAGE ENRICHMENT ---
         if (!fields || fields.includes('image')) {
           try {
-            sendLog('Finding Images...');
-            const imageJsonStr = await callLLM(SYSTEM_PROMPT_IMAGE, eventsContext);
-            sendLog(`Raw Image Response: ${imageJsonStr}`);
-            const imageData = JSON.parse(imageJsonStr);
-            const imageEventsMap = new Map((imageData.events || []).map((e: any) => [e.id || e.title, e]));
+            sendLog('Finding Images via Wikimedia API...');
 
-            enrichedEvents = enrichedEvents.map(orig => {
-              const fresh = imageEventsMap.get(orig.id) || imageEventsMap.get(orig.title) as any;
-              if (fresh && (fresh as any).images) {
-                const existingImages = orig.images || [];
-                const newImages = (fresh as any).images as { label: string, url: string }[];
+            // Image enrichment is now done per-event to provide specific search results
+            for (let i = 0; i < enrichedEvents.length; i++) {
+              const event = enrichedEvents[i];
+              sendLog(`Searching images for: "${event.title}"...`);
 
-                // Merge and deduplicate by URL
-                const combined = [...existingImages];
+              const searchResults = await getWikimediaSearchResults(event.title, 12);
+              if (searchResults.length === 0) {
+                sendLog(`No Wikimedia results found for "${event.title}".`);
+                continue;
+              }
+
+              sendLog(`Found ${searchResults.length} results. Asking LLM to select...`);
+
+              const resultsContext = JSON.stringify(searchResults, null, 2);
+              const eventContext = JSON.stringify({
+                title: event.title,
+                summary: event.summary,
+                id: event.id
+              });
+
+              // Construct prompt with research results
+              const specificPrompt = SYSTEM_PROMPT_IMAGE
+                .replace('{event_json}', eventContext)
+                .replace('{search_results}', resultsContext);
+
+              // callLLM expects (systemPrompt, userContent)
+              // We've baked the content into the system prompt effectively, but we'll follow the signature.
+              const selectionJsonStr = await callLLM(specificPrompt, "Please select images from the provided search results.");
+              sendLog(`Raw selection for "${event.title}": ${selectionJsonStr}`);
+
+              const selectionData = JSON.parse(selectionJsonStr);
+              const selectedImages = selectionData.selected_images || [];
+
+              if (selectedImages.length > 0) {
+                const existingImages = event.images || [];
                 const seenUrls = new Set(existingImages.map(img => img.url));
+                const combined = [...existingImages];
 
-                for (const img of newImages) {
-                  const fixedUrl = img.url;
-                  if (!seenUrls.has(fixedUrl)) {
-                    combined.push({ ...img, url: fixedUrl });
-                    seenUrls.add(fixedUrl);
+                for (const sel of selectedImages) {
+                  const url = constructWikimediaUrl(sel.filename);
+                  if (url && !seenUrls.has(url)) {
+                    combined.push({ label: sel.label, url });
+                    seenUrls.add(url);
                   }
                 }
 
-                const finalImageUrl = orig.imageUrl ? orig.imageUrl : (combined.length > 0 ? combined[0].url : undefined);
-
-                return {
-                  ...orig,
+                enrichedEvents[i] = {
+                  ...event,
                   images: combined,
-                  // Also update legacy imageUrl if not set
-                  imageUrl: finalImageUrl
+                  imageUrl: event.imageUrl || (combined.length > 0 ? combined[0].url : undefined)
                 };
+                sendLog(`Added ${selectedImages.length} images to "${event.title}".`);
               }
-              return orig;
-            });
+            }
             sendLog('Image enrichment complete.');
           } catch (e: any) {
             console.error('Image enrichment failed:', e);
@@ -286,8 +307,7 @@ export async function POST(request: Request) {
             const causeStr = error.cause instanceof Error ? error.cause.toString() : JSON.stringify(error.cause);
             errorMessage += ` [cause]: ${causeStr}`;
           } catch (e) {
-            errorMessage += ` [cause]: ${String(error.cause)
-              } `;
+            errorMessage += ` [cause]: ${String(error.cause)} `;
           }
         }
 
