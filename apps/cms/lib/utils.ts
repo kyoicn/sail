@@ -10,7 +10,7 @@ export function constructWikimediaUrl(filename: string): string {
   if (!filename) return '';
   // Remove "File:" prefix if present
   const cleanName = filename.replace(/^File:/i, '').replace(/\s+/g, '_');
-  return `https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/${cleanName}`;
+  return `https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/${encodeURIComponent(cleanName)}`;
 }
 
 /**

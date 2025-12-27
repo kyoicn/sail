@@ -1038,8 +1038,14 @@ export default function ExtractorPage() {
                             src={img.url}
                             alt={img.label || event.title}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://placehold.co/400x225?text=Invalid+Image+URL';
+                            onError={() => {
+                              console.warn(`Removing invalid image for ${event.title}: ${img.url}`);
+                              const baseImgs = event.images || (event.imageUrl ? [{ label: 'Primary', url: event.imageUrl }] : []);
+                              const newImages = baseImgs.filter((_: any, i: number) => i !== idx);
+                              updateEvent(event.id, 'images', newImages);
+                              if (idx === 0) {
+                                updateEvent(event.id, 'imageUrl', newImages[0]?.url);
+                              }
                             }}
                           />
                           <button
