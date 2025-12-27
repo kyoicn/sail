@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { EventData, ChronosTime, ChronosLocation } from '@sail/shared';
 import Link from 'next/link';
-import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare, ChevronRight, ChevronDown, GitGraph, Network, RotateCcw } from 'lucide-react';
+import { Download, Wand2, MapPin, Calendar, Globe, Type, ExternalLink, Trash2, Loader2, Plus, FileJson, Image as ImageIcon, Link as LinkIcon, X, CheckSquare, ChevronRight, ChevronDown, GitGraph, Network, RotateCcw, Upload, Trash } from 'lucide-react';
 
 // CheckSquare import added below
 
@@ -109,66 +109,71 @@ interface TimeInputProps {
   onRemove?: () => void;
 }
 
-const TimeInput = ({ label, time, onChange, onRemove }: TimeInputProps) => (
-  <div className="mb-2 last:mb-0">
-    <div className="flex justify-between items-center mb-1">
-      <span className="text-[10px] font-semibold text-gray-400 uppercase">{label}</span>
-      {onRemove && (
-        <button onClick={onRemove} className="text-gray-400 hover:text-red-500" title="Remove End Time">
-          <Trash2 className="w-3 h-3" />
-        </button>
-      )}
-    </div>
-    <div className="flex flex-col gap-1">
-      <div className="flex gap-1">
-        <div className="w-2/3 relative">
-          <input
-            type="number"
-            value={Math.abs(time.year)}
-            onChange={e => {
-              const val = parseInt(e.target.value);
-              const year = isNaN(val) ? 0 : val;
-              const isBce = time.year < 0;
-              onChange('year', year * (isBce ? -1 : 1));
-            }}
-            className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-center text-gray-900 font-mono no-spin text-xs"
-            placeholder="Year"
-          />
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange('year', time.year * -1);
-            }}
-            className="absolute right-1 top-1 text-[10px] text-gray-500 hover:text-blue-600 cursor-pointer font-bold bg-transparent border-0 p-0"
-            title="Toggle Era"
-          >
-            {time.year < 0 ? 'BCE' : 'CE'}
-          </button>
-        </div>
-        <select
-          value={time.precision}
-          onChange={e => onChange('precision', e.target.value)}
-          className="w-1/3 bg-white border border-gray-200 rounded px-1 py-1 text-xs text-gray-900"
-        >
-          {['millennium', 'century', 'decade', 'year', 'month', 'day', 'hour', 'minute', 'second'].map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-      </div>
+const TimeInput = ({ label, time, onChange, onRemove }: TimeInputProps) => {
+  if (!time) return null;
+  const year = time.year ?? 0;
 
-      <div className="grid grid-cols-3 gap-1">
-        <input type="number" placeholder="M" title="Month" value={time.month || ''} onChange={e => onChange('month', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
-        <input type="number" placeholder="D" title="Day" value={time.day || ''} onChange={e => onChange('day', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
-        <input type="number" placeholder="H" title="Hour" value={time.hour || ''} onChange={e => onChange('hour', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+  return (
+    <div className="mb-2 last:mb-0">
+      <div className="flex justify-between items-center mb-1">
+        <span className="text-[10px] font-semibold text-gray-400 uppercase">{label}</span>
+        {onRemove && (
+          <button onClick={onRemove} className="text-gray-400 hover:text-red-500" title="Remove End Time">
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
       </div>
-      <div className="grid grid-cols-3 gap-1">
-        <input type="number" placeholder="m" title="Minute" value={time.minute || ''} onChange={e => onChange('minute', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
-        <input type="number" placeholder="s" title="Second" value={time.second || ''} onChange={e => onChange('second', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
-        <input type="number" placeholder="ms" title="Millisecond" value={time.millisecond || ''} onChange={e => onChange('millisecond', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+      <div className="flex flex-col gap-1">
+        <div className="flex gap-1">
+          <div className="w-2/3 relative">
+            <input
+              type="number"
+              value={Math.abs(year)}
+              onChange={e => {
+                const val = parseInt(e.target.value);
+                const newYear = isNaN(val) ? 0 : val;
+                const isBce = year < 0;
+                onChange('year', newYear * (isBce ? -1 : 1));
+              }}
+              className="w-full bg-white border border-gray-200 rounded px-2 py-1 text-center text-gray-900 font-mono no-spin text-xs"
+              placeholder="Year"
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('year', year * -1);
+              }}
+              className="absolute right-1 top-1 text-[10px] text-gray-500 hover:text-blue-600 cursor-pointer font-bold bg-transparent border-0 p-0"
+              title="Toggle Era"
+            >
+              {year < 0 ? 'BCE' : 'CE'}
+            </button>
+          </div>
+          <select
+            value={time.precision || 'year'}
+            onChange={e => onChange('precision', e.target.value)}
+            className="w-1/3 bg-white border border-gray-200 rounded px-1 py-1 text-[10px] text-gray-900 outline-none"
+          >
+            {['millennium', 'century', 'decade', 'year', 'month', 'day', 'hour', 'minute', 'second', 'unknown'].map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1">
+          <input type="number" placeholder="M" title="Month" value={time.month || ''} onChange={e => onChange('month', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+          <input type="number" placeholder="D" title="Day" value={time.day || ''} onChange={e => onChange('day', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+          <input type="number" placeholder="H" title="Hour" value={time.hour || ''} onChange={e => onChange('hour', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          <input type="number" placeholder="m" title="Minute" value={time.minute || ''} onChange={e => onChange('minute', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+          <input type="number" placeholder="s" title="Second" value={time.second || ''} onChange={e => onChange('second', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+          <input type="number" placeholder="ms" title="Millisecond" value={time.millisecond || ''} onChange={e => onChange('millisecond', parseInt(e.target.value))} className="bg-white border border-gray-200 rounded px-1 py-1 text-center text-gray-900 text-xs no-spin" />
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default function ExtractorPage() {
   const [inputType, setInputType] = useState<'url' | 'text'>('url');
@@ -188,7 +193,8 @@ export default function ExtractorPage() {
   const [mapHeightPercent, setMapHeightPercent] = useState(70);
   const isDraggingRef = useRef(false);
 
-  // Scroll to card when map marker clicked
+  // Scroll to card
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const cardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const handleMarkerClick = (id: string) => {
@@ -329,7 +335,7 @@ export default function ExtractorPage() {
                 };
               });
             }
-            setEvents(fetchedEvents);
+            setEvents(prev => [...prev, ...fetchedEvents]);
             lastFetchedEvents = fetchedEvents;
           } else if (data.type === 'error') {
             // Explicit error from server - bubble up to main catch block
@@ -350,6 +356,84 @@ export default function ExtractorPage() {
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       setLogs(prev => [...prev, `✓ Extraction completed in ${duration}s.`]);
     }
+  };
+
+  const handleRemoveAll = () => {
+    if (confirm('Are you sure you want to remove all events from the list?')) {
+      setEvents([]);
+      setSelectedEventIds(new Set());
+      setCollapsedParents(new Set());
+      setLogs(prev => [...prev, '--- All events cleared ---']);
+    }
+  };
+
+  const handleLoadJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const jsonContent = event.target?.result as string;
+        const json = JSON.parse(jsonContent);
+        const eventsToLoad = Array.isArray(json) ? json : (json.events || []);
+
+        if (!Array.isArray(eventsToLoad)) {
+          throw new Error('Invalid JSON format: expected an array of events or an object with an "events" array.');
+        }
+
+        // Generate new internal IDs and normalize structures for format compatibility
+        const newEvents = eventsToLoad.map((e: any) => {
+          // Normalize Location
+          const rawLoc = e.location || {};
+          const normalizedLoc = {
+            lat: rawLoc.lat ?? rawLoc.latitude ?? 0,
+            lng: rawLoc.lng ?? rawLoc.longitude ?? 0,
+            placeName: rawLoc.placeName ?? rawLoc.location_name ?? '',
+            granularity: rawLoc.granularity ?? rawLoc.precision ?? 'spot',
+            certainty: rawLoc.certainty ?? 'unknown'
+          };
+
+          // Normalize Time
+          const rawStart = e.start || e.start_time || { year: 0 };
+          const startYear = rawStart.year ?? 0;
+          const normalizedStart = {
+            ...rawStart,
+            year: startYear,
+            precision: rawStart.precision || 'year',
+            astro_year: rawStart.astro_year ?? (startYear > 0 ? startYear : startYear + 1)
+          };
+
+          const rawEnd = e.end || e.end_time;
+          let normalizedEnd = undefined;
+          if (rawEnd && (rawEnd.year !== undefined || rawEnd.astro_year !== undefined)) {
+            const endYear = rawEnd.year ?? 0;
+            normalizedEnd = {
+              ...rawEnd,
+              year: endYear,
+              precision: rawEnd.precision || 'year',
+              astro_year: rawEnd.astro_year ?? (endYear > 0 ? endYear : endYear + 1)
+            };
+          }
+
+          return {
+            ...e,
+            id: crypto.randomUUID(),
+            start: normalizedStart,
+            end: normalizedEnd,
+            location: normalizedLoc
+          };
+        });
+
+        setEvents(prev => [...prev, ...newEvents]);
+        setLogs(prev => [...prev, `✓ Loaded ${newEvents.length} events from ${file.name}.`]);
+      } catch (err: any) {
+        console.error('Failed to load JSON:', err);
+        setLogs(prev => [...prev, `Error loading JSON: ${err.message}`]);
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleEnrich = async (specificEventId?: string, fields?: string[], manualEvents?: EventData[]) => {
@@ -785,6 +869,32 @@ export default function ExtractorPage() {
                   className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
                   <CheckSquare className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={handleRemoveAll}
+                  disabled={events.length === 0}
+                  title="Remove All Events"
+                  className="p-2 border border-red-200 text-red-500 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+
+                <div className="h-4 w-px bg-gray-200 mx-1" />
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleLoadJSON}
+                  accept=".json"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Load JSON from Disk"
+                  className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
                 </button>
 
                 <button onClick={handleDownload} disabled={events.length === 0} title="Download JSON" className="p-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:opacity-50">
