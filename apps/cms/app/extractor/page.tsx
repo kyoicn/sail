@@ -201,6 +201,7 @@ function appendLog(prev: string[], message: string): string[] {
 export default function ExtractorPage() {
   const [inputType, setInputType] = useState<'url' | 'text'>('url');
   const [content, setContent] = useState('');
+  const [textSourceUrl, setTextSourceUrl] = useState('');
   const [provider, setProvider] = useState<'ollama' | 'gemini'>('gemini');
   const [model, setModel] = useState(AVAILABLE_MODELS.gemini[0]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -306,7 +307,7 @@ export default function ExtractorPage() {
       const res = await fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputType, content, provider, model }),
+        body: JSON.stringify({ inputType, content, provider, model, sourceUrl: inputType === 'text' ? textSourceUrl : undefined }),
       });
 
       // Note: Streaming responses return 200 OK immediately when the connection is established.
@@ -342,9 +343,10 @@ export default function ExtractorPage() {
             setLogs(prev => appendLog(prev, data.message));
           } else if (data.type === 'result') {
             let fetchedEvents = data.events || [];
-            // If extracted from URL, add it as a source, avoiding duplicates
-            if (inputType === 'url' && content.trim()) {
-              const urlToAdd = content.trim();
+            // If extracted from URL or Text with Source URL, add it as a source
+            const urlToAdd = inputType === 'url' ? content.trim() : (textSourceUrl.trim() || '');
+
+            if (urlToAdd) {
               fetchedEvents = fetchedEvents.map((e: EventData) => {
                 const existingSources = e.sources || [];
                 // Remove any source that matches the URL we are about to add
@@ -859,12 +861,21 @@ export default function ExtractorPage() {
                   onChange={e => setContent(e.target.value)}
                 />
               ) : (
-                <textarea
-                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 h-20 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-gray-900 bg-white shadow-sm"
-                  placeholder="Paste text..."
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                />
+                <div className="flex-1 flex flex-col gap-2">
+                  <textarea
+                    className="flex-1 border border-gray-300 rounded-md px-3 py-2 h-20 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none text-gray-900 bg-white shadow-sm"
+                    placeholder="Paste text..."
+                    value={content}
+                    onChange={e => setContent(e.target.value)}
+                  />
+                  <input
+                    type="url"
+                    className="border border-gray-300 rounded-md px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-white shadow-sm"
+                    placeholder="Optional Source URL (e.g. https://wikipedia.org...)"
+                    value={textSourceUrl}
+                    onChange={e => setTextSourceUrl(e.target.value)}
+                  />
+                </div>
               )}
             </div>
 

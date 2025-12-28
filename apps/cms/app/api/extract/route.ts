@@ -87,7 +87,7 @@ export async function POST(request: Request) {
         sendLog(`Cleaned Text Preview:\n${cleanText.substring(0, 500)}${cleanText.length > 500 ? '...' : ''}`);
 
         // Capture source URL for provenance
-        const sourceUrl = inputType === 'url' ? content : 'manual-text';
+        const sourceUrl = inputType === 'url' ? content : (body.sourceUrl || 'manual-text');
 
         // 2. Call LLM with Chunking
         let extractedRawEvents: any[] = [];
@@ -266,7 +266,7 @@ export async function POST(request: Request) {
           return {
             id: crypto.randomUUID(),
             title: e.title,
-            source_id: ((inputType === 'url' ? content.replace(/https?:\/\//, '').replace(/[^a-z0-9]+/gi, '_') : 'manual_input') + ':' + e.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')).replace(/_+/g, '_'),
+            source_id: ((sourceUrl !== 'manual-text' ? sourceUrl.replace(/https?:\/\//, '').replace(/[^a-z0-9]+/gi, '_') : 'manual_input') + ':' + e.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')).replace(/_+/g, '_'),
             summary: e.summary,
             imageUrl: canonicalUrl,
             importance: e.importance,
