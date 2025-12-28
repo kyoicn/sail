@@ -166,6 +166,38 @@ const TimeInput = ({ label, time, onChange, onRemove }: TimeInputProps) => {
   );
 };
 
+function appendLog(prev: string[], message: string): string[] {
+  // 1. Handle Heartbeat (dots)
+  if (message === '...') {
+    if (prev.length > 0) {
+      const last = prev[prev.length - 1];
+      // If the last line is a heartbeat, cycle it: . -> .. -> ... -> .
+      if (/^\.+$/.test(last)) {
+        const newLogs = [...prev];
+        if (last.length >= 3) {
+          newLogs[newLogs.length - 1] = '.';
+        } else {
+          newLogs[newLogs.length - 1] = last + '.';
+        }
+        return newLogs;
+      }
+    }
+  }
+
+  // 2. Handle Normal Log
+  // If the last line was a heartbeat, replace it with the new message (ephemeral heartbeat)
+  if (prev.length > 0) {
+    const last = prev[prev.length - 1];
+    if (/^\.+$/.test(last)) {
+      const newLogs = [...prev];
+      newLogs[newLogs.length - 1] = message;
+      return newLogs;
+    }
+  }
+
+  return [...prev, message];
+}
+
 export default function ExtractorPage() {
   const [inputType, setInputType] = useState<'url' | 'text'>('url');
   const [content, setContent] = useState('');
@@ -307,7 +339,7 @@ export default function ExtractorPage() {
           }
 
           if (data.type === 'log') {
-            setLogs(prev => [...prev, data.message]);
+            setLogs(prev => appendLog(prev, data.message));
           } else if (data.type === 'result') {
             let fetchedEvents = data.events || [];
             // If extracted from URL, add it as a source, avoiding duplicates
@@ -483,7 +515,7 @@ export default function ExtractorPage() {
           }
 
           if (data.type === 'log') {
-            setLogs(prev => [...prev, data.message]);
+            setLogs(prev => appendLog(prev, data.message));
           } else if (data.type === 'result') {
             // Merge enriched events back
             const newEvents = data.events as EventData[];
@@ -552,7 +584,7 @@ export default function ExtractorPage() {
           }
 
           if (data.type === 'log') {
-            setLogs(prev => [...prev, data.message]);
+            setLogs(prev => appendLog(prev, data.message));
           } else if (data.type === 'thought') {
             setLogs(prev => [...prev, `Thinking: ${data.message}`]);
           } else if (data.type === 'result') {
