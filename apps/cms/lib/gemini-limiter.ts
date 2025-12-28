@@ -82,7 +82,7 @@ class GeminiRateLimiter {
 
     let status = `RPM: ${rpm}/${rpmLimit}`;
     if (tpmLimit > 0) {
-      status += `, TPM: ${tpm + estimatedNextTokens}/${tpmLimit}`;
+      status += `, TPM: ${tpm}/${tpmLimit} (requires +${estimatedNextTokens})`;
     }
     return status;
   }
