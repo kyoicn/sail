@@ -41,7 +41,9 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
         startLeftPixel: number;
         virtualWidth: number;
         widthPixel: number;
-        mode: 'pan' | 'resize-left' | 'resize-right';
+
+        mode: 'pan' | 'resize-left' | 'resize-right' | 'pan-overview';
+        startScrollLeft?: number;
     }>({
         startX: 0,
         startLeftPixel: 0,
@@ -196,51 +198,62 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
         const clientX = e.clientX;
 
         rafLock.current = requestAnimationFrame(() => {
-            const { startX, startLeftPixel, virtualWidth: vWidth, widthPixel, mode } = dragInfo.current;
+            const { startX, startLeftPixel, virtualWidth: vWidth, widthPixel, mode, startScrollLeft } = dragInfo.current;
             const { globalMin, globalMax, setViewRange } = propsRef.current;
             const deltaPixels = clientX - startX;
             const MIN_W = 80;
 
+            // --- Mode 1: Pan Overview (Scroll Background) ---
+            if (mode === 'pan-overview') {
+                if (scrollContainerRef.current && typeof startScrollLeft === 'number') {
+                    // Update Scroll Position
+                    // Drag Left (delta < 0) -> Pull content left -> Scroll Right (Increase Scroll)
+                    // Drag Right (delta > 0) -> Pull content right -> Scroll Left (Decrease Scroll)
+                    // Formula: NewScroll = StartScroll - Delta
+                    scrollContainerRef.current.scrollLeft = startScrollLeft - deltaPixels;
+                }
+                rafLock.current = null;
+                return; // Explicitly stop here. Do NOT update View Range.
+            }
+
+            // --- Mode 2: Drag/Resize Viewfinder (Update View Range) ---
             let newLeftPixel = startLeftPixel;
             let newWidthPixel = widthPixel;
 
             if (mode === 'pan') {
                 newLeftPixel = startLeftPixel + deltaPixels;
                 const maxLeft = vWidth - widthPixel;
-                if (newLeftPixel < 0) newLeftPixel = 0;
-                if (newLeftPixel > maxLeft) newLeftPixel = maxLeft;
+                // Clamp
+                newLeftPixel = Math.max(0, Math.min(newLeftPixel, maxLeft));
+
             } else if (mode === 'resize-left') {
-                // Moving left edge: changes left and width
-                // Right edge stays fixed at (startLeft + startWidth)
                 const rightPixel = startLeftPixel + widthPixel;
                 newLeftPixel = startLeftPixel + deltaPixels;
+                newLeftPixel = Math.max(0, newLeftPixel);
 
-                // Constraints
-                if (newLeftPixel < 0) newLeftPixel = 0;
-                // Don't let width go below min
+                // Min Width Constraint
                 if (rightPixel - newLeftPixel < MIN_W) {
                     newLeftPixel = rightPixel - MIN_W;
                 }
                 newWidthPixel = rightPixel - newLeftPixel;
 
             } else if (mode === 'resize-right') {
-                // Moving right edge: changes width only
                 newWidthPixel = widthPixel + deltaPixels;
+                newWidthPixel = Math.max(MIN_W, newWidthPixel);
 
-                // Constraints
-                if (newWidthPixel < MIN_W) newWidthPixel = MIN_W;
+                // Max Width Constraint
                 if (newLeftPixel + newWidthPixel > vWidth) {
                     newWidthPixel = vWidth - newLeftPixel;
                 }
             }
 
-            // 1. Visual Update
+            // Apply Visual Update (Only for Viewfinder interactions)
             if (indicatorRef.current) {
                 indicatorRef.current.style.left = `${newLeftPixel}px`;
                 indicatorRef.current.style.width = `${newWidthPixel}px`;
             }
 
-            // 2. Logic Update
+            // Apply Logic Update
             const totalSpan = globalMax - globalMin;
             const newLeftFraction = newLeftPixel / vWidth;
             const widthFraction = newWidthPixel / vWidth;
@@ -255,15 +268,47 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
         });
     }, []);
 
-    const handleWindowMouseUp = useCallback(() => {
+    const handleWindowMouseUp = useCallback((e: MouseEvent) => {
         setIsDragging(false);
         window.removeEventListener('mousemove', handleWindowMouseMove);
         window.removeEventListener('mouseup', handleWindowMouseUp);
         if (rafLock.current) cancelAnimationFrame(rafLock.current);
         rafLock.current = null;
+
+        // Atomic Click Logic for 'pan-overview'
+        const { startX, mode } = dragInfo.current;
+        if (mode === 'pan-overview') {
+            const dist = Math.abs(e.clientX - startX);
+            // Threshold for click vs drag
+            if (dist < 5) {
+                // Treated as CLICK
+                if (contentRef.current && propsRef.current) {
+                    const rect = contentRef.current.getBoundingClientRect();
+                    // Re-calculate relative to the potentially scrolled content?
+                    // Actually getting rect of contentRef usually handles scroll if it's the transformed/inner element.
+                    // But contentRef is inside scrollContainer.
+                    // e.clientX is global. rect.left is global.
+                    // offset is consistent.
+                    const offsetX = e.clientX - rect.left;
+
+                    const { globalMin, globalMax, setViewRange, viewRange } = propsRef.current;
+                    const totalSpan = globalMax - globalMin;
+                    const currentSpan = viewRange.max - viewRange.min;
+                    // We need the vWidth from state or ref
+                    const vWidth = rect.width;
+
+                    const clickDate = globalMin + (offsetX / vWidth) * totalSpan;
+                    const newMin = clickDate - (currentSpan / 2);
+                    const newMax = clickDate + (currentSpan / 2);
+
+                    setViewRange({ min: newMin, max: newMax });
+                }
+            }
+        }
+
     }, [handleWindowMouseMove]);
 
-    const startDrag = (e: React.MouseEvent, mode: 'pan' | 'resize-left' | 'resize-right') => {
+    const startDrag = (e: React.MouseEvent, mode: 'pan' | 'resize-left' | 'resize-right', overrideStartLeft?: number) => {
         e.preventDefault();
         e.stopPropagation();
 
@@ -273,10 +318,34 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
 
         dragInfo.current = {
             startX: e.clientX,
-            startLeftPixel: indicatorRef.current.offsetLeft,
+            startLeftPixel: overrideStartLeft ?? indicatorRef.current.offsetLeft,
             virtualWidth: virtualWidth || scrollContainerRef.current?.offsetWidth || 0,
             widthPixel: indicatorRef.current.offsetWidth,
             mode
+        };
+
+        window.addEventListener('mousemove', handleWindowMouseMove);
+        window.addEventListener('mouseup', handleWindowMouseUp);
+    };
+
+    const handleBackgroundMouseDown = (e: React.MouseEvent) => {
+        if (!contentRef.current || !scrollContainerRef.current) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        setIsDragging(true);
+
+        setIsDragging(true);
+
+        // Start "Pan Overview" mode
+        dragInfo.current = {
+            startX: e.clientX,
+            startLeftPixel: 0, // Unused for this mode
+            virtualWidth: 0,   // Unused
+            widthPixel: 0,     // Unused
+            mode: 'pan-overview',
+            startScrollLeft: scrollContainerRef.current.scrollLeft
         };
 
         window.addEventListener('mousemove', handleWindowMouseMove);
@@ -321,7 +390,8 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
                 >
                     <div
                         ref={contentRef}
-                        className="relative h-full min-w-full"
+                        className="relative h-full min-w-full cursor-text"
+                        onMouseDown={handleBackgroundMouseDown}
                         style={{ width: virtualWidth ? `${virtualWidth}px` : '100%' }}
                     >
                         {/* Global Ruler (Dynamic Ticks & Labels) with Virtual Windowing */}

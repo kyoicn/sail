@@ -362,7 +362,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
           </div>
 
           {/* Overview Track */}
-          <div className="w-full -mt-3 pl-11">
+          <div className="w-full -mt-3 pl-11 relative z-20">
             {/* Note: Added pl-11 to align overview with the main track (skipping the 32px button + gap) visually? 
                  Actually, usually overview spans the whole width. But if logic relates to main track x-position...
                  TimelineOverview maps globalMin/Max to width. 
