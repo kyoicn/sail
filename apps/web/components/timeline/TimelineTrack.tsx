@@ -576,11 +576,10 @@ export const TimelineTrack: React.FC<TimelineCanvasProps> = ({
 
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (hoveredEventId) {
-      // Important: Stop propagation to prevent TimeControl track from
-      // initiating drag/seek or switching to Investigation Mode.
-      e.stopPropagation();
-    }
+    // [CHANGE] Do NOT stop propagation.
+    // We want the parent <Timeline> "handleTrackMouseDown" to pick this up
+    // so it can initiate dragging/panning even if we started on a dot.
+    // The parent needs to distinguish "Click on Dot" (Selection) from "Drag on Dot" (Pan).
   };
 
   return (

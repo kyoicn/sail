@@ -70,7 +70,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
   const animationRef = useRef<number | null>(null);
 
   // [NEW] Track Dragging State
-  const dragStartRef = useRef<{ x: number, viewRange: { min: number, max: number } } | null>(null);
+  const dragStartRef = useRef<{ x: number, viewRange: { min: number, max: number }, wasHoveringEvent: boolean } | null>(null);
   const hasPannedRef = useRef(false);
   const [isTrackDragging, setIsTrackDragging] = useState(false);
 
@@ -83,7 +83,8 @@ export const Timeline: React.FC<TimeControlProps> = ({
       hasPannedRef.current = false;
       dragStartRef.current = {
         x: e.clientX,
-        viewRange: { ...viewRange }
+        viewRange: { ...viewRange },
+        wasHoveringEvent: !!hoveredEventId // [NEW] Capture if we started on an event
       };
     }
   };
@@ -158,11 +159,18 @@ export const Timeline: React.FC<TimeControlProps> = ({
 
         // If we didn't pan significantly, treat it as a CLICK (Seek)
         if (!hasPannedRef.current && trackRef.current) {
-          const rect = trackRef.current.getBoundingClientRect();
-          const offsetX = e.clientX - rect.left;
-          const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
-          const newValue = viewRange.min + percentage * (viewRange.max - viewRange.min);
-          setCurrentDate(newValue);
+          // [NEW] If we were hovering an event, this is a CLICK on the EVENT.
+          // Do NOT seek/jump the timeline.
+          if (dragStartRef.current?.wasHoveringEvent) {
+            // Do nothing. The TimelineTrack's onClick will fire and handle selection.
+          } else {
+            // Normal background click -> Seek
+            const rect = trackRef.current.getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
+            const newValue = viewRange.min + percentage * (viewRange.max - viewRange.min);
+            setCurrentDate(newValue);
+          }
 
           // [Fix] Only switch mode on CLICK, not drag
           if (interactionMode === 'exploration') {
