@@ -153,7 +153,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         script.id = 'leaflet-heat-js';
         script.src = 'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js';
         script.onload = () => {
-          console.log("🔥 Heatmap Library Loaded");
           setIsHeatLoaded(true);
         };
         document.head.appendChild(script);
@@ -440,14 +439,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           layers.line = lineMarker;
 
           const hasChildren = (event.children?.length ?? 0) > 0;
-          if (event.title.includes('Container')) {
-            console.log(`[FocusDebug] Event: ${event.title}`, {
-              id: event.id,
-              children: event.children,
-              hasChildren,
-              onEnterFocusMode: !!onEnterFocusMode
-            });
-          }
+
           const cardContentHtml = getCardHtml(event, finalX, finalY, hasChildren, focusStack);
           const cardIcon = L.divIcon({ className: '', html: cardContentHtml, iconSize: [0, 0] });
           const cardMarker = L.marker([event.location.lat, event.location.lng], { icon: cardIcon, pane: 'cardsPane' }).addTo(map);
