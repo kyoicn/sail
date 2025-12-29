@@ -380,20 +380,20 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
             {/* Thin Scrollbar CSS */}
             <style>{`
                 .overview-scrollbar::-webkit-scrollbar {
-                    height: 6px;
-                    width: 6px;
+                    height: 4px; /* Minimal height */
+                    width: 4px;
                     background: transparent;
                 }
                 .overview-scrollbar::-webkit-scrollbar-track {
                     background: transparent;
                 }
                 .overview-scrollbar::-webkit-scrollbar-thumb {
-                    background-color: rgba(148, 163, 184, 0.8);
-                    border-radius: 10px;
+                    background-color: rgba(148, 163, 184, 0.4); /* Softer default */
+                    border-radius: 4px;
                     border: 0;
                 }
                 .overview-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background-color: rgba(100, 116, 139, 1);
+                    background-color: rgba(148, 163, 184, 0.8); /* Darker on hover */
                 }
             `}</style>
 
