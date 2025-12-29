@@ -98,6 +98,10 @@ class GeminiRateLimiter {
     // If no limits defined, proceed immediately
     if (this.rpmLimit <= 0 && this.tpmLimit <= 0) return;
 
+    if (this.tpmLimit > 0 && estimatedTokens > this.tpmLimit) {
+      throw new Error(`Request exceeds TPM limit (${estimatedTokens} > ${this.tpmLimit}).`);
+    }
+
     while (true) {
       this.cleanHistory();
 

@@ -83,18 +83,60 @@ export async function POST(request: Request) {
             const apiKey = process.env.GOOGLE_API_KEY;
             if (!apiKey) throw new Error('GOOGLE_API_KEY missing');
 
-            const fullPrompt = systemPrompt + "\n\nSource Text:\n" + (sourceText || "No source text provided") + "\n\nEvents to enrich:\n" + userContent;
+            // Dynamic Source Selection & Truncation
+            const bufferTokens = 1000;
 
-            // Estimate tokens (input + baseline for output)
-            const inputTokens = geminiLimiter.estimateTokens(fullPrompt);
-            const expectedOutputTokens = 1000; // Conservative baseline for a rich response
-            const totalEstimatedTokens = inputTokens + expectedOutputTokens;
+            // Priority:
+            // 1. event.original_text_ref (The extracted sentence/paragraph - BEST)
+            // 2. sourceText (The full document - needs truncation checks)
+
+            // Extract the original_text_ref from the user context if possible
+            // We need to parse userContent (which is JSON stringified event) back to object to check for Ref
+            let specificRef = "";
+            try {
+              const parsedEvent = JSON.parse(userContent);
+              if (Array.isArray(parsedEvent) && parsedEvent.length > 0 && parsedEvent[0].original_text_ref) {
+                specificRef = parsedEvent[0].original_text_ref;
+              }
+            } catch (e) {
+              // ignore parse error types
+            }
+
+            let effectiveSourceText = "";
+
+            if (specificRef && specificRef.length > 10) {
+              // Optimization: Use the specific reference!
+              effectiveSourceText = specificRef;
+              sendLog(`Using specific text reference (${specificRef.length} chars) for optimization.`);
+            } else {
+              if (!specificRef) {
+                // Debug: why is it missing?
+                // console.log("Missing original_text_ref in event:", userContent.substring(0, 100));
+              }
+
+              // Fallback behavior: Omit source text entirely if optimized ref is missing.
+              // This avoids sending huge texts and causing rate limit issues for legacy events.
+              effectiveSourceText = "[Source text omitted - Missing original_text_ref]";
+              sendLog(`Warning: original_text_ref missing. Source text omitted.`);
+            }
+
+            const fullPrompt = systemPrompt + "\n\nSource Text:\n" + effectiveSourceText + "\n\nEvents to enrich:\n" + userContent;
+
+            // Re-estimate
+            const totalEstimatedTokens = geminiLimiter.estimateTokens(fullPrompt) + 1000;
 
             const useStreaming = process.env.GEMINI_USE_STREAMING !== 'false';
             const endpoint = useStreaming ? 'streamGenerateContent' : 'generateContent';
 
             sendLog(`Calling Gemini (${model}) [${useStreaming ? 'STREAMING' : 'STATIC'}] | ${geminiLimiter.getStatusString(totalEstimatedTokens, model)}...`);
-            await geminiLimiter.acquire(totalEstimatedTokens, model);
+
+            try {
+              await geminiLimiter.acquire(totalEstimatedTokens, model);
+            } catch (limitErr: any) {
+              console.warn(`Skipping enrichment step due to rate limit: ${limitErr.message}`);
+              sendLog(`Skipped step: Request still too large (${totalEstimatedTokens}).`);
+              return "{}"; // Return empty JSON result to skip gracefully
+            }
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}`, {
               method: 'POST',

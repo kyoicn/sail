@@ -34,7 +34,8 @@ Each event must adhere to the following structure:
   "importance": float (0.0 to 10.0),
   "sources": [
     {"label": "string", "url": "string"}
-  ]
+  ],
+  "original_text_ref": "string (REQUIRED, the exact sentence or paragraph from the input text that this event was extracted from. This is crucial for verifying the event.)"
 }
 
 Rules:

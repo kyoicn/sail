@@ -91,8 +91,8 @@ export async function POST(request: Request) {
 
         // 2. Call LLM with Chunking
         let extractedRawEvents: any[] = [];
-        const tpmLimit = geminiLimiter.getTPMLimit();
-        const charLimitPerChunk = tpmLimit > 0 ? Math.floor(tpmLimit * 4 * 0.7) : 40000; // 70% safety margin
+        const tpmLimit = geminiLimiter.getTPMLimit(model);
+        const charLimitPerChunk = tpmLimit > 0 ? Math.floor(tpmLimit * 4 * 0.7) : 32000; // 70% safety margin or 8k tokens default
         const overlapChars = 2000;
 
         const chunks: string[] = [];
@@ -133,7 +133,14 @@ export async function POST(request: Request) {
             const endpoint = useStreaming ? 'streamGenerateContent' : 'generateContent';
 
             sendLog(`${chunkLogPrefix}Calling Gemini (${model}) [${useStreaming ? 'STREAMING' : 'STATIC'}] | ${geminiLimiter.getStatusString(totalEstimatedTokens, model)}...`);
-            await geminiLimiter.acquire(totalEstimatedTokens, model);
+
+            try {
+              await geminiLimiter.acquire(totalEstimatedTokens, model);
+            } catch (limitErr: any) {
+              console.warn(`Skipping chunk due to rate limit: ${limitErr.message}`);
+              sendLog(`${chunkLogPrefix}Skipped: Request too large for model limits.`);
+              continue;
+            }
 
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${apiKey}`, {
               method: 'POST',
@@ -286,7 +293,8 @@ export async function POST(request: Request) {
               granularity: e.location?.precision || e.location?.granularity || 'spot',
               certainty: e.location?.certainty || 'unknown'
             },
-            images: canonicalUrl ? [{ label: 'Primary Image', url: canonicalUrl }] : []
+            images: canonicalUrl ? [{ label: 'Primary Image', url: canonicalUrl }] : [],
+            original_text_ref: e.original_text_ref
           };
         }));
 

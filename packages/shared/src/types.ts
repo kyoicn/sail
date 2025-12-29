@@ -109,7 +109,9 @@ export interface EventData {
   // Pointer back to parent source_id (optional)
   parent_source_id?: string;
 
-
+  // Optimization: The specific text chunk from the original source that this event was extracted from.
+  // Used for targeted enrichment without sending the full source text.
+  original_text_ref?: string;
 }
 
 // --- Map State & Layout ---
