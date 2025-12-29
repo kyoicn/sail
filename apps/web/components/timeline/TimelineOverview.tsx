@@ -93,7 +93,7 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
 
         // Calculate Ideal Indicator Width (Standard fit)
         const standardIndicatorW = containerW * ratio;
-        const MIN_INDICATOR_W = 80;
+        const MIN_INDICATOR_W = 160;
         const MAX_VIRTUAL_WIDTH = 5000000; // 5M pixels (Browser Safe Limit)
 
         let newVirtualWidth = containerW;
@@ -217,7 +217,7 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
             const { startX, startLeftPixel, virtualWidth: vWidth, widthPixel, mode, startScrollLeft } = dragInfo.current;
             const { globalMin, globalMax, setViewRange } = propsRef.current;
             const deltaPixels = clientX - startX;
-            const MIN_W = 80;
+            const MIN_W = 160;
 
             // --- Mode 1: Pan Overview (Scroll Background) ---
             if (mode === 'pan-overview') {
