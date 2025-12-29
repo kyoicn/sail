@@ -384,6 +384,7 @@ export const Timeline: React.FC<TimeControlProps> = ({
               setViewRange={setViewRange}
               globalMin={globalMin}
               globalMax={globalMax}
+              isPlaying={isPlaying}
             />
           </div>
         </div>

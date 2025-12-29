@@ -6,6 +6,7 @@ interface TimelineOverviewProps {
     setViewRange: (range: { min: number, max: number }) => void;
     globalMin: number;
     globalMax: number;
+    isPlaying: boolean;
 }
 
 /**
@@ -19,7 +20,8 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
     viewRange,
     setViewRange,
     globalMin,
-    globalMax
+    globalMax,
+    isPlaying
 }) => {
     // DOM Refs
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -34,6 +36,13 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
     const propsRef = useRef({ viewRange, setViewRange, globalMin, globalMax });
     useEffect(() => {
         propsRef.current = { viewRange, setViewRange, globalMin, globalMax };
+    });
+
+    const prevPropsRef = useRef({
+        viewRange: { min: 0, max: 0 },
+        globalMin: 0,
+        globalMax: 0,
+        containerWidth: 0
     });
 
     const dragInfo = useRef<{
@@ -138,33 +147,40 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
         }
 
         // Auto-Scroll Logic: Keep indicator in view if we are actively modifying viewRange (not dragging logic)
-        // [FIX] Improved centering logic. If scale changes, we almost always want to re-center or maintain relative focus.
+        // [FIX] Improved centering logic. Only center if the viewRange/layout actually CHANGED.
+        // If we just finished dragging (isDragging -> false), but viewRange is same, DO NOT Snap back.
+        const prev = prevPropsRef.current;
+        const rangeChanged = prev.viewRange.min !== viewRange.min || prev.viewRange.max !== viewRange.max;
+        const sizeChanged = prev.containerWidth !== containerWidth || prev.globalMin !== globalMin || prev.globalMax !== globalMax;
+
+        // Update Ref
+        prevPropsRef.current = { viewRange, globalMin, globalMax, containerWidth };
+
         if (!isDragging && scrollContainerRef.current) {
             const sc = scrollContainerRef.current;
             const viewportW = sc.clientWidth;
             const centerVirtual = virtualLeft + (virtualIndicatorW / 2);
 
             // Scroll Logic Refined:
-            // 1. If in "Virtual Mode" (Tier 2 - Huge Width), ALWAYS center the indicator ("Follow Camera" mode).
-            //    This prevents the "snap/jump" behavior the user reported.
-            // 2. If in "Standard Mode" (Tier 1 - Fit to Screen), only scroll if somehow off-screen (rare/failsafe).
+            // 1. If PLAYING + Expanded: "Follow Camera" (Continuous Centering) for smooth ticker tape.
+            // 2. If INTERACTING (Click/Drag) or Paused: "Smart Visibility". Only scroll if off-screen.
+            //    This prevents jarring jumps when clicking a visible point.
 
-            const isOffScreen = virtualLeft < sc.scrollLeft || (virtualLeft + virtualIndicatorW) > (sc.scrollLeft + viewportW);
-            // isExpanded corresponds to virtual mode essentially
+            if (rangeChanged || sizeChanged) {
+                const isOffScreen = virtualLeft < sc.scrollLeft || (virtualLeft + virtualIndicatorW) > (sc.scrollLeft + viewportW);
 
-            if (isExpanded) {
-                // Continuous Centering (Stable)
-                sc.scrollLeft = centerVirtual - (viewportW / 2);
-            } else if (isOffScreen) {
-                // Failsafe for standard mode
-                sc.scrollLeft = centerVirtual - (viewportW / 2);
-            } else {
-                // Ensure we are at 0 if fitting
-                if (sc.scrollLeft !== 0) sc.scrollLeft = 0;
+                if (isExpanded && isPlaying) {
+                    // Continuous Centering (Ticker Tape)
+                    sc.scrollLeft = centerVirtual - (viewportW / 2);
+                } else if (isOffScreen) {
+                    // Smart Visibility (Navigating to off-screen point)
+                    sc.scrollLeft = centerVirtual - (viewportW / 2);
+                } else {
+                    // Ensure we are at 0 if fitting
+                }
             }
         }
-
-    }, [viewRange, globalMin, globalMax, isDragging, containerWidth]);
+    }, [viewRange, globalMin, globalMax, isDragging, containerWidth, isPlaying]);
 
 
     // --- 4. Drag Logic ---
@@ -206,11 +222,10 @@ export const TimelineOverview: React.FC<TimelineOverviewProps> = ({
             // --- Mode 1: Pan Overview (Scroll Background) ---
             if (mode === 'pan-overview') {
                 if (scrollContainerRef.current && typeof startScrollLeft === 'number') {
-                    // Update Scroll Position
-                    // Drag Left (delta < 0) -> Pull content left -> Scroll Right (Increase Scroll)
-                    // Drag Right (delta > 0) -> Pull content right -> Scroll Left (Decrease Scroll)
-                    // Formula: NewScroll = StartScroll - Delta
-                    scrollContainerRef.current.scrollLeft = startScrollLeft - deltaPixels;
+                    // Only scroll if content > container (i.e. scrollable)
+                    if (scrollContainerRef.current.scrollWidth > scrollContainerRef.current.clientWidth) {
+                        scrollContainerRef.current.scrollLeft = startScrollLeft - deltaPixels;
+                    }
                 }
                 rafLock.current = null;
                 return; // Explicitly stop here. Do NOT update View Range.
