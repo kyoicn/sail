@@ -50,13 +50,10 @@ export default function FeedbackModal() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 z-50 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 p-3 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border border-zinc-200 dark:border-zinc-700 group"
+        className="fixed bottom-4 right-4 z-50 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border border-zinc-200 dark:border-zinc-700 text-sm font-medium"
         title="Send Feedback"
       >
-        <MessageSquare className="w-5 h-5" />
-        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-in-out whitespace-nowrap ml-0 group-hover:ml-2 text-sm font-medium">
-          Feedback
-        </span>
+        Feedback
       </button>
     );
   }
