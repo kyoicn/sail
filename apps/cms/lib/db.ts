@@ -17,6 +17,8 @@ export function getDbSchema(dataset: string): string {
       return 'dev';
     case 'staging':
       return 'staging';
+    case 'local':
+      return 'dev'; // Local typically uses dev schema or mock data
     case 'prod':
     default:
       return 'prod';

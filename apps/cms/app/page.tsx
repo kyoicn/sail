@@ -41,6 +41,17 @@ export default function Home() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">Support</h2>
+            <span className="bg-amber-100 text-amber-800 text-xs font-medium px-2.5 py-0.5 rounded">User Feedback</span>
+          </div>
+          <p className="text-gray-500 mb-6">Review user suggestions, bug reports, and general feedback.</p>
+          <Link href="/feedback" className="block w-full text-center bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 transition-colors">
+            Feedback Dashboard
+          </Link>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-800">System</h2>
             <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">Admin</span>
           </div>
