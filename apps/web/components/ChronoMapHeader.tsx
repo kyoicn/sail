@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { Map as MapIcon, Layers, Loader2, Plus, Minus, Sun, Moon } from 'lucide-react';
+import { Map as MapIcon, Layers, Loader2, Plus, Minus, Sun, Moon, SquarePen } from 'lucide-react';
 import { MapStyleSelector } from './map/MapStyleSelector';
 
 interface ChronoMapHeaderProps {
@@ -12,6 +12,7 @@ interface ChronoMapHeaderProps {
   mapStyle: string;
   setMapStyle: (style: string) => void;
   onZoom: (type: 'in' | 'out') => void;
+  onFeedbackClick: () => void;
 }
 
 export function ChronoMapHeader({
@@ -21,7 +22,8 @@ export function ChronoMapHeader({
   toggleTheme,
   mapStyle,
   setMapStyle,
-  onZoom
+  onZoom,
+  onFeedbackClick
 }: ChronoMapHeaderProps) {
   const [isStyleSelectorOpen, setIsStyleSelectorOpen] = useState(false);
   const layersButtonRef = useRef<HTMLButtonElement>(null);
@@ -52,30 +54,42 @@ export function ChronoMapHeader({
   return (
     <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 pointer-events-none">
       <div className="w-full flex justify-between items-start">
-        <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 pointer-events-auto border border-white/50 flex items-center gap-3">
-          <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
-            <MapIcon className="text-blue-600 w-6 h-6" />
-            Sail
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
-          </h1>
+        <div className="flex items-stretch gap-2 pointer-events-auto">
+          {/* Logo Banner */}
+          <div className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 border border-white/50 flex items-center gap-3">
+            <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
+              <MapIcon className="text-blue-600 w-6 h-6" />
+              Sail
+              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span>
+            </h1>
 
-          {isLoading && (
-            <div className="flex items-center gap-2 px-2 border-l border-slate-200">
-              <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
-              <span className="text-xs text-slate-500 font-medium">Updating...</span>
-            </div>
-          )}
+            {isLoading && (
+              <div className="flex items-center gap-2 px-2 border-l border-slate-200">
+                <Loader2 className="animate-spin text-blue-500 w-4 h-4" />
+                <span className="text-xs text-slate-500 font-medium">Updating...</span>
+              </div>
+            )}
 
-          {dataset !== 'prod' && (
-            <span className={`text-[10px] font-mono px-1 rounded border uppercase tracking-wider
-              ${dataset === 'staging'
-                ? 'text-blue-600 bg-blue-100 border-blue-200'
-                : 'text-orange-600 bg-orange-100 border-orange-200'
-              }
-            `}>
-              DATA: {dataset.toUpperCase()}
-            </span>
-          )}
+            {dataset !== 'prod' && (
+              <span className={`text-[10px] font-mono px-1 rounded border uppercase tracking-wider
+                ${dataset === 'staging'
+                  ? 'text-blue-600 bg-blue-100 border-blue-200'
+                  : 'text-orange-600 bg-orange-100 border-orange-200'
+                }
+              `}>
+                DATA: {dataset.toUpperCase()}
+              </span>
+            )}
+          </div>
+
+          {/* Feedback Button (Individual) */}
+          <button
+            onClick={onFeedbackClick}
+            className="bg-white/90 backdrop-blur-md shadow-sm rounded-2xl px-5 py-3 border border-white/50 text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105 flex items-center justify-center gap-2"
+          >
+            <SquarePen size={16} />
+            Feedback
+          </button>
         </div>
         <div className="pointer-events-auto flex flex-col gap-2">
           <button

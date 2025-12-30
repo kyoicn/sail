@@ -4,8 +4,12 @@ import React, { useState } from 'react';
 import { X, MessageSquare, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAppConfig } from '../../hooks/useAppConfig';
 
-export default function FeedbackModal() {
-  const [isOpen, setIsOpen] = useState(false);
+interface FeedbackModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const { dataset } = useAppConfig();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -32,7 +36,7 @@ export default function FeedbackModal() {
 
       setStatus('success');
       setTimeout(() => {
-        setIsOpen(false);
+        onClose();
         setStatus('idle');
         setMessage('');
         setEmail('');
@@ -46,17 +50,7 @@ export default function FeedbackModal() {
     }
   };
 
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 z-50 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border border-zinc-200 dark:border-zinc-700 text-sm font-medium"
-        title="Send Feedback"
-      >
-        Feedback
-      </button>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -66,7 +60,7 @@ export default function FeedbackModal() {
         <div className="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
           <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Send Feedback</h3>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={onClose}
             className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -141,7 +135,7 @@ export default function FeedbackModal() {
               <div className="pt-2 flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsOpen(false)}
+                  onClick={onClose}
                   className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
                   Cancel

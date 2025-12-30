@@ -102,6 +102,9 @@ function ChronoMapContent() {
   const [showDots, setShowDots] = useState(true);
   const [dotStyle, setDotStyle] = useState('classic');
 
+  // [NEW] Feedback State
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+
   const handleZoomClick = (type: 'in' | 'out') => {
     setZoomAction({ type, id: Date.now() });
   };
@@ -327,6 +330,7 @@ function ChronoMapContent() {
         mapStyle={mapStyle}
         setMapStyle={setMapStyle}
         onZoom={handleZoomClick}
+        onFeedbackClick={() => setIsFeedbackOpen(true)}
       />
 
       <main className="flex-grow relative z-0">
@@ -397,7 +401,10 @@ function ChronoMapContent() {
         onEnterFocusMode={handleEnterFocusMode}
       />
 
-      <FeedbackModal />
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+      />
 
     </div>
   );
