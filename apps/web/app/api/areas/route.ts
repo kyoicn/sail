@@ -6,6 +6,7 @@
 
 import { createServiceClient } from '../../../lib/supabase';
 import { NextResponse } from 'next/server';
+import { getDataset, getSchemaForDataset } from '../../../lib/env';
 
 
 
@@ -24,10 +25,9 @@ export async function GET(request: Request) {
   }
 
   // [NEW] Dataset Switcher (Prod/Dev)
-  const dataset = searchParams.get('dataset') || 'prod';
-  let targetSchema = 'prod';
-  if (dataset === 'dev') targetSchema = 'dev';
-  if (dataset === 'staging') targetSchema = 'staging';
+  const datasetParam = searchParams.get('dataset');
+  const targetDataset = getDataset(datasetParam);
+  const targetSchema = getSchemaForDataset(targetDataset);
 
   const supabase = createServiceClient(targetSchema);
 

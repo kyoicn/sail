@@ -1,6 +1,7 @@
 
 import { createServiceClient } from '../../../lib/supabase';
 import { NextResponse } from 'next/server';
+import { getDataset, getSchemaForDataset } from '../../../lib/env';
 
 
 
@@ -17,11 +18,9 @@ export async function GET(request: Request) {
   const min_year = parseFloat(searchParams.get('min_year') || queryYear.toString());
   const max_year = parseFloat(searchParams.get('max_year') || queryYear.toString());
 
-  const dataset = searchParams.get('dataset') || 'prod';
-
-  let targetSchema = 'prod';
-  if (dataset === 'dev') targetSchema = 'dev';
-  if (dataset === 'staging') targetSchema = 'staging';
+  const datasetParam = searchParams.get('dataset');
+  const targetDataset = getDataset(datasetParam);
+  const targetSchema = getSchemaForDataset(targetDataset);
 
   // [NEW] Schema-Aware Client
   // Re-init client for specific schema

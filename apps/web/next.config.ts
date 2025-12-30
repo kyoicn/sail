@@ -1,11 +1,43 @@
 import type { NextConfig } from "next";
 import { resolve } from "path";
-import { loadEnvConfig } from "@next/env";
+import fs from "fs";
 
 // Load environment variables from the root directory
+// We manually parse this because @next/env was failing to resolve the path correctly in this monorepo structure.
+console.log("--- [NextConfig] Loading Env ---");
 const projectDir = process.cwd();
-const rootDir = resolve(projectDir, "../../");
-loadEnvConfig(rootDir);
+const envPath = resolve(projectDir, "../../.env");
+
+console.log(`[NextConfig] Attempting to load env from: ${envPath}`);
+
+if (fs.existsSync(envPath)) {
+  try {
+    const envFile = fs.readFileSync(envPath, "utf8");
+    envFile.split("\n").forEach((line) => {
+      // Simple parsing: KEY=VAL
+      // Ignores comments starting with #
+      if (line.trim().startsWith("#")) return;
+
+      const match = line.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        const value = match[2].trim().replace(/^["']|["']$/g, ""); // Remove quotes
+
+        // Only set if not already set (respect system envs)
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    });
+    console.log("[NextConfig] Successfully loaded root .env variables.");
+    console.log("[NextConfig] SUPABASE_URL present: ", !!process.env.SUPABASE_URL);
+  } catch (error) {
+    console.error("[NextConfig] Failed to parse .env file:", error);
+  }
+} else {
+  console.warn("[NextConfig] Root .env file not found.");
+}
+console.log("--------------------------------");
 
 const nextConfig: NextConfig = {
   /* config options here */

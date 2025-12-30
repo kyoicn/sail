@@ -10,6 +10,7 @@ import { Timeline } from '../components/timeline/Timeline';
 import { EventDetailPanel } from '../components/panel/EventDetailPanel';
 import { DebugHUD } from '../components/debug/DebugHUD';
 import { CollectionsSidebar } from '../components/collections/CollectionsSidebar';
+import FeedbackModal from '../components/feedback/FeedbackModal';
 
 // Imported Hooks
 import { useUrlSync } from '../hooks/useUrlSync';
@@ -395,6 +396,8 @@ function ChronoMapContent() {
         onClose={() => setSelectedEvent(null)}
         onEnterFocusMode={handleEnterFocusMode}
       />
+
+      <FeedbackModal />
 
     </div>
   );

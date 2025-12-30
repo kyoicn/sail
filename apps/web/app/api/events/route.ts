@@ -16,6 +16,7 @@ import { createServiceClient } from '../../../lib/supabase';
 import { NextResponse } from 'next/server';
 import { MOCK_EVENTS } from '../../../lib/constants';
 import { EventData } from '@sail/shared';
+import { getDataset, getSchemaForDataset } from '../../../lib/env';
 
 
 
@@ -24,14 +25,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   // [NEW] Dataset Switcher
-  // Determined by 'env' or 'dataset' param.
-  const envParam = searchParams.get('env') || searchParams.get('dataset');
-  let targetSchema = 'prod';
-  if (envParam === 'dev') targetSchema = 'dev';
-  if (envParam === 'staging') targetSchema = 'staging';
+  const datasetParam = searchParams.get('env') || searchParams.get('dataset');
+  const targetDataset = getDataset(datasetParam);
+  const targetSchema = getSchemaForDataset(targetDataset);
 
   // Local Mock Mode
-  if (envParam === 'local') {
+  if (datasetParam === 'local') {
     return NextResponse.json(MOCK_EVENTS, {
       headers: { 'Cache-Control': 'no-store' }
     });
@@ -207,7 +206,7 @@ export async function GET(request: Request) {
       zoom_level: Math.floor(zoom),
       min_year: minYear,
       max_year: maxYear,
-      p_dataset: envParam || 'prod',
+      p_dataset: targetDataset,
       p_root_id: rootId
     };
   } else {
