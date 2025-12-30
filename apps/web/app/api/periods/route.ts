@@ -1,11 +1,8 @@
 
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '../../../lib/supabase';
 import { NextResponse } from 'next/server';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -28,11 +25,9 @@ export async function GET(request: Request) {
 
   // [NEW] Schema-Aware Client
   // Re-init client for specific schema
-  const supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
-    { db: { schema: targetSchema } }
-  );
+  // [NEW] Schema-Aware Client
+  // Re-init client for specific schema
+  const supabase = createServiceClient(targetSchema);
 
   // Constant RPC name, resolved relative to the selected schema
   const rpcName = 'get_active_periods';

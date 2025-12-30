@@ -12,15 +12,12 @@
  * - Transforms/Maps data to match 'types/index.ts' (Application Layer).
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '../../../lib/supabase';
 import { NextResponse } from 'next/server';
 import { MOCK_EVENTS } from '../../../lib/constants';
 import { EventData } from '@sail/shared';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
+
 
 
 export async function GET(request: Request) {
@@ -43,11 +40,8 @@ export async function GET(request: Request) {
   // Create Schema-Specific Supabase Client
   // We re-initialize the client here because the global one is bound to 'public' by default.
   // This is lightweight.
-  const supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
-    { db: { schema: targetSchema } }
-  );
+  // Create Schema-Specific Supabase Client
+  const supabase = createServiceClient(targetSchema);
 
   // [NEW] ID-Based Fetch (Bypass RPC)
   const idsParam = searchParams.get('ids');

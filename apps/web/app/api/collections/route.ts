@@ -1,10 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '../../../lib/supabase';
 import { NextResponse } from 'next/server';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -14,11 +11,7 @@ export async function GET(request: Request) {
   if (dataset === 'dev') targetSchema = 'dev';
   if (dataset === 'staging') targetSchema = 'staging';
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
-    { db: { schema: targetSchema } }
-  );
+  const supabase = createServiceClient(targetSchema);
 
   // Constant RPC name
   const rpcName = 'get_all_collections';

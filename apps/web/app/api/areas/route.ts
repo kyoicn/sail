@@ -4,13 +4,10 @@
  * Fetches semantic area definitions (including geometry) by ID.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '../../../lib/supabase';
 import { NextResponse } from 'next/server';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -32,11 +29,7 @@ export async function GET(request: Request) {
   if (dataset === 'dev') targetSchema = 'dev';
   if (dataset === 'staging') targetSchema = 'staging';
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
-    { db: { schema: targetSchema } }
-  );
+  const supabase = createServiceClient(targetSchema);
 
   // Call the RPC (Same name for all schemas now!)
   const rpcName = 'get_areas_by_ids';
